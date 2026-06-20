@@ -34,6 +34,8 @@ dependencies:
   isar_flutter_libs: ^3.1.0+1
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
+  path_provider: ^2.1.6
+  path: ^1.9.0
 
   # Translation
   google_mlkit_translation: ^0.11.0
