@@ -52,4 +52,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<ChartsData> getCharts({String? country}) => _remoteSource.getCharts(country);
+
+  @override
+  Future<List<String>> getSearchSuggestions(String query) => _remoteSource.getSearchSuggestions(query);
 }

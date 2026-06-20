@@ -38,4 +38,7 @@ abstract class MusicRepository {
 
   /// Get charts (top songs/albums)
   Future<ChartsData> getCharts({String? country});
+
+  /// Get search suggestions/autocomplete
+  Future<List<String>> getSearchSuggestions(String query);
 }

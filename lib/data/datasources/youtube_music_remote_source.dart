@@ -230,4 +230,13 @@ class YouTubeMusicRemoteSource {
   void dispose() {
     _yt.close();
   }
+
+  /// Get search suggestions/autocomplete
+  Future<List<String>> getSearchSuggestions(String query) async {
+    try {
+      return await _yt.search.getQuerySuggestions(query);
+    } catch (_) {
+      return const [];
+    }
+  }
 }

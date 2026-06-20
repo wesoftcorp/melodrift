@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../app/router/app_router.gr.dart';
+import '../providers/player_notifier.dart';
 
 @RoutePage()
-class MainLayoutScreen extends StatelessWidget {
+class MainLayoutScreen extends ConsumerWidget {
   const MainLayoutScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerStateProvider);
+    final hasActiveSong = playerState.currentSong != null;
+
     return AutoTabsScaffold(
       routes: const [
         HomeRoute(),
@@ -19,7 +25,7 @@ class MainLayoutScreen extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildMiniPlayerSlot(context),
+            if (hasActiveSong) _buildMiniPlayerSlot(context, ref, playerState),
             NavigationBar(
               selectedIndex: tabsRouter.activeIndex,
               onDestinationSelected: tabsRouter.setActiveIndex,
@@ -52,59 +58,140 @@ class MainLayoutScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMiniPlayerSlot(BuildContext context) {
+  Widget _buildMiniPlayerSlot(
+    BuildContext context,
+    WidgetRef ref,
+    PlayerState playerState,
+  ) {
     final theme = Theme.of(context);
+    final song = playerState.currentSong;
+    if (song == null) return const SizedBox.shrink();
+
+    final progress = playerState.duration.inMilliseconds > 0
+        ? playerState.position.inMilliseconds / playerState.duration.inMilliseconds
+        : 0.0;
+
     return InkWell(
       onTap: () {
         context.router.push(const PlayerRoute());
       },
-      child: Container(
-        height: 64,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0.0;
+          if (velocity < -300) {
+            ref.read(playerStateProvider.notifier).next();
+          } else if (velocity > 300) {
+            ref.read(playerStateProvider.notifier).previous();
+          }
+        },
+        child: Container(
+          height: 64,
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant,
+              width: 0.5,
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            const Icon(Icons.music_note),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'No song playing',
-                    style: theme.textTheme.titleSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          child: Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: song.artworkUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: song.artworkUrl,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => const SizedBox(
+                                  width: 44,
+                                  height: 44,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => const Icon(Icons.music_note),
+                              )
+                            : Container(
+                                width: 44,
+                                height: 44,
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                child: const Icon(Icons.music_note),
+                              ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              song.title,
+                              style: theme.textTheme.titleSmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              song.artist,
+                              style: theme.textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: playerState.isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(playerState.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow),
+                        onPressed: () {
+                          ref.read(playerStateProvider.notifier).togglePlay();
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.skip_next),
+                        onPressed: () {
+                          ref.read(playerStateProvider.notifier).next();
+                        },
+                      ),
+                    ],
                   ),
-                  Text(
-                    'Let the music drift',
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.play_arrow),
-              onPressed: () {},
-            ),
-            IconButton(
-              icon: const Icon(Icons.skip_next),
-              onPressed: () {},
-            ),
-          ],
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 3,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
