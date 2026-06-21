@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import '../../data/repositories/history_repository_impl.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../widgets/search_results_view.dart';
+import '../widgets/voice_search_sheet.dart';
 
 @RoutePage()
 class SearchScreen extends ConsumerStatefulWidget {
@@ -17,7 +18,6 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  
   String _submittedQuery = '';
   List<String> _suggestions = [];
   List<String> _history = [];
@@ -30,9 +30,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _controller.addListener(_onSearchChanged);
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && _submittedQuery.isNotEmpty) {
-        setState(() {
-          _submittedQuery = '';
-        });
+        setState(() => _submittedQuery = '');
       }
     });
   }
@@ -68,29 +66,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Future<void> _runSearch(String query) async {
     final cleanQuery = query.trim();
     if (cleanQuery.isEmpty) return;
-
     _controller.text = cleanQuery;
     _focusNode.unfocus();
-
-    setState(() {
-      _submittedQuery = cleanQuery;
-    });
-
+    setState(() => _submittedQuery = cleanQuery);
     final historyRepo = ref.read(historyRepositoryProvider);
     await historyRepo.addSearchQuery(cleanQuery);
     await _loadHistory();
   }
 
-  Future<void> _deleteHistoryItem(String query) async {
-    final historyRepo = ref.read(historyRepositoryProvider);
-    await historyRepo.deleteSearchQuery(query);
-    await _loadHistory();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -110,24 +95,32 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       });
                     },
                   )
-                : null,
+                : IconButton(
+                    icon: const Icon(Icons.mic),
+                    onPressed: () async {
+                      final result = await showModalBottomSheet<String>(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const VoiceSearchSheet(),
+                      );
+                      if (result != null && result.isNotEmpty) {
+                        await _runSearch(result);
+                      }
+                    },
+                  ),
           ),
           onSubmitted: _runSearch,
         ),
       ),
-      body: _buildBody(theme),
+      body: _buildBody(Theme.of(context)),
     );
   }
 
   Widget _buildBody(ThemeData theme) {
     final query = _controller.text.trim();
-
-    // 1. Show results when query is submitted
     if (_submittedQuery.isNotEmpty && !_focusNode.hasFocus) {
       return SearchResultsView(query: _submittedQuery);
     }
-
-    // 2. Show suggestions when typing
     if (_focusNode.hasFocus && query.isNotEmpty) {
       return ListView.builder(
         itemCount: _suggestions.length,
@@ -141,12 +134,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         },
       );
     }
-
-    // 3. Show search history when field is empty/idle
     if (_history.isEmpty) {
       return const Center(child: Text('Search for songs, artists, or albums'));
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -164,7 +154,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 title: Text(item),
                 trailing: IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => _deleteHistoryItem(item),
+                  onPressed: () async {
+                    await ref.read(historyRepositoryProvider).deleteSearchQuery(item);
+                    await _loadHistory();
+                  },
                 ),
                 onTap: () => _runSearch(item),
               );

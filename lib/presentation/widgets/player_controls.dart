@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/player_notifier.dart';
+import '../../data/services/share_service_impl.dart';
+import 'player_dialogs.dart';
 
 class PlayerControls extends ConsumerWidget {
   const PlayerControls({super.key});
@@ -14,7 +16,7 @@ class PlayerControls extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Volume & Speed Slider Row
+        // Volume, Share & Speed Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
@@ -25,21 +27,33 @@ class PlayerControls extends ConsumerWidget {
                   playerState.volume == 0.0 ? Icons.volume_mute : Icons.volume_up,
                   color: Colors.white70,
                 ),
-                onPressed: () => _showVolumeSlider(context, playerState, notifier),
+                onPressed: () => PlayerDialogs.showVolumeSlider(context, playerState, notifier),
               ),
+              if (playerState.currentSong != null)
+                IconButton(
+                  icon: const Icon(Icons.share, color: Colors.white70),
+                  onPressed: () {
+                    final song = playerState.currentSong!;
+                    ref.read(shareServiceProvider).shareSong(
+                          title: song.title,
+                          artist: song.artist,
+                          youtubeId: song.videoId,
+                        );
+                  },
+                ),
               TextButton.icon(
                 icon: const Icon(Icons.speed, color: Colors.white70, size: 18),
                 label: Text(
                   '${playerState.speed}x',
                   style: theme.textTheme.labelMedium?.copyWith(color: Colors.white70),
                 ),
-                onPressed: () => _showSpeedSelection(context, playerState, notifier),
+                onPressed: () => PlayerDialogs.showSpeedSelection(context, playerState, notifier),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        // Main Control Buttons
+        // Main Playback Buttons
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -61,10 +75,7 @@ class PlayerControls extends ConsumerWidget {
               child: Container(
                 width: 72,
                 height: 72,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                 child: playerState.isLoading
                     ? const Padding(
                         padding: EdgeInsets.all(20.0),
@@ -96,69 +107,6 @@ class PlayerControls extends ConsumerWidget {
           ],
         ),
       ],
-    );
-  }
-
-  void _showVolumeSlider(BuildContext context, PlayerState state, PlayerNotifier notifier) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1E1E22),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Adjust Volume', style: TextStyle(color: Colors.white, fontSize: 16)),
-              const SizedBox(height: 16),
-              StatefulBuilder(
-                builder: (context, setModalState) {
-                  return Slider(
-                    value: state.volume,
-                    min: 0.0,
-                    max: 1.0,
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white24,
-                    onChanged: (val) {
-                      notifier.setVolume(val);
-                      setModalState(() {});
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showSpeedSelection(BuildContext context, PlayerState state, PlayerNotifier notifier) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E22),
-        title: const Text('Playback Speed', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) {
-            return RadioListTile<double>(
-              title: Text('${speed}x', style: const TextStyle(color: Colors.white)),
-              value: speed,
-              groupValue: state.speed,
-              activeColor: Colors.white,
-              onChanged: (val) {
-                if (val != null) notifier.setSpeed(val);
-                Navigator.pop(context);
-              },
-            );
-          }).toList(),
-        ),
-      ),
     );
   }
 }
