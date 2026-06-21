@@ -46,6 +46,7 @@ dependencies:
   firebase_database: ^10.4.9
   firebase_crashlytics: ^3.4.18
   firebase_analytics: ^10.8.9
+  google_sign_in: ^6.2.1
 
   # UI & Styling
   flex_color_scheme: ^8.4.0

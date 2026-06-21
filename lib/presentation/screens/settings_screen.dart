@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
 import '../../core/theme/theme_provider.dart';
+import '../providers/auth_provider.dart';
+import '../../flavors.dart';
 
 @RoutePage()
 class SettingsScreen extends ConsumerWidget {
@@ -18,6 +20,33 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Online Services',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.cloud_queue),
+            title: const Text('Enable Firebase Sync'),
+            subtitle: const Text('Sync Collaborative Listening rooms & data'),
+            value: ref.watch(firebaseEnabledProvider),
+            onChanged: (value) async {
+              if (value && F.isFoss) {
+                _showFossInfoDialog(context);
+                return;
+              }
+              await ref.read(firebaseEnabledProvider.notifier).toggle(value);
+            },
+          ),
+          if (ref.watch(firebaseEnabledProvider)) ...[
+            _buildAuthProfileTile(context, ref),
+          ],
+          const Divider(),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
@@ -66,6 +95,58 @@ class SettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.info_outline),
             title: Text('Melodrift'),
             subtitle: Text('Version 1.0.0 (FOSS Edition)\nLet the music drift.'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthProfileTile(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider);
+
+    if (user != null) {
+      return ListTile(
+        leading: CircleAvatar(
+          backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
+              ? NetworkImage(user.photoUrl!)
+              : null,
+          child: user.photoUrl == null || user.photoUrl!.isEmpty
+              ? const Icon(Icons.person)
+              : null,
+        ),
+        title: Text(user.displayName),
+        subtitle: Text(user.email ?? 'Connected guest'),
+        trailing: TextButton(
+          onPressed: () => ref.read(authProvider.notifier).signOut(),
+          child: const Text('Sign Out'),
+        ),
+      );
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.login),
+      title: const Text('Cloud Sync Account'),
+      subtitle: const Text('Connect Google account for cloud backup'),
+      trailing: ElevatedButton(
+        onPressed: () => ref.read(authProvider.notifier).signInWithGoogle(),
+        child: const Text('Sign In'),
+      ),
+    );
+  }
+
+  void _showFossInfoDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('FOSS Edition Restriction'),
+        content: const Text(
+          'Melodrift FOSS Edition is compiled without any proprietary third-party dependencies, including Google Firebase SDKs.\n\n'
+          'To use cloud sync features, please download and run the standard Melodrift build variant.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
         ],
       ),

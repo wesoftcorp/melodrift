@@ -5,9 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:isar/isar.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'app.dart';
 import 'flavors.dart';
+import 'firebase_options.dart';
 import 'core/theme/theme_provider.dart';
 import 'data/models/local_models.dart';
 import 'data/datasources/local_music_source.dart';
@@ -21,6 +23,18 @@ void main() async {
   );
 
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize Firebase Core only if opted-in and on Full flavor
+  final useFirebase = prefs.getBool('use_firebase') ?? false;
+  if (F.isFull && useFirebase) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e) {
+      debugPrint('Firebase initialization failed: $e');
+    }
+  }
 
   final dir = await getApplicationDocumentsDirectory();
   final isar = await Isar.open(

@@ -5,6 +5,8 @@ import '../../data/repositories/collaboration_repository_impl.dart';
 import '../../domain/entities/listening_room.dart';
 import '../../domain/repositories/collaboration_repository.dart';
 import 'player_notifier.dart';
+import 'auth_provider.dart';
+import '../../domain/entities/user.dart';
 
 class CollaborationState {
   final ListeningRoom? room;
@@ -49,8 +51,26 @@ class CollaborationNotifier extends StateNotifier<CollaborationState> {
   StreamSubscription<ListeningRoom>? _subscription;
 
   CollaborationNotifier(this._repo, this._ref)
-      : super(CollaborationState(userId: 'user_${1000 + Random().nextInt(9000)}')) {
+      : super(const CollaborationState(userId: '')) {
+    _init();
+  }
+
+  void _init() {
     _listenToPlayer();
+    _listenToAuth();
+  }
+
+  void _listenToAuth() {
+    _ref.listen<UserModel?>(authProvider, (prev, next) {
+      if (next != null) {
+        state = state.copyWith(userId: next.displayName);
+      } else {
+        final currentGuestId = state.userId.isEmpty || !state.userId.startsWith('guest_')
+            ? 'guest_${1000 + Random().nextInt(9000)}'
+            : state.userId;
+        state = state.copyWith(userId: currentGuestId);
+      }
+    }, fireImmediately: true);
   }
 
   void _listenToPlayer() {
