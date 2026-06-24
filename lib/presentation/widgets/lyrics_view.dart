@@ -14,10 +14,12 @@ final lyricsProvider = FutureProvider.family<List<LyricLine>, Song>((ref, song) 
 class LyricsView extends ConsumerStatefulWidget {
   final Song song;
   final Duration position;
+  final ScrollController? scrollController;
 
   const LyricsView({
     required this.song,
     required this.position,
+    this.scrollController,
     super.key,
   });
 
@@ -26,17 +28,26 @@ class LyricsView extends ConsumerStatefulWidget {
 }
 
 class _LyricsViewState extends ConsumerState<LyricsView> {
-  final ScrollController _scrollController = ScrollController();
+  late final ScrollController _scrollController;
   int _lastActiveIndex = -1;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController = widget.scrollController ?? ScrollController();
+  }
+
+  @override
   void dispose() {
-    _scrollController.dispose();
+    if (widget.scrollController == null) {
+      _scrollController.dispose();
+    }
     super.dispose();
   }
 
   void _scrollToActive(int index) {
     if (index == _lastActiveIndex || !mounted) return;
+    if (!_scrollController.hasClients) return;
     _lastActiveIndex = index;
     const itemHeight = 70.0;
     final offset = (index * itemHeight) - 100.0;

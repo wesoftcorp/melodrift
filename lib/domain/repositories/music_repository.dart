@@ -16,7 +16,7 @@ abstract class MusicRepository {
   Future<List<Artist>> searchArtists(String query);
 
   /// Fetch customized home feed data
-  Future<HomeData> getHomeFeed();
+  Future<HomeData> getHomeFeed({String? language});
 
   /// Get details of an album, including its tracklist
   Future<Album> getAlbumDetails(String albumId);

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
 import '../../data/repositories/playlist_repository_impl.dart';
+import '../../data/repositories/download_repository_impl.dart';
 import '../../domain/entities/playlist.dart';
-import 'item_details_sheet.dart';
+import '../screens/details_screen.dart';
 
 class PlaylistsList extends ConsumerWidget {
   const PlaylistsList({super.key});
@@ -47,19 +49,169 @@ class PlaylistsList extends ConsumerWidget {
               ),
               title: Text(playlist.title),
               subtitle: Text('${playlist.trackCount} songs'),
+              trailing: PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'view') {
+                    unawaited(Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (context) => DetailsScreen(
+                          id: playlist.id,
+                          title: playlist.title,
+                          artworkUrl: playlist.artworkUrl,
+                          type: 'playlist',
+                        ),
+                      ),
+                    ));
+                  } else if (value == 'delete') {
+                    // Show confirmation dialog
+                    unawaited(showDialog<void>(
+                      context: context,
+                      builder: (alertContext) => AlertDialog(
+                        title: const Text('Delete Playlist'),
+                        content: Text('Are you sure you want to delete "${playlist.title}"?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(alertContext),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              await playlistRepo.deletePlaylist(playlist.id);
+                              if (context.mounted) Navigator.pop(alertContext);
+                            },
+                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    ));
+                  } else if (value == 'downloadAll') {
+                    _downloadPlaylist(context, ref, playlist);
+                  }
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem(
+                    value: 'view',
+                    child: Row(
+                      children: [
+                        Icon(Icons.open_in_full, size: 20),
+                        SizedBox(width: 8),
+                        Text('View'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'downloadAll',
+                    child: Row(
+                      children: [
+                        Icon(Icons.download, size: 20),
+                        SizedBox(width: 8),
+                        Text('Download All'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               onTap: () {
-                ItemDetailsSheet.show(
-                  context,
-                  id: playlist.id,
-                  title: playlist.title,
-                  artworkUrl: playlist.artworkUrl,
-                  type: 'playlist',
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => DetailsScreen(
+                      id: playlist.id,
+                      title: playlist.title,
+                      artworkUrl: playlist.artworkUrl,
+                      type: 'playlist',
+                    ),
+                  ),
                 );
               },
             );
           },
         );
       },
+    );
+  }
+
+  void _downloadPlaylist(BuildContext context, WidgetRef ref, Playlist playlist) {
+    final downloadRepo = ref.read(downloadRepositoryProvider);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Download Playlist'),
+        content: Text(
+          'Download all ${playlist.songs.length} songs from "${playlist.title}"?\n\n'
+          'This may take a while depending on your connection.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+
+               // Show progress dialog
+               if (context.mounted) {
+                   await showDialog<void>(
+                     context: context,
+                     barrierDismissible: false,
+                     builder: (progressContext) => StatefulBuilder(
+                      builder: (context, setState) {
+                        int downloaded = 0;
+                        final total = playlist.songs.length;
+
+                      // Download in background
+                      Future.microtask(() async {
+                        for (final song in playlist.songs) {
+                          try {
+                            await downloadRepo.downloadSong(song);
+                            downloaded++;
+                            setState(() {});
+                          } catch (e) {
+                            // Continue downloading other songs
+                          }
+                        }
+                        if (progressContext.mounted) {
+                          Navigator.pop(progressContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Downloaded $downloaded/$total songs'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      });
+
+                      return AlertDialog(
+                        title: const Text('Downloading'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LinearProgressIndicator(value: downloaded / total),
+                            const SizedBox(height: 16),
+                            Text('$downloaded / $total songs'),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }
+            },
+            child: const Text('Download'),
+          ),
+        ],
+      ),
     );
   }
 }

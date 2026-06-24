@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../data/datasources/local_music_source.dart';
+import '../../core/services/encrypted_download_manager.dart';
 import '../../core/services/audio_handler.dart';
+import '../../core/utils/logger.dart';
 
 class PlayerState {
   final Song? currentSong;
@@ -14,10 +18,12 @@ class PlayerState {
   final Duration duration;
   final Duration bufferedPosition;
   final List<Song> queue;
+  final List<Song> playbackQueue;
   final double volume;
   final double speed;
   final bool isShuffle;
-  final bool isRepeat;
+  final AudioServiceRepeatMode repeatMode;
+  final Duration? sleepTimeRemaining;
 
   const PlayerState({
     this.currentSong,
@@ -27,10 +33,12 @@ class PlayerState {
     this.duration = Duration.zero,
     this.bufferedPosition = Duration.zero,
     this.queue = const [],
+    this.playbackQueue = const [],
     this.volume = 1.0,
     this.speed = 1.0,
     this.isShuffle = false,
-    this.isRepeat = false,
+    this.repeatMode = AudioServiceRepeatMode.none,
+    this.sleepTimeRemaining,
   });
 
   PlayerState copyWith({
@@ -41,10 +49,13 @@ class PlayerState {
     Duration? duration,
     Duration? bufferedPosition,
     List<Song>? queue,
+    List<Song>? playbackQueue,
     double? volume,
     double? speed,
     bool? isShuffle,
-    bool? isRepeat,
+    AudioServiceRepeatMode? repeatMode,
+    Duration? sleepTimeRemaining,
+    bool clearSleepTimeRemaining = false,
   }) {
     return PlayerState(
       currentSong: currentSong ?? this.currentSong,
@@ -54,10 +65,14 @@ class PlayerState {
       duration: duration ?? this.duration,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
       queue: queue ?? this.queue,
+      playbackQueue: playbackQueue ?? this.playbackQueue,
       volume: volume ?? this.volume,
       speed: speed ?? this.speed,
       isShuffle: isShuffle ?? this.isShuffle,
-      isRepeat: isRepeat ?? this.isRepeat,
+      repeatMode: repeatMode ?? this.repeatMode,
+      sleepTimeRemaining: clearSleepTimeRemaining
+          ? null
+          : (sleepTimeRemaining ?? this.sleepTimeRemaining),
     );
   }
 }
@@ -65,19 +80,54 @@ class PlayerState {
 final playerStateProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final repository = ref.watch(musicRepositoryProvider);
-  return PlayerNotifier(handler, repository);
+  final localSource = ref.watch(localMusicSourceProvider);
+  final encryptedDownloadManager = ref.watch(encryptedDownloadManagerProvider);
+  return PlayerNotifier(
+    handler,
+    repository,
+    localSource,
+    encryptedDownloadManager,
+  );
 });
 
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final MelodriftAudioHandler _handler;
   final MusicRepository _repository;
+  final LocalMusicSource _localSource;
+  final EncryptedDownloadManager _encryptedDownloadManager;
+  final _log = AppLogger('PlayerNotifier');
   
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
   StreamSubscription<PlaybackState>? _playbackStateSubscription;
   StreamSubscription<List<MediaItem>>? _queueSubscription;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration?>? _durationSubscription;
+  StreamSubscription<Duration>? _bufferedPositionSubscription;
 
-  PlayerNotifier(this._handler, this._repository) : super(const PlayerState()) {
+  String? _resolvingVideoId;
+  Timer? _playbackStateDebounceTimer;
+
+  PlayerNotifier(
+    this._handler,
+    this._repository,
+    this._localSource,
+    this._encryptedDownloadManager,
+  ) : super(const PlayerState()) {
     _subscribe();
+  }
+
+  void _updatePlaybackQueue() {
+    final originalQueue = state.queue;
+    if (state.isShuffle) {
+      final indices = _handler.effectiveIndices;
+      if (indices.length == originalQueue.length) {
+        state = state.copyWith(
+          playbackQueue: indices.map((i) => originalQueue[i]).toList(),
+        );
+        return;
+      }
+    }
+    state = state.copyWith(playbackQueue: originalQueue);
   }
 
   void _subscribe() {
@@ -94,16 +144,42 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     // 2. Playback State
     _playbackStateSubscription = _handler.playbackState.listen((pState) {
-      state = state.copyWith(
-        isPlaying: pState.playing,
-        isLoading: pState.processingState == AudioProcessingState.buffering ||
-                   pState.processingState == AudioProcessingState.loading,
-        position: pState.updatePosition,
-        bufferedPosition: pState.bufferedPosition,
-        speed: pState.speed,
-        isShuffle: pState.shuffleMode != AudioServiceShuffleMode.none,
-        isRepeat: pState.repeatMode != AudioServiceRepeatMode.none,
-      );
+      final isBufferingOrLoading = pState.processingState == AudioProcessingState.buffering ||
+                                   pState.processingState == AudioProcessingState.loading;
+      final showLoading = _resolvingVideoId != null || isBufferingOrLoading;
+      final targetPlaying = showLoading ? state.isPlaying : pState.playing;
+
+      // If the player says it is NOT playing, but we currently think it is playing,
+      // we debounce the update to false by 200ms to filter out transient stutters.
+      if (!targetPlaying && state.isPlaying) {
+        _playbackStateDebounceTimer?.cancel();
+        _playbackStateDebounceTimer = Timer(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            state = state.copyWith(
+              isPlaying: false,
+              isLoading: showLoading,
+              position: pState.updatePosition,
+              bufferedPosition: pState.bufferedPosition,
+              speed: pState.speed,
+              isShuffle: pState.shuffleMode != AudioServiceShuffleMode.none,
+              repeatMode: pState.repeatMode,
+            );
+            _updatePlaybackQueue();
+          }
+        });
+      } else {
+        _playbackStateDebounceTimer?.cancel();
+        state = state.copyWith(
+          isPlaying: targetPlaying,
+          isLoading: showLoading,
+          position: pState.updatePosition,
+          bufferedPosition: pState.bufferedPosition,
+          speed: pState.speed,
+          isShuffle: pState.shuffleMode != AudioServiceShuffleMode.none,
+          repeatMode: pState.repeatMode,
+        );
+        _updatePlaybackQueue();
+      }
     });
 
     // 3. Queue
@@ -111,12 +187,36 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(
         queue: mItems.map(_mapMediaItemToSong).toList(),
       );
+      _updatePlaybackQueue();
     });
+
+    // 4. Real-time Streams for player timeline
+    _positionSubscription = _handler.positionStream
+      .listen((pos) {
+        state = state.copyWith(position: pos);
+      });
+
+    // 5. Duration
+    _durationSubscription = _handler.durationStream
+      .listen((dur) {
+        if (dur != null) {
+          state = state.copyWith(duration: dur);
+        }
+      });
+
+    _bufferedPositionSubscription = _handler.bufferedPositionStream
+      .listen((bufPos) {
+        state = state.copyWith(bufferedPosition: bufPos);
+      });
   }
 
   // --- Mappings ---
 
-  MediaItem _mapSongToMediaItem(Song song, {String? streamUrl}) {
+  MediaItem _mapSongToMediaItem(
+    Song song, {
+    String? streamUrl,
+    bool isEncrypted = false,
+  }) {
     return MediaItem(
       id: song.id,
       title: song.title,
@@ -127,6 +227,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       extras: {
         'streamUrl': streamUrl ?? song.streamUrl,
         'videoId': song.videoId,
+        'isEncrypted': isEncrypted,
       },
     );
   }
@@ -144,12 +245,41 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
-  // --- Helper to resolve stream ---
-
   Future<String> _resolveStream(String videoId) async {
     try {
-      return await _repository.getStreamUrl(videoId, quality: 'High');
-    } catch (_) {
+      _log.debug('Resolving stream for videoId: $videoId');
+      
+      // Check if downloaded locally first
+      final localSong = await _localSource.getSong(videoId);
+      if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
+        final file = File(localSong.filePath!);
+        if (await file.exists()) {
+          final playablePath = await _encryptedDownloadManager.preparePlayableFile(
+            encryptedFilePath: localSong.filePath!,
+            songId: videoId,
+          );
+          _log.info('Prepared encrypted download for offline playback: $playablePath');
+          return playablePath;
+        }
+      }
+      
+      // Add timeout to prevent hanging if YouTube API is slow
+      final url = await _repository
+        .getStreamUrl(videoId, quality: 'High')
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            _log.warning('Stream resolution timeout for $videoId after 15 seconds');
+            return '';
+          },
+        );
+      
+      if (url.isNotEmpty) {
+        _log.debug('Successfully resolved stream URL: $url');
+      }
+      return url;
+    } catch (e, stackTrace) {
+      _log.error('Error resolving stream for videoId $videoId: $e', e, stackTrace);
       return '';
     }
   }
@@ -160,62 +290,173 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (currentSong == null || state.queue.isEmpty) return;
 
     final currentIndex = state.queue.indexWhere((s) => s.id == currentSong.id);
-    if (currentIndex == -1 || currentIndex + 1 >= state.queue.length) return;
+    if (currentIndex == -1) return;
 
-    final nextSong = state.queue[currentIndex + 1];
-    if (nextSong.streamUrl != null && nextSong.streamUrl!.isNotEmpty) return;
+    final playOrder = _handler.effectiveIndices;
+    if (playOrder.isEmpty) return;
 
-    // Resolve URL asynchronously in background
-    final resolvedUrl = await _resolveStream(nextSong.videoId);
-    if (resolvedUrl.isNotEmpty) {
+    final currentPos = playOrder.indexOf(currentIndex);
+    if (currentPos == -1) return;
+
+    final songsToResolve = <int>[];
+    for (int i = 1; i <= 2; i++) {
+      final nextPos = currentPos + i;
+      int targetIndex;
+      if (nextPos < playOrder.length) {
+        targetIndex = playOrder[nextPos];
+      } else if (state.repeatMode == AudioServiceRepeatMode.all) {
+        targetIndex = playOrder[nextPos % playOrder.length];
+      } else {
+        continue;
+      }
+
+      final song = state.queue[targetIndex];
+      if (song.streamUrl == null || song.streamUrl!.isEmpty) {
+        songsToResolve.add(targetIndex);
+      }
+    }
+
+    if (songsToResolve.isEmpty) {
+      _log.debug('Next songs in sequence already resolved, skipping prefetch');
+      return;
+    }
+
+    _log.debug('Prefetching ${songsToResolve.length} sequence-next songs at indexes: $songsToResolve');
+
+    // Resolve all in parallel for speed
+    final futures = <Future<({int index, String url})>>[];
+    for (final index in songsToResolve) {
+      final song = state.queue[index];
+      futures.add(
+        _resolveStream(song.videoId).then((url) => (index: index, url: url)),
+      );
+    }
+
+    try {
+      final results = await Future.wait(futures);
+      
+      // Update queue with resolved URLs
       final updatedQueue = List<MediaItem>.from(_handler.queue.value);
-      final nextIndex = currentIndex + 1;
-      if (nextIndex < updatedQueue.length && updatedQueue[nextIndex].id == nextSong.id) {
-        final extras = Map<String, dynamic>.from(updatedQueue[nextIndex].extras ?? {});
-        extras['streamUrl'] = resolvedUrl;
-        updatedQueue[nextIndex] = updatedQueue[nextIndex].copyWith(extras: extras);
+      for (final result in results) {
+        if (result.url.isNotEmpty && result.index < updatedQueue.length) {
+          final extras = Map<String, dynamic>.from(updatedQueue[result.index].extras ?? {});
+          extras['streamUrl'] = result.url;
+          updatedQueue[result.index] = updatedQueue[result.index].copyWith(extras: extras);
+          _log.debug('Prefetched sequence song: ${state.queue[result.index].title}');
+        }
+      }
+
+      if (results.isNotEmpty) {
         await _handler.updateQueue(updatedQueue);
       }
+    } catch (e, st) {
+      _log.error('Error during prefetch', e, st);
     }
   }
 
   // --- Playback Commands ---
 
   Future<void> playSong(Song song) async {
-    state = state.copyWith(isLoading: true);
-    final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId);
+    _log.debug('playSong requested for: ${song.title} (${song.videoId})');
+    _resolvingVideoId = song.videoId;
     
-    final mediaItem = _mapSongToMediaItem(song, streamUrl: streamUrl);
-    await _handler.updateQueue([mediaItem]);
-    await _handler.play();
+    // 1. Instantly update Riverpod state so UI (artwork, title, spinner) updates immediately
+    state = state.copyWith(
+      currentSong: song,
+      isLoading: true,
+      isPlaying: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+
+    // 2. Instantly push metadata to audio handler streams for other listening widgets
+    final tempItem = _mapSongToMediaItem(song);
+    _handler.mediaItem.add(tempItem);
+    _handler.queue.add([tempItem]);
+
+    try {
+      // 3. Resolve the stream URL asynchronously in the background
+      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId);
+      if (streamUrl.isEmpty) {
+        throw StateError('Unable to resolve a playable stream for ${song.title}');
+      }
+      _log.debug('streamUrl for playback resolved: "$streamUrl"');
+      
+      final mediaItem = _mapSongToMediaItem(song, streamUrl: streamUrl);
+      _log.debug('updating queue with final media item: ${mediaItem.title}');
+      await _handler.updateQueue([mediaItem]);
+      await _handler.skipToQueueItem(0); // Seek to index 0 to reset completed/out-of-bounds states
+      
+      _log.debug('invoking handler.play()');
+      await _handler.play();
+      _log.debug('handler.play() completed successfully');
+    } catch (e) {
+      _log.error('Error calling handler.play(): $e', e);
+      state = state.copyWith(isLoading: false, isPlaying: false);
+    } finally {
+      _resolvingVideoId = null;
+    }
   }
 
   Future<void> playQueue(List<Song> songs, {int initialIndex = 0}) async {
     if (songs.isEmpty) return;
-    state = state.copyWith(isLoading: true);
+    final selectedSong = songs[initialIndex];
+    _resolvingVideoId = selectedSong.videoId;
 
-    // Build initial media items (resolve first song right away, rest are background-resolved)
-    final resolvedFirstUrl = songs[initialIndex].streamUrl ?? await _resolveStream(songs[initialIndex].videoId);
-    
-    final mItems = <MediaItem>[];
-    for (int i = 0; i < songs.length; i++) {
-      if (i == initialIndex) {
-        mItems.add(_mapSongToMediaItem(songs[i], streamUrl: resolvedFirstUrl));
-      } else {
-        mItems.add(_mapSongToMediaItem(songs[i]));
+    // 1. Instantly update Riverpod state so UI updates immediately
+    state = state.copyWith(
+      currentSong: selectedSong,
+      isLoading: true,
+      isPlaying: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+
+    // 2. Instantly push metadata to audio handler streams
+    final tempItems = songs.map((s) => _mapSongToMediaItem(s)).toList();
+    _handler.mediaItem.add(tempItems[initialIndex]);
+    _handler.queue.add(tempItems);
+
+    try {
+      // 3. Resolve the stream URL asynchronously in the background
+      final resolvedFirstUrl = selectedSong.streamUrl ?? await _resolveStream(selectedSong.videoId);
+      if (resolvedFirstUrl.isEmpty) {
+        throw StateError('Unable to resolve a playable stream for ${selectedSong.title}');
       }
-    }
+      
+      final mItems = <MediaItem>[];
+      for (int i = 0; i < songs.length; i++) {
+        if (i == initialIndex) {
+          mItems.add(_mapSongToMediaItem(songs[i], streamUrl: resolvedFirstUrl));
+        } else {
+          mItems.add(_mapSongToMediaItem(songs[i]));
+        }
+      }
 
-    await _handler.updateQueue(mItems);
-    await _handler.skipToQueueItem(initialIndex);
-    await _handler.play();
+      await _handler.updateQueue(mItems);
+      await _handler.skipToQueueItem(initialIndex);
+      await _handler.play();
+    } catch (e) {
+      _log.error('Error in playQueue: $e', e);
+      state = state.copyWith(isLoading: false, isPlaying: false);
+    } finally {
+      _resolvingVideoId = null;
+    }
   }
 
   Future<void> togglePlay() async {
-    if (state.isPlaying) {
-      await _handler.pause();
-    } else {
-      await _handler.play();
+    final nextPlaying = !state.isPlaying;
+    state = state.copyWith(isPlaying: nextPlaying);
+    try {
+      if (!nextPlaying) {
+        await _handler.pause();
+      } else {
+        await _handler.play();
+      }
+    } catch (e) {
+      _log.error('Error toggling playback: $e', e);
+      // Revert state if it failed
+      state = state.copyWith(isPlaying: !nextPlaying);
     }
   }
 
@@ -242,22 +483,114 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> toggleRepeat() async {
-    // Cycles through Repeat Modes: Off -> All -> Off
-    AudioServiceRepeatMode serviceMode;
-    if (!state.isRepeat) {
-      serviceMode = AudioServiceRepeatMode.all;
-    } else {
-      serviceMode = AudioServiceRepeatMode.none;
+    // Cycles through Repeat Modes: Off (none) -> Repeat All (all) -> Repeat One (one) -> Off (none)
+    AudioServiceRepeatMode nextMode;
+    switch (state.repeatMode) {
+      case AudioServiceRepeatMode.none:
+        nextMode = AudioServiceRepeatMode.all;
+        break;
+      case AudioServiceRepeatMode.all:
+      case AudioServiceRepeatMode.group:
+        nextMode = AudioServiceRepeatMode.one;
+        break;
+      case AudioServiceRepeatMode.one:
+        nextMode = AudioServiceRepeatMode.none;
+        break;
     }
-    await _handler.setRepeatMode(serviceMode);
-    state = state.copyWith(isRepeat: serviceMode != AudioServiceRepeatMode.none);
+    await _handler.setRepeatMode(nextMode);
+    state = state.copyWith(repeatMode: nextMode);
+  }
+
+  Future<void> skipToQueueItem(int originalIndex) async {
+    if (originalIndex < 0 || originalIndex >= state.queue.length) return;
+    final song = state.queue[originalIndex];
+    _resolvingVideoId = song.videoId;
+
+    state = state.copyWith(
+      currentSong: song,
+      isLoading: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+
+    try {
+      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId);
+      if (streamUrl.isEmpty) {
+        throw StateError('Unable to resolve a playable stream for ${song.title}');
+      }
+      if (streamUrl.isNotEmpty) {
+        final updatedQueue = List<MediaItem>.from(_handler.queue.value);
+        if (originalIndex < updatedQueue.length) {
+          final extras = Map<String, dynamic>.from(updatedQueue[originalIndex].extras ?? {});
+          extras['streamUrl'] = streamUrl;
+          updatedQueue[originalIndex] = updatedQueue[originalIndex].copyWith(extras: extras);
+          await _handler.updateQueue(updatedQueue);
+        }
+      }
+
+      await _handler.skipToQueueItem(originalIndex);
+      await _handler.play();
+    } catch (e) {
+      _log.error('Error in skipToQueueItem: $e', e);
+      state = state.copyWith(isLoading: false, isPlaying: false);
+    } finally {
+      _resolvingVideoId = null;
+    }
+  }
+
+  Future<void> removeFromQueue(Song song) async {
+    final mediaItem = _mapSongToMediaItem(song);
+    await _handler.removeQueueItem(mediaItem);
+  }
+
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    await _handler.moveQueueItem(oldIndex, newIndex);
+    _updatePlaybackQueue();
+  }
+
+  Timer? _sleepTimer;
+  Timer? _sleepCountdownTimer;
+
+  void setSleepTimer(Duration? duration) {
+    _sleepTimer?.cancel();
+    _sleepCountdownTimer?.cancel();
+
+    if (duration == null) {
+      state = state.copyWith(clearSleepTimeRemaining: true);
+      return;
+    }
+
+    state = state.copyWith(sleepTimeRemaining: duration);
+
+    _sleepTimer = Timer(duration, () {
+      _handler.pause();
+      setSleepTimer(null);
+    });
+
+    _sleepCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final remaining = state.sleepTimeRemaining;
+      if (remaining == null || remaining.inSeconds <= 1) {
+        timer.cancel();
+      } else {
+        state = state.copyWith(sleepTimeRemaining: remaining - const Duration(seconds: 1));
+      }
+    });
   }
 
   @override
   void dispose() {
+    _sleepTimer?.cancel();
+    _sleepCountdownTimer?.cancel();
+    _playbackStateDebounceTimer?.cancel();
     _mediaItemSubscription?.cancel();
     _playbackStateSubscription?.cancel();
     _queueSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _bufferedPositionSubscription?.cancel();
     super.dispose();
   }
 }

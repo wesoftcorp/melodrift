@@ -5,9 +5,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_route/auto_route.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/lyrics_view.dart';
-import '../widgets/queue_sheet.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/player_artwork_view.dart';
+import '../../domain/entities/song.dart';
+import '../../data/repositories/music_repository_impl.dart';
+
+final relatedSongsProvider = FutureProvider.family<List<Song>, String>((ref, videoId) async {
+  final repository = ref.watch(musicRepositoryProvider);
+  return repository.getRelatedSongs(videoId);
+});
 
 @RoutePage()
 class PlayerScreen extends ConsumerStatefulWidget {
@@ -18,14 +24,6 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  final PageController _pageController = PageController();
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerStateProvider);
@@ -53,41 +51,105 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   )
                 : Container(color: Colors.grey[900]),
           ),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.4))),
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
 
           // 2. Main content UI
           SafeArea(
             child: Column(
               children: [
                 _buildTopAppBar(context),
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    children: [
-                      const PlayerArtworkView(),
-                      LyricsView(song: song, position: playerState.position),
-                    ],
+                const Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(height: 16),
+                        PlayerArtworkView(),
+                        SizedBox(height: 24),
+                        PlayerControls(),
+                        SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
-                const PlayerControls(),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () => _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      ),
-                      child: const Text(
-                        'LYRICS',
-                        style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                // Padding space for the collapsed sheet handle (approx 85px)
+                const SizedBox(height: 85),
               ],
+            ),
+          ),
+
+          // 3. Sliding tab panel (UP NEXT, LYRICS, RELATED)
+          DefaultTabController(
+            length: 3,
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.12,
+              minChildSize: 0.12,
+              maxChildSize: 0.85,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151518).withOpacity(0.95),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Grab handle & tabs inside SingleChildScrollView to align scroll action
+                      SingleChildScrollView(
+                        physics: const ClampingScrollPhysics(),
+                        controller: scrollController,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.white30,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const TabBar(
+                              labelColor: Colors.white,
+                              unselectedLabelColor: Colors.white38,
+                              indicatorColor: Colors.white,
+                              indicatorSize: TabBarIndicatorSize.tab,
+                              dividerColor: Colors.transparent,
+                              labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1),
+                              tabs: [
+                                Tab(text: 'UP NEXT'),
+                                Tab(text: 'LYRICS'),
+                                Tab(text: 'RELATED'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: TabBarView(
+                          children: [
+                            _buildQueueTab(scrollController),
+                            LyricsView(
+                              song: song,
+                              position: playerState.position,
+                              scrollController: scrollController,
+                            ),
+                            _buildRelatedTab(song.videoId, scrollController),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -114,24 +176,173 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               letterSpacing: 2,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.playlist_play, color: Colors.white),
-            onPressed: () => _showQueue(context),
-          ),
+          const SizedBox(width: 48), // Spacer to balance back button
         ],
       ),
     );
   }
 
-  void _showQueue(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const FractionallySizedBox(
-        heightFactor: 0.7,
-        child: QueueSheet(),
+  Widget _buildQueueTab(ScrollController scrollController) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final playerState = ref.watch(playerStateProvider);
+        final displayedQueue = playerState.playbackQueue;
+        final currentSong = playerState.currentSong;
+
+        if (displayedQueue.isEmpty) {
+          return const Center(child: Text('Queue is empty', style: TextStyle(color: Colors.white70)));
+        }
+
+        if (playerState.isShuffle) {
+          return ListView.builder(
+            controller: scrollController,
+            itemCount: displayedQueue.length,
+            itemBuilder: (context, index) => _buildQueueTile(
+              context,
+              ref,
+              displayedQueue[index],
+              index,
+              currentSong,
+              playerState,
+            ),
+          );
+        } else {
+          return ReorderableListView.builder(
+            scrollController: scrollController,
+            itemCount: displayedQueue.length,
+            itemBuilder: (context, index) => _buildQueueTile(
+              context,
+              ref,
+              displayedQueue[index],
+              index,
+              currentSong,
+              playerState,
+            ),
+            onReorder: (oldIndex, newIndex) {
+              ref.read(playerStateProvider.notifier).reorderQueue(oldIndex, newIndex);
+            },
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildQueueTile(
+    BuildContext context,
+    WidgetRef ref,
+    Song song,
+    int index,
+    Song? currentSong,
+    PlayerState playerState,
+  ) {
+    final isCurrent = currentSong?.id == song.id;
+
+    return ListTile(
+      key: ValueKey('${song.id}_$index'),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: CachedNetworkImage(
+          imageUrl: song.artworkUrl,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => Container(
+            width: 44,
+            height: 44,
+            color: Colors.grey[800],
+            child: const Icon(Icons.music_note, color: Colors.white),
+          ),
+        ),
       ),
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+          color: isCurrent ? Colors.white : Colors.white70,
+        ),
+      ),
+      subtitle: Text(
+        song.artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isCurrent ? Colors.white70 : Colors.white38,
+        ),
+      ),
+      trailing: isCurrent
+          ? const Icon(Icons.volume_up, color: Colors.white)
+          : IconButton(
+              icon: const Icon(Icons.close, color: Colors.white30, size: 20),
+              tooltip: 'Remove from queue',
+              onPressed: () {
+                ref.read(playerStateProvider.notifier).removeFromQueue(song);
+              },
+            ),
+      onTap: () {
+        final originalIndex = playerState.queue.indexWhere((s) => s.id == song.id);
+        if (originalIndex != -1) {
+          ref.read(playerStateProvider.notifier).skipToQueueItem(originalIndex);
+        }
+      },
+    );
+  }
+
+  Widget _buildRelatedTab(String videoId, ScrollController scrollController) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final relatedAsync = ref.watch(relatedSongsProvider(videoId));
+        return relatedAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+          error: (err, _) => Center(child: Text('Error loading recommendations: $err', style: const TextStyle(color: Colors.white70))),
+          data: (songs) {
+            if (songs.isEmpty) {
+              return const Center(child: Text('No recommendations found', style: TextStyle(color: Colors.white70)));
+            }
+            return ListView.builder(
+              controller: scrollController,
+              itemCount: songs.length,
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                return ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CachedNetworkImage(
+                      imageUrl: song.artworkUrl,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: 44,
+                        height: 44,
+                        color: Colors.grey[800],
+                        child: const Icon(Icons.music_note, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white38),
+                  ),
+                  onTap: () {
+                    // Play the selected song and set the rest of related list as queue
+                    ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

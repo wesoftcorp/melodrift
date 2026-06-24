@@ -3,42 +3,104 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/player_notifier.dart';
 
-class PlayerArtworkView extends ConsumerWidget {
+/// Artwork card with breathing scale animation when playing.
+class PlayerArtworkView extends ConsumerStatefulWidget {
   const PlayerArtworkView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlayerArtworkView> createState() => _PlayerArtworkViewState();
+}
+
+class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breathController;
+  late final Animation<double> _breathAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _breathController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    _breathAnim = Tween<double>(begin: 1.0, end: 1.03).animate(
+      CurvedAnimation(parent: _breathController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _breathController.dispose();
+    super.dispose();
+  }
+
+  void _syncAnimation(bool isPlaying) {
+    if (isPlaying && !_breathController.isAnimating) {
+      _breathController.repeat(reverse: true);
+    } else if (!isPlaying && _breathController.isAnimating) {
+      _breathController.stop();
+      _breathController.animateTo(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final playerState = ref.watch(playerStateProvider);
     final song = playerState.currentSong;
     final theme = Theme.of(context);
 
     if (song == null) return const SizedBox.shrink();
 
+    _syncAnimation(playerState.isPlaying);
+
     final progress = playerState.duration.inMilliseconds > 0
         ? playerState.position.inMilliseconds / playerState.duration.inMilliseconds
         : 0.0;
 
+    final remaining = playerState.duration > playerState.position
+        ? playerState.duration - playerState.position
+        : Duration.zero;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Artwork
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: CachedNetworkImage(
-            imageUrl: song.artworkUrl,
-            width: 280,
-            height: 280,
-            fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => Container(
-              width: 280,
-              height: 280,
-              color: Colors.grey[800],
-              child: const Icon(Icons.music_note, size: 100, color: Colors.white),
+        // ── Artwork with breathing animation ───────────────────────────────
+        AnimatedBuilder(
+          animation: _breathAnim,
+          builder: (context, child) => Transform.scale(
+            scale: _breathAnim.value,
+            child: child,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: CachedNetworkImage(
+                imageUrl: song.artworkUrl,
+                width: 280,
+                height: 280,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  width: 280,
+                  height: 280,
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.music_note, size: 100, color: Colors.white),
+                ),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 36),
-        // Song Info
+        // ── Song Info ──────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
@@ -69,19 +131,20 @@ class PlayerArtworkView extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
-        // Seek Bar
+        // ── Seek Bar ───────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                  trackHeight: 4,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                   activeTrackColor: Colors.white,
                   inactiveTrackColor: Colors.white24,
                   thumbColor: Colors.white,
+                  overlayColor: Colors.white24,
                 ),
                 child: Slider(
                   value: progress.clamp(0.0, 1.0),
@@ -103,7 +166,7 @@ class PlayerArtworkView extends ConsumerWidget {
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                     Text(
-                      _formatDuration(playerState.duration),
+                      _formatDuration(remaining, isNegative: remaining.inSeconds > 0),
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],
@@ -116,9 +179,10 @@ class PlayerArtworkView extends ConsumerWidget {
     );
   }
 
-  String _formatDuration(Duration d) {
+  String _formatDuration(Duration d, {bool isNegative = false}) {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
+    final prefix = isNegative ? '-' : '';
+    return '$prefix$m:${s.toString().padLeft(2, '0')}';
   }
 }

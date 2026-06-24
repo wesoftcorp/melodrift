@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
 import '../../core/theme/theme_provider.dart';
 import '../providers/auth_provider.dart';
 import '../../flavors.dart';
+import '../../presentation/providers/duration_cache_provider.dart';
+import '../../core/services/image_caching_service.dart';
+import '../../core/utils/widget_rebuild_tracker.dart';
+import '../screens/home_screen.dart' show homeLanguageProvider, kLanguageOptions;
 
 @RoutePage()
 class SettingsScreen extends ConsumerWidget {
@@ -67,6 +72,31 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
+              'Content & Language',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Consumer(
+            builder: (context, ref, _) {
+              final selected = ref.watch(homeLanguageProvider);
+              final label = selected.contains('All') || selected.isEmpty
+                  ? 'All Languages'
+                  : selected.join(', ');
+              return ListTile(
+                leading: const Icon(Icons.language_rounded),
+                title: const Text('Music Language'),
+                subtitle: Text(label),
+                onTap: () => _showLanguageSelector(context, ref),
+              );
+            },
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
               'Performance & Playback',
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.primary,
@@ -74,11 +104,18 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
+          if (defaultTargetPlatform == TargetPlatform.android)
+            ListTile(
+              leading: const Icon(Icons.battery_saver_outlined),
+              title: const Text('Android Battery Optimization'),
+              subtitle: const Text('Prevent background playback interruptions'),
+              onTap: () => _showBatteryWhitelistDialog(context),
+            ),
           ListTile(
-            leading: const Icon(Icons.battery_saver_outlined),
-            title: const Text('Android Battery Optimization'),
-            subtitle: const Text('Prevent background playback interruptions'),
-            onTap: () => _showBatteryWhitelistDialog(context),
+            leading: const Icon(Icons.speed_outlined),
+            title: const Text('Optimizations & Caching'),
+            subtitle: const Text('Manage pre-fetching, image caching, and view performance stats'),
+            onTap: () => _showOptimizationsDialog(context),
           ),
           const Divider(),
           Padding(
@@ -91,10 +128,37 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Melodrift'),
-            subtitle: Text('Version 1.0.0 (FOSS Edition)\nLet the music drift.'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, color: theme.colorScheme.primary),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Melodrift',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('Version 1.0.0'),
+                    const Text('Let the music drift.'),
+                    const Divider(height: 24),
+                    const Text('Developer: Rajeev Upadhyay'),
+                    const Text('Email: rajeev.upadhyay@live.in'),
+                    const Text('Website: rajeevupadhyay.com'),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -166,6 +230,56 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  void _showLanguageSelector(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) {
+          final selected = ref.read(homeLanguageProvider);
+          return AlertDialog(
+            title: const Text('Music Language'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: kLanguageOptions.map((lang) {
+                final isChecked = lang == 'All'
+                    ? (selected.contains('All') || selected.isEmpty)
+                    : selected.contains(lang);
+                return CheckboxListTile(
+                  title: Text(lang),
+                  value: isChecked,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  onChanged: (_) {
+                    final notifier = ref.read(homeLanguageProvider.notifier);
+                    final prev = Set<String>.from(ref.read(homeLanguageProvider));
+                    if (lang == 'All') {
+                      notifier.state = {'All'};
+                    } else if (prev.contains(lang)) {
+                      prev.remove(lang);
+                      notifier.state = prev.isEmpty ? {'All'} : (prev..remove('All'));
+                    } else {
+                      prev
+                        ..remove('All')
+                        ..add(lang);
+                      notifier.state = Set<String>.from(prev);
+                    }
+                    setInner(() {});
+                  },
+                );
+              }).toList(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showThemeSelectionDialog(BuildContext context, WidgetRef ref, AppThemeMode currentMode) {
     showDialog<void>(
       context: context,
@@ -213,6 +327,116 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showOptimizationsDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final durStats = DurationCache.getStats();
+            final imgStatsStr = CachedNetworkImageManager.getCacheStats();
+            final rebuildsList = WidgetRebuildTracker.getHotWidgets();
+            final rebuildStats = rebuildsList.isEmpty
+                ? 'No hot widgets detected.'
+                : rebuildsList.join('\n');
+
+            return AlertDialog(
+              title: const Text('Optimizations & Caching'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cache Statistics',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Duration Cache: ${durStats.size} / ${durStats.maxSize} entries'),
+                    Text(imgStatsStr),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Rebuild Tracking',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      kDebugMode
+                          ? 'Hot Widgets (rebuilds/sec):\n$rebuildStats'
+                          : 'Rebuild tracker is active in debug mode.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              DurationCachingService().clearCache();
+                              setDialogState(() {});
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Duration cache cleared')),
+                              );
+                            },
+                            child: const Text('Clear Durations'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              CachedNetworkImageManager.clearCache();
+                              setDialogState(() {});
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Image cache cleared')),
+                              );
+                            },
+                            child: const Text('Clear Images'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (kDebugMode) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            WidgetRebuildTracker.reset();
+                            setDialogState(() {});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Rebuild stats reset')),
+                            );
+                          },
+                          child: const Text('Reset Rebuild Stats'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
@@ -72,9 +73,7 @@ class MainLayoutScreen extends ConsumerWidget {
         : 0.0;
 
     return InkWell(
-      onTap: () {
-        context.router.push(const PlayerRoute());
-      },
+      onTap: () => context.router.push(const PlayerRoute()),
       child: GestureDetector(
         onHorizontalDragEnd: (details) {
           final velocity = details.primaryVelocity ?? 0.0;
@@ -84,114 +83,155 @@ class MainLayoutScreen extends ConsumerWidget {
             ref.read(playerStateProvider.notifier).previous();
           }
         },
-        child: Container(
-          height: 64,
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant,
-              width: 0.5,
-            ),
-          ),
-          child: Column(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: song.artworkUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: song.artworkUrl,
-                                width: 44,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => const SizedBox(
-                                  width: 44,
-                                  height: 44,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  ),
-                                ),
-                                errorWidget: (_, __, ___) => const Icon(Icons.music_note),
-                              )
-                            : Container(
-                                width: 44,
-                                height: 44,
-                                color: theme.colorScheme.surfaceContainerHighest,
-                                child: const Icon(Icons.music_note),
-                              ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                height: 72,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 0.5,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Gradient accent line at top
+                    Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.tertiary,
+                          ],
+                        ),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    // Content row
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
                           children: [
-                            Text(
-                              song.title,
-                              style: theme.textTheme.titleSmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            // Artwork
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: song.artworkUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: song.artworkUrl,
+                                      width: 44,
+                                      height: 44,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => const SizedBox(
+                                        width: 44,
+                                        height: 44,
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (_, __, ___) =>
+                                          const Icon(Icons.music_note),
+                                    )
+                                  : Container(
+                                      width: 44,
+                                      height: 44,
+                                      color: theme.colorScheme.surfaceContainerHighest,
+                                      child: const Icon(Icons.music_note),
+                                    ),
                             ),
-                            Text(
-                              song.artist,
-                              style: theme.textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 12),
+                            // Title + artist
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    style: theme.textTheme.titleSmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    song.artist,
+                                    style: theme.textTheme.bodySmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Play/Pause button
+                            IconButton(
+                              icon: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (playerState.isLoading)
+                                    const SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                            Colors.white30),
+                                      ),
+                                    ),
+                                  Icon(
+                                    playerState.isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                  ),
+                                ],
+                              ),
+                              onPressed: () {
+                                ref.read(playerStateProvider.notifier).togglePlay();
+                              },
+                            ),
+                            // Next button
+                            IconButton(
+                              icon: const Icon(Icons.skip_next),
+                              onPressed: () {
+                                ref.read(playerStateProvider.notifier).next();
+                              },
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: playerState.isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Icon(playerState.isPlaying
-                                ? Icons.pause
-                                : Icons.play_arrow),
-                        onPressed: () {
-                          ref.read(playerStateProvider.notifier).togglePlay();
-                        },
+                    ),
+                    // Progress bar
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next),
-                        onPressed: () {
-                          ref.read(playerStateProvider.notifier).next();
-                        },
+                      child: LinearProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        minHeight: 3,
+                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            theme.colorScheme.primary),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-                child: LinearProgressIndicator(
-                  value: progress.clamp(0.0, 1.0),
-                  minHeight: 3,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-

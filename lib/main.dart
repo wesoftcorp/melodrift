@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:isar/isar.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'dart:ui' as ui;
 
 import 'app.dart';
 import 'flavors.dart';
@@ -14,12 +16,17 @@ import 'core/theme/theme_provider.dart';
 import 'data/models/local_models.dart';
 import 'data/datasources/local_music_source.dart';
 import 'core/services/audio_handler.dart';
+import 'core/utils/logger.dart';
+
+final _log = AppLogger('main');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  final flavorName = appFlavor?.toLowerCase() ?? 'prodfull';
   F.appFlavor = Flavor.values.firstWhere(
-    (element) => element.name == appFlavor,
+    (element) => element.name.toLowerCase() == flavorName,
+    orElse: () => Flavor.prodfull,
   );
 
   final prefs = await SharedPreferences.getInstance();
@@ -28,12 +35,40 @@ void main() async {
   final useFirebase = prefs.getBool('use_firebase') ?? false;
   if (F.isFull && useFirebase) {
     try {
+      _log.info('Initializing Firebase for ${F.name} flavor...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-    } catch (e) {
-      debugPrint('Firebase initialization failed: $e');
+      
+      // Set up Crashlytics collection
+      await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
+      
+      // Pass uncaught exceptions to Crashlytics
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
+      
+      // Pass isolate exceptions to Crashlytics
+      ui.PlatformDispatcher.instance.onError = (error, stackTrace) {
+        FirebaseCrashlytics.instance.recordError(error, stackTrace as StackTrace?, fatal: true);
+        return true;
+      };
+      
+      await prefs.setBool('firebase_initialized', true);
+      _log.info('Firebase initialized successfully with Crashlytics enabled');
+    } catch (e, st) {
+      _log.error(
+        'Firebase initialization failed, running in offline mode. Reason: $e',
+        e,
+        st,
+      );
+      // Disable Firebase for this session so the app continues to work
+      await prefs.setBool('firebase_initialized', false);
+      await prefs.setBool('use_firebase', false);
+      _log.warning('App will continue with offline/FOSS features only');
     }
+  } else if (F.isFull) {
+    _log.info('Firebase disabled in preferences. Using FOSS-compatible mode');
+  } else {
+    _log.info('Using ${F.name} flavor - Firebase not available');
   }
 
   final dir = await getApplicationDocumentsDirectory();

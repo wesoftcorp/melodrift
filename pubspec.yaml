@@ -21,10 +21,11 @@ dependencies:
 
   # Audio Playback
   just_audio: ^0.9.38
+  just_audio_windows: ^0.2.3
   audio_service: ^0.18.12
 
   # YouTube Music Backend
-  youtube_explode_dart: ^2.2.2
+  youtube_explode_dart: ^3.1.0
 
   # Network
   dio: ^5.4.1
@@ -41,11 +42,11 @@ dependencies:
   google_mlkit_translation: ^0.11.0
 
   # Firebase (Opt-in)
-  firebase_core: ^2.27.0
-  firebase_auth: ^4.17.8
-  firebase_database: ^10.4.9
-  firebase_crashlytics: ^3.4.18
-  firebase_analytics: ^10.8.9
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.3
+  firebase_database: ^12.4.3
+  firebase_crashlytics: ^5.2.4
+  firebase_analytics: ^12.4.3
   google_sign_in: ^6.2.1
 
   # UI & Styling
@@ -55,7 +56,7 @@ dependencies:
 
   # Animations
   lottie: ^3.1.0
-  rive: ^0.13.0
+  rive: ^0.14.9
 
   # Images
   cached_network_image: ^3.3.1
@@ -63,27 +64,37 @@ dependencies:
 
   # Notifications & WorkManager
   flutter_local_notifications: ^17.0.0
-  workmanager: ^0.5.2
-  home_widget: ^0.4.0
+  workmanager: ^0.9.0
+  workmanager_android: ^0.9.0
+  home_widget: ^0.9.3
 
   # Connectivity
   connectivity_plus: ^5.0.2
 
   # Speech to Text
-  speech_to_text: ^6.6.0
+  speech_to_text: ^7.4.0
   share_plus: ^10.0.0
+
+  # Reactive Extensions
+  rxdart: ^0.28.0
+
+  # Security & Encryption
+  crypto: ^3.0.0
+  encrypt: ^5.0.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  logging: ^1.2.0
+
   flutter_lints: ^6.0.0
+  path_provider_platform_interface: ^2.1.2
 
   # Code Generation
   build_runner: ^2.4.8
   auto_route_generator: ^7.3.2
   isar_generator: ^3.1.0+1
-  rxdart: ^0.28.0
 
   # Flavors Configuration
   flutter_flavorizr: ^2.2.3

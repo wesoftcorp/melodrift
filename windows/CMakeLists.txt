@@ -2,6 +2,9 @@
 cmake_minimum_required(VERSION 3.14)
 project(melodrift LANGUAGES CXX)
 
+# Force minimum policy version to 3.5 to support older plugins like firebase_cpp_sdk
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Force minimum policy version for older plugins" FORCE)
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "melodrift")
@@ -42,6 +45,7 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
+  target_compile_definitions(${TARGET} PRIVATE "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()
 

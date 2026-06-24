@@ -29,7 +29,7 @@ class MusicRepositoryImpl implements MusicRepository {
   Future<List<Artist>> searchArtists(String query) => _remoteSource.searchArtists(query);
 
   @override
-  Future<HomeData> getHomeFeed() => _remoteSource.getHomeFeed();
+  Future<HomeData> getHomeFeed({String? language}) => _remoteSource.getHomeFeed(language: language);
 
   @override
   Future<Album> getAlbumDetails(String albumId) => _remoteSource.getAlbumDetails(albumId);

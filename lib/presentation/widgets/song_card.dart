@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/entities/song.dart';
 import '../providers/player_notifier.dart';
+import 'song_download_button.dart';
 
 class SongCard extends ConsumerWidget {
   final Song song;
@@ -17,10 +18,17 @@ class SongCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final playerState = ref.watch(playerStateProvider);
+    final isCurrent = playerState.currentSong?.id == song.id;
+    final isPlaying = isCurrent && playerState.isPlaying;
 
     return InkWell(
       onTap: () {
-        ref.read(playerStateProvider.notifier).playSong(song);
+        if (isCurrent) {
+          ref.read(playerStateProvider.notifier).togglePlay();
+        } else {
+          ref.read(playerStateProvider.notifier).playSong(song);
+        }
       },
       borderRadius: BorderRadius.circular(8),
       child: Padding(
@@ -50,7 +58,10 @@ class SongCard extends ConsumerWidget {
                 children: [
                   Text(
                     song.title,
-                    style: theme.textTheme.titleSmall,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: isCurrent ? theme.colorScheme.primary : null,
+                      fontWeight: isCurrent ? FontWeight.bold : null,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -64,10 +75,16 @@ class SongCard extends ConsumerWidget {
                 ],
               ),
             ),
+            SongDownloadButton(song: song),
             IconButton(
-              icon: const Icon(Icons.play_arrow_outlined),
+              icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_outlined),
+              color: isCurrent ? theme.colorScheme.primary : null,
               onPressed: () {
-                ref.read(playerStateProvider.notifier).playSong(song);
+                if (isCurrent) {
+                  ref.read(playerStateProvider.notifier).togglePlay();
+                } else {
+                  ref.read(playerStateProvider.notifier).playSong(song);
+                }
               },
             ),
           ],

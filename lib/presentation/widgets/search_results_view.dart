@@ -7,7 +7,7 @@ import '../../domain/entities/album.dart';
 import '../../domain/entities/artist.dart';
 import 'song_card.dart';
 import 'album_card.dart';
-import 'item_details_sheet.dart';
+import '../screens/details_screen.dart';
 
 class SearchResultsView extends ConsumerWidget {
   final String query;
@@ -116,12 +116,15 @@ class SearchResultsView extends ConsumerWidget {
               title: Text(artist.name),
               trailing: artist.isVerified ? const Icon(Icons.verified, color: Colors.blue) : null,
               onTap: () {
-                ItemDetailsSheet.show(
-                  context,
-                  id: artist.id,
-                  title: artist.name,
-                  artworkUrl: artist.artworkUrl,
-                  type: 'artist',
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (context) => DetailsScreen(
+                      id: artist.id,
+                      title: artist.name,
+                      artworkUrl: artist.artworkUrl,
+                      type: 'artist',
+                    ),
+                  ),
                 );
               },
             );
@@ -131,3 +134,4 @@ class SearchResultsView extends ConsumerWidget {
     );
   }
 }
+

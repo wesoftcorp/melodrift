@@ -17,6 +17,7 @@ class AppRouter extends $AppRouter {
           ],
         ),
         AutoRoute(path: '/player', page: PlayerRoute.page, fullscreenDialog: true),
+        AutoRoute(path: '/details', page: DetailsRoute.page),
         AutoRoute(path: '/find', page: FindRoute.page),
         AutoRoute(path: '/listen-together', page: ListenTogetherRoute.page),
       ];

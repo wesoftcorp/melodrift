@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../../domain/entities/download_task.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
+import '../../core/services/encrypted_download_manager.dart';
 import '../datasources/local_music_source.dart';
 import '../datasources/youtube_music_remote_source.dart';
 import '../models/local_models.dart';
@@ -16,18 +17,35 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
   final localSource = ref.watch(localMusicSourceProvider);
   final remoteSource = ref.watch(youtubeMusicRemoteSourceProvider);
   final dio = ref.watch(dioProvider);
-  return DownloadRepositoryImpl(localSource, remoteSource, dio);
+  final encryptedDownloadManager = ref.watch(encryptedDownloadManagerProvider);
+  return DownloadRepositoryImpl(
+    localSource,
+    remoteSource,
+    dio,
+    encryptedDownloadManager,
+  );
+});
+
+final downloadTasksProvider = StreamProvider<List<DownloadTask>>((ref) {
+  final repository = ref.watch(downloadRepositoryProvider);
+  return repository.getDownloadTasksStream();
 });
 
 class DownloadRepositoryImpl implements DownloadRepository {
   final LocalMusicSource _localSource;
   final YouTubeMusicRemoteSource _remoteSource;
   final Dio _dio;
+  final EncryptedDownloadManager _encryptedDownloadManager;
 
   // Track active downloads for cancellation
   final Map<String, CancelToken> _activeDownloads = {};
 
-  DownloadRepositoryImpl(this._localSource, this._remoteSource, this._dio);
+  DownloadRepositoryImpl(
+    this._localSource,
+    this._remoteSource,
+    this._dio,
+    this._encryptedDownloadManager,
+  );
 
   DownloadStatus _mapLocalStatus(LocalDownloadStatus local) {
     switch (local) {
@@ -86,20 +104,14 @@ class DownloadRepositoryImpl implements DownloadRepository {
       // Resolve Audio Stream URL
       final streamUrl = await _remoteSource.getStreamUrl(song.videoId, quality);
 
-      // Determine local save path
-      final appDir = await getApplicationDocumentsDirectory();
-      final downloadsDir = Directory(p.join(appDir.path, 'downloads'));
-      if (!await downloadsDir.exists()) {
-        await downloadsDir.create(recursive: true);
-      }
-
+      final tempDir = await getTemporaryDirectory();
       final cleanTitle = song.title.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
-      final filePath = p.join(downloadsDir.path, '${song.id}_$cleanTitle.mp3');
+      final tempFile = File(p.join(tempDir.path, '${song.id}_$cleanTitle.download'));
 
-      // Perform download
+      // Perform download to a temporary file before app-only storage.
       await _dio.download(
         streamUrl,
-        filePath,
+        tempFile.path,
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) async {
           if (total != -1) {
@@ -114,8 +126,18 @@ class DownloadRepositoryImpl implements DownloadRepository {
         },
       );
 
+      final encryptedPath = await _encryptedDownloadManager.downloadAndEncryptAudio(
+        songId: song.id,
+        title: song.title,
+        audioSourceFn: tempFile.readAsBytes,
+      );
+
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+
       record.status = LocalDownloadStatus.completed;
-      record.filePath = filePath;
+      record.filePath = encryptedPath;
       record.progress = 1.0;
       await _localSource.saveDownloadRecord(record);
 
@@ -127,7 +149,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
         ..durationMs = song.duration.inMilliseconds
         ..artworkUrl = song.artworkUrl
         ..videoId = song.videoId
-        ..filePath = filePath
+        ..filePath = encryptedPath
         ..isDownloaded = true;
       await _localSource.saveSong(localSong);
 

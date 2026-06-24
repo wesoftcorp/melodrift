@@ -32,6 +32,16 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/android/build/
+/graphify-out/
+devtools_options.yaml
+
+# Local Firebase config; keep templates/docs only
+android/app/google-services.json
+
+# Local scratch/debug data
+test/scratch_*.dart
+test/ytInitialData.json
 
 # Symbolication related
 app.*.symbols

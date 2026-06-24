@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../data/datasources/local_music_source.dart';
 import '../../data/repositories/download_repository_impl.dart';
+import '../../data/repositories/playlist_repository_impl.dart';
 import '../../domain/entities/song.dart';
 import '../providers/player_notifier.dart';
 
@@ -51,17 +52,57 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
                   width: 44,
                   height: 44,
                   fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => const Icon(Icons.music_note),
+                   errorWidget: (_, __, ___) => const Icon(Icons.music_note),
                 ),
               ),
               title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () async {
-                  await ref.read(downloadRepositoryProvider).deleteDownload(song.id);
-                  setState(() {});
+              trailing: PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'delete') {
+                    await ref.read(downloadRepositoryProvider).deleteDownload(song.id);
+                    setState(() {});
+                  } else if (value == 'addToPlaylist') {
+                    _showAddToPlaylistDialog(context, ref, song);
+                  } else if (value == 'share') {
+                    // Share functionality can be added here
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Share feature coming soon')),
+                    );
+                  }
                 },
+                itemBuilder: (BuildContext context) => [
+                   const PopupMenuItem(
+                    value: 'addToPlaylist',
+                    child: Row(
+                      children: [
+                        Icon(Icons.playlist_add, size: 20),
+                        SizedBox(width: 8),
+                        Text('Add to Playlist'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'share',
+                    child: Row(
+                      children: [
+                        Icon(Icons.share, size: 20),
+                        SizedBox(width: 8),
+                        Text('Share'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               onTap: () {
                 ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
@@ -70,6 +111,65 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
           },
         );
       },
+    );
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, WidgetRef ref, Song song) {
+    final playlistRepo = ref.read(playlistRepositoryProvider);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => FutureBuilder(
+        future: playlistRepo.getPlaylists(),
+        builder: (context, snapshot) {
+           if (snapshot.connectionState == ConnectionState.waiting) {
+             return const AlertDialog(
+               title: Text('Add to Playlist'),
+               content: CircularProgressIndicator(),
+             );
+           }
+
+          final playlists = snapshot.data ?? [];
+
+          return AlertDialog(
+            title: const Text('Add to Playlist'),
+            content: playlists.isEmpty
+                ? const Text('No playlists found. Create one first.')
+                : SizedBox(
+                    width: double.maxFinite,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: playlists.length,
+                      itemBuilder: (context, index) {
+                        final playlist = playlists[index];
+                        return ListTile(
+                          title: Text(playlist.title),
+                          subtitle: Text('${playlist.trackCount} songs'),
+                          onTap: () async {
+                            await playlistRepo.addSongToPlaylist(playlist.id, song);
+                            if (dialogContext.mounted) Navigator.pop(dialogContext);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added to ${playlist.title}'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      },
+                    ),
+                  ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

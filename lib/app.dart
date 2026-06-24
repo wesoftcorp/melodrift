@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'flavors.dart';
@@ -17,6 +18,8 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeProvider);
     final appRouter = ref.watch(appRouterHelperProvider);
+
+
 
     ThemeMode flutterThemeMode = ThemeMode.system;
 
@@ -41,6 +44,7 @@ class App extends ConsumerWidget {
       darkTheme: themeMode == AppThemeMode.amoled ? AppTheme.amoledTheme : AppTheme.darkTheme,
       themeMode: flutterThemeMode,
       routerConfig: appRouter.config(),
+      scrollBehavior: MyCustomScrollBehavior(),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
         return _flavorBanner(child: child ?? const SizedBox(), show: kDebugMode);
@@ -62,4 +66,13 @@ class App extends ConsumerWidget {
           child: child,
         )
       : child;
+}
+
+class MyCustomScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
 }

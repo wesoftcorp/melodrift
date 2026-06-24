@@ -87,6 +87,21 @@ class MockMelodriftAudioHandler extends BaseAudioHandler implements MelodriftAud
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {}
+
+  @override
+  Stream<Duration> get positionStream => Stream.value(Duration.zero);
+
+  @override
+  Stream<Duration?> get durationStream => Stream.value(Duration.zero);
+
+  @override
+  Stream<Duration> get bufferedPositionStream => Stream.value(Duration.zero);
+
+  @override
+  List<int> get effectiveIndices => [];
+
+  @override
+  Future<void> moveQueueItem(int fromIndex, int toIndex) async {}
 }
 
 class MockMusicRepository implements MusicRepository {
@@ -100,7 +115,7 @@ class MockMusicRepository implements MusicRepository {
   Future<List<Artist>> searchArtists(String query) async => [];
 
   @override
-  Future<HomeData> getHomeFeed() async => const HomeData(
+  Future<HomeData> getHomeFeed({String? language}) async => const HomeData(
         quickPicks: [],
         newReleases: [],
         charts: [],

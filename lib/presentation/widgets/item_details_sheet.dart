@@ -5,6 +5,7 @@ import '../../domain/entities/song.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../providers/player_notifier.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import 'song_download_button.dart';
 
 class ItemDetailsSheet extends ConsumerWidget {
   final String id;
@@ -126,7 +127,14 @@ class ItemDetailsSheet extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: Text(_formatDuration(song.duration)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_formatDuration(song.duration)),
+                            const SizedBox(width: 8),
+                            SongDownloadButton(song: song, size: 20),
+                          ],
+                        ),
                         onTap: () {
                           ref.read(playerStateProvider.notifier).playQueue(tracks, initialIndex: index);
                           Navigator.pop(context);
@@ -168,6 +176,13 @@ class ItemDetailsSheet extends ConsumerWidget {
         'subtitle': artist.subscribers != null ? '${artist.subscribers} subscribers' : '',
         'details': artist.isVerified ? 'Verified Artist' : '',
       };
+    } else if (type == 'mood') {
+      final songs = await repo.searchSongs('$title music');
+      return {
+        'tracks': songs.take(30).toList(),
+        'subtitle': 'Curated $title playlist',
+        'details': '${songs.length} tracks found',
+      };
     }
     return {};
   }
@@ -198,8 +213,22 @@ class ItemDetailsSheet extends ConsumerWidget {
                 : Container(
                     width: 160,
                     height: 160,
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    child: const Icon(Icons.music_note, size: 80),
+                    decoration: type == 'mood'
+                        ? BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: _getMoodGradientColors(title),
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          )
+                        : BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                          ),
+                    child: Icon(
+                      type == 'mood' ? _getMoodIcon(title) : Icons.music_note,
+                      size: 80,
+                      color: Colors.white,
+                    ),
                   ),
           ),
           const SizedBox(height: 16),
@@ -239,5 +268,29 @@ class ItemDetailsSheet extends ConsumerWidget {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  List<Color> _getMoodGradientColors(String title) {
+    const gradients = [
+      [Color(0xFF8E2DE2), Color(0xFF4A00E0)], // Indigo/Violet
+      [Color(0xFFf12711), Color(0xFFf5af19)], // Sunset orange
+      [Color(0xFF11998e), Color(0xFF38ef7d)], // Emerald
+      [Color(0xFFFF007F), Color(0xFF7F00FF)], // Neon Pink/Purple
+      [Color(0xFF00c6ff), Color(0xFF0072ff)], // Sky Blue
+      [Color(0xFFfc4a1a), Color(0xFFf7b733)], // Sunrise
+    ];
+    final index = title.hashCode.abs() % gradients.length;
+    return gradients[index];
+  }
+
+  IconData _getMoodIcon(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('workout')) return Icons.fitness_center;
+    if (t.contains('focus')) return Icons.psychology;
+    if (t.contains('relax')) return Icons.spa;
+    if (t.contains('party')) return Icons.celebration;
+    if (t.contains('romance')) return Icons.favorite;
+    if (t.contains('sad') || t.contains('melancholy')) return Icons.sentiment_very_dissatisfied;
+    return Icons.music_note;
   }
 }

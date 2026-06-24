@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:auto_route/auto_route.dart';
 import '../../domain/entities/album.dart';
-import 'item_details_sheet.dart';
+import '../../app/router/app_router.gr.dart';
 
 class AlbumCard extends StatelessWidget {
   final Album album;
@@ -19,12 +20,13 @@ class AlbumCard extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        ItemDetailsSheet.show(
-          context,
-          id: album.id,
-          title: album.title,
-          artworkUrl: album.artworkUrl,
-          type: 'album',
+        context.router.push(
+          DetailsRoute(
+            id: album.id,
+            title: album.title,
+            artworkUrl: album.artworkUrl,
+            type: 'album',
+          ),
         );
       },
       borderRadius: BorderRadius.circular(12),
@@ -68,3 +70,4 @@ class AlbumCard extends StatelessWidget {
     );
   }
 }
+
