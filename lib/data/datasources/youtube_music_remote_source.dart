@@ -158,11 +158,6 @@ class YouTubeMusicRemoteSource {
         'title': mood.title,
       };
 
-  MoodCategory _moodFromJson(Map<String, dynamic> json) => MoodCategory(
-        id: json['id'] as String,
-        title: json['title'] as String,
-      );
-
   Map<String, dynamic> _homeDataToJson(HomeData data) => {
         'quickPicks': data.quickPicks.map(_songToJson).toList(),
         'newReleases': data.newReleases.map(_albumToJson).toList(),
@@ -188,9 +183,7 @@ class YouTubeMusicRemoteSource {
         charts: (json['charts'] as List)
             .map((s) => _songFromJson(s as Map<String, dynamic>))
             .toList(),
-        moods: (json['moods'] as List)
-            .map((m) => _moodFromJson(m as Map<String, dynamic>))
-            .toList(),
+        moods: getMoodGenreCategories(),
         listenAgain: (json['listenAgain'] as List)
             .map((s) => _songFromJson(s as Map<String, dynamic>))
             .toList(),
@@ -452,16 +445,57 @@ class YouTubeMusicRemoteSource {
   /// Static Mood Categories
   List<MoodCategory> getMoodGenreCategories() {
     return const [
+      // Moods
       MoodCategory(id: 'relax', title: 'Relax'),
       MoodCategory(id: 'workout', title: 'Workout'),
       MoodCategory(id: 'energize', title: 'Energize'),
       MoodCategory(id: 'party', title: 'Party'),
-      MoodCategory(id: 'commute', title: 'Commute'),
       MoodCategory(id: 'romance', title: 'Romance'),
       MoodCategory(id: 'sad', title: 'Sad'),
       MoodCategory(id: 'focus', title: 'Focus'),
-      MoodCategory(id: 'feel_good', title: 'Feel good'),
+      MoodCategory(id: 'feel_good', title: 'Feel Good'),
       MoodCategory(id: 'sleep', title: 'Sleep'),
+      MoodCategory(id: 'chill', title: 'Chill'),
+      MoodCategory(id: 'commute', title: 'Commute'),
+      MoodCategory(id: 'happy', title: 'Happy'),
+      MoodCategory(id: 'rainy_day', title: 'Rainy Day'),
+      MoodCategory(id: 'road_trip', title: 'Road Trip'),
+      MoodCategory(id: 'study', title: 'Study'),
+      MoodCategory(id: 'motivation', title: 'Motivation'),
+      MoodCategory(id: 'morning', title: 'Morning'),
+      MoodCategory(id: 'night_drive', title: 'Night Drive'),
+      MoodCategory(id: 'heartbreak', title: 'Heartbreak'),
+      MoodCategory(id: 'acoustic', title: 'Acoustic'),
+      // Genres
+      MoodCategory(id: 'pop', title: 'Pop'),
+      MoodCategory(id: 'hip_hop', title: 'Hip-Hop'),
+      MoodCategory(id: 'rock', title: 'Rock'),
+      MoodCategory(id: 'jazz', title: 'Jazz'),
+      MoodCategory(id: 'classical', title: 'Classical'),
+      MoodCategory(id: 'edm', title: 'EDM'),
+      MoodCategory(id: 'lofi', title: 'Lo-Fi'),
+      MoodCategory(id: 'kpop', title: 'K-Pop'),
+      MoodCategory(id: 'bollywood', title: 'Bollywood'),
+      MoodCategory(id: 'devotional', title: 'Devotional'),
+      MoodCategory(id: '90s', title: '90s Hits'),
+      MoodCategory(id: 'retro', title: 'Retro'),
+      MoodCategory(id: 'gaming', title: 'Gaming'),
+      MoodCategory(id: 'rnb', title: 'R&B'),
+      MoodCategory(id: 'soul', title: 'Soul'),
+      MoodCategory(id: 'folk', title: 'Folk'),
+      MoodCategory(id: 'country', title: 'Country'),
+      MoodCategory(id: 'metal', title: 'Metal'),
+      MoodCategory(id: 'punk', title: 'Punk'),
+      MoodCategory(id: 'indie', title: 'Indie'),
+      MoodCategory(id: 'reggae', title: 'Reggae'),
+      MoodCategory(id: 'latin', title: 'Latin'),
+      MoodCategory(id: 'punjabi', title: 'Punjabi'),
+      MoodCategory(id: 'ghazal', title: 'Ghazal'),
+      MoodCategory(id: 'sufi', title: 'Sufi'),
+      MoodCategory(id: 'bhojpuri', title: 'Bhojpuri'),
+      MoodCategory(id: 'tamil', title: 'Tamil'),
+      MoodCategory(id: 'telugu', title: 'Telugu'),
+      MoodCategory(id: 'marathi', title: 'Marathi'),
     ];
   }
 

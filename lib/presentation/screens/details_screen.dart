@@ -9,6 +9,7 @@ import '../../data/repositories/music_repository_impl.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
+import '../../data/repositories/playlist_repository_impl.dart';
 
 @RoutePage()
 class DetailsScreen extends ConsumerWidget {
@@ -44,7 +45,7 @@ class DetailsScreen extends ConsumerWidget {
           : type == 'albumList'
               ? _buildAlbumGrid(context, preloadedAlbums ?? [])
               : FutureBuilder<Map<String, dynamic>>(
-                  future: _fetchData(repo),
+                  future: _fetchData(ref, repo),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -136,7 +137,7 @@ class DetailsScreen extends ConsumerWidget {
     );
   }
 
-  Future<Map<String, dynamic>> _fetchData(MusicRepository repo) async {
+  Future<Map<String, dynamic>> _fetchData(WidgetRef ref, MusicRepository repo) async {
     if (type == 'album') {
       final album = await repo.getAlbumDetails(id);
       return {
@@ -145,6 +146,14 @@ class DetailsScreen extends ConsumerWidget {
         'details': '${album.songCount} songs',
       };
     } else if (type == 'playlist') {
+      final localPlaylist = await ref.read(playlistRepositoryProvider).getPlaylist(id);
+      if (localPlaylist != null) {
+        return {
+          'tracks': localPlaylist.songs,
+          'subtitle': localPlaylist.description,
+          'details': '${localPlaylist.songs.length} songs',
+        };
+      }
       final playlist = await repo.getPlaylistDetails(id);
       return {
         'tracks': playlist.songs,
@@ -240,9 +249,25 @@ class DetailsScreen extends ConsumerWidget {
       'commute': [const Color(0xFF00c6ff), const Color(0xFF0072ff)],
       'romance': [const Color(0xFFfc4a1a), const Color(0xFFf7b733)],
       'sad': [const Color(0xFF232526), const Color(0xFF414345)],
-      'focus': [const Color(0xFF3A6073), const Color(0xFF3A6073)],
-      'feel good': [const Color(0xFF11998e), const Color(0xFF38ef7d)],
+      'focus': [const Color(0xFF3A6073), const Color(0xFF16213e)],
+      'feel good': [const Color(0xFF56ab2f), const Color(0xFFa8e063)],
       'sleep': [const Color(0xFF0f2027), const Color(0xFF203a43)],
+      'chill': [const Color(0xFF005C97), const Color(0xFF363795)],
+      'happy': [const Color(0xFFe96c1e), const Color(0xFFFFCE54)],
+      // Genres
+      'pop': [const Color(0xFFFF007F), const Color(0xFFff6ec7)],
+      'hip-hop': [const Color(0xFF1a1a2e), const Color(0xFF6c3483)],
+      'rock': [const Color(0xFF833ab4), const Color(0xFFfd1d1d)],
+      'jazz': [const Color(0xFF134E5E), const Color(0xFF71B280)],
+      'classical': [const Color(0xFF614385), const Color(0xFF516395)],
+      'edm': [const Color(0xFF00c6ff), const Color(0xFF7F00FF)],
+      'lo-fi': [const Color(0xFF1a1a2e), const Color(0xFF16213e)],
+      'k-pop': [const Color(0xFFf953c6), const Color(0xFFb91d73)],
+      'bollywood': [const Color(0xFFe96c1e), const Color(0xFFFFCE54)],
+      'devotional': [const Color(0xFFf7971e), const Color(0xFFffd200)],
+      '90s hits': [const Color(0xFF56ab2f), const Color(0xFFa8e063)],
+      'retro': [const Color(0xFFfc4a1a), const Color(0xFFf7b733)],
+      'gaming': [const Color(0xFF11998e), const Color(0xFF00c6ff)],
     };
     return gradients[title.toLowerCase()] ?? [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
   }
@@ -269,6 +294,37 @@ class DetailsScreen extends ConsumerWidget {
         return Icons.emoji_emotions_outlined;
       case 'sleep':
         return Icons.bedtime_outlined;
+      case 'chill':
+        return Icons.ac_unit_outlined;
+      case 'happy':
+        return Icons.sentiment_very_satisfied_outlined;
+      // Genres
+      case 'pop':
+        return Icons.star_outline;
+      case 'hip-hop':
+        return Icons.headphones_outlined;
+      case 'rock':
+        return Icons.electric_bolt_outlined;
+      case 'jazz':
+        return Icons.piano_outlined;
+      case 'classical':
+        return Icons.library_music_outlined;
+      case 'edm':
+        return Icons.graphic_eq;
+      case 'lo-fi':
+        return Icons.nights_stay_outlined;
+      case 'k-pop':
+        return Icons.auto_awesome_outlined;
+      case 'bollywood':
+        return Icons.movie_outlined;
+      case 'devotional':
+        return Icons.temple_hindu_outlined;
+      case '90s hits':
+        return Icons.replay_outlined;
+      case 'retro':
+        return Icons.radio_outlined;
+      case 'gaming':
+        return Icons.sports_esports_outlined;
       default:
         return Icons.music_note_outlined;
     }

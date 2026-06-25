@@ -2,7 +2,7 @@ name: melodrift
 description: "Let the music drift - Premium YouTube Music client"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -99,6 +99,9 @@ dev_dependencies:
   # Flavors Configuration
   flutter_flavorizr: ^2.2.3
 
+  # App Icon Generation
+  flutter_launcher_icons: ^0.14.3
+
 flutter:
   uses-material-design: true
 
@@ -136,3 +139,17 @@ flavorizr:
         applicationId: "com.melodrift"
       ios:
         bundleId: "com.melodrift"
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/logo/melodrift.png"
+  min_sdk_android: 21
+  web:
+    generate: false
+  windows:
+    generate: true
+    image_path: "assets/logo/melodrift.png"
+    icon_size: 48
+  macos:
+    generate: false

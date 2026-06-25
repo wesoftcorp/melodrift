@@ -13,18 +13,16 @@ class PlaylistsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final playlistRepo = ref.watch(playlistRepositoryProvider);
+    final playlistsAsync = ref.watch(playlistsStreamProvider);
 
-    return FutureBuilder<List<Playlist>>(
-      future: playlistRepo.getPlaylists(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final playlists = snapshot.data ?? [];
+    return playlistsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Center(child: Text('Error: $err')),
+      data: (playlists) {
         if (playlists.isEmpty) {
           return const Center(child: Text('Create playlists to start organizing'));
         }
+        final playlistRepo = ref.read(playlistRepositoryProvider);
         return ListView.builder(
           itemCount: playlists.length,
           itemBuilder: (context, index) {

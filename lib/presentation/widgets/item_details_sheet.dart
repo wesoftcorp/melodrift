@@ -271,16 +271,34 @@ class ItemDetailsSheet extends ConsumerWidget {
   }
 
   List<Color> _getMoodGradientColors(String title) {
-    const gradients = [
-      [Color(0xFF8E2DE2), Color(0xFF4A00E0)], // Indigo/Violet
-      [Color(0xFFf12711), Color(0xFFf5af19)], // Sunset orange
-      [Color(0xFF11998e), Color(0xFF38ef7d)], // Emerald
-      [Color(0xFFFF007F), Color(0xFF7F00FF)], // Neon Pink/Purple
-      [Color(0xFF00c6ff), Color(0xFF0072ff)], // Sky Blue
-      [Color(0xFFfc4a1a), Color(0xFFf7b733)], // Sunrise
-    ];
-    final index = title.hashCode.abs() % gradients.length;
-    return gradients[index];
+    final Map<String, List<Color>> gradients = {
+      'relax': [const Color(0xFF11998e), const Color(0xFF38ef7d)],
+      'workout': [const Color(0xFFf12711), const Color(0xFFf5af19)],
+      'energize': [const Color(0xFFFF007F), const Color(0xFF7F00FF)],
+      'party': [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
+      'commute': [const Color(0xFF00c6ff), const Color(0xFF0072ff)],
+      'romance': [const Color(0xFFfc4a1a), const Color(0xFFf7b733)],
+      'sad': [const Color(0xFF232526), const Color(0xFF414345)],
+      'focus': [const Color(0xFF3A6073), const Color(0xFF16213e)],
+      'feel good': [const Color(0xFF56ab2f), const Color(0xFFa8e063)],
+      'sleep': [const Color(0xFF0f2027), const Color(0xFF203a43)],
+      'chill': [const Color(0xFF005C97), const Color(0xFF363795)],
+      'happy': [const Color(0xFFe96c1e), const Color(0xFFFFCE54)],
+      'pop': [const Color(0xFFFF007F), const Color(0xFFff6ec7)],
+      'hip-hop': [const Color(0xFF1a1a2e), const Color(0xFF6c3483)],
+      'rock': [const Color(0xFF833ab4), const Color(0xFFfd1d1d)],
+      'jazz': [const Color(0xFF134E5E), const Color(0xFF71B280)],
+      'classical': [const Color(0xFF614385), const Color(0xFF516395)],
+      'edm': [const Color(0xFF00c6ff), const Color(0xFF7F00FF)],
+      'lo-fi': [const Color(0xFF1a1a2e), const Color(0xFF16213e)],
+      'k-pop': [const Color(0xFFf953c6), const Color(0xFFb91d73)],
+      'bollywood': [const Color(0xFFe96c1e), const Color(0xFFFFCE54)],
+      'devotional': [const Color(0xFFf7971e), const Color(0xFFffd200)],
+      '90s hits': [const Color(0xFF56ab2f), const Color(0xFFa8e063)],
+      'retro': [const Color(0xFFfc4a1a), const Color(0xFFf7b733)],
+      'gaming': [const Color(0xFF11998e), const Color(0xFF00c6ff)],
+    };
+    return gradients[title.toLowerCase()] ?? [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
   }
 
   IconData _getMoodIcon(String title) {
@@ -291,6 +309,21 @@ class ItemDetailsSheet extends ConsumerWidget {
     if (t.contains('party')) return Icons.celebration;
     if (t.contains('romance')) return Icons.favorite;
     if (t.contains('sad') || t.contains('melancholy')) return Icons.sentiment_very_dissatisfied;
+    if (t.contains('chill') || t.contains('sleep')) return Icons.nights_stay;
+    if (t.contains('happy')) return Icons.sentiment_very_satisfied;
+    if (t.contains('pop')) return Icons.star;
+    if (t.contains('hip')) return Icons.headphones;
+    if (t.contains('rock')) return Icons.electric_bolt;
+    if (t.contains('jazz')) return Icons.piano;
+    if (t.contains('classical')) return Icons.library_music;
+    if (t.contains('edm')) return Icons.graphic_eq;
+    if (t.contains('lo-fi') || t.contains('lofi')) return Icons.nights_stay;
+    if (t.contains('k-pop') || t.contains('kpop')) return Icons.auto_awesome;
+    if (t.contains('bollywood')) return Icons.movie;
+    if (t.contains('devotional')) return Icons.temple_hindu;
+    if (t.contains('90s')) return Icons.replay;
+    if (t.contains('retro')) return Icons.radio;
+    if (t.contains('gaming')) return Icons.sports_esports;
     return Icons.music_note;
   }
 }

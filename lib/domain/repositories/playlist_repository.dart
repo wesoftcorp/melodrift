@@ -19,4 +19,7 @@ abstract class PlaylistRepository {
 
   /// Remove a song from a playlist
   Future<void> removeSongFromPlaylist(String playlistId, String songId);
+
+  /// Watch all local and synced playlists
+  Stream<List<Playlist>> watchPlaylists();
 }

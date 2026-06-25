@@ -14,7 +14,7 @@ import '../../domain/entities/home_data.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
-import '../widgets/mood_card.dart';
+import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
 import 'details_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -311,20 +311,10 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 130,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      mainAxisExtent: 48,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => MoodCard(mood: feed.moods[index]),
-                      childCount: feed.moods.length,
-                    ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: HorizontalMoodRow(moods: feed.moods),
                   ),
                 ),
 

@@ -194,6 +194,9 @@ class MockLocalMusicSource implements LocalMusicSource {
   Future<List<LocalPlaylist>> getAllPlaylists() async => [];
 
   @override
+  Stream<List<LocalPlaylist>> watchAllPlaylists() => Stream.value([]);
+
+  @override
   Future<void> deletePlaylist(String playlistId) async {}
 
   @override

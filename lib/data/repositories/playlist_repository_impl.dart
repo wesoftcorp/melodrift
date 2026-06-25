@@ -10,6 +10,11 @@ final playlistRepositoryProvider = Provider<PlaylistRepository>((ref) {
   return PlaylistRepositoryImpl(localSource);
 });
 
+final playlistsStreamProvider = StreamProvider<List<Playlist>>((ref) {
+  final repo = ref.watch(playlistRepositoryProvider);
+  return repo.watchPlaylists();
+});
+
 class PlaylistRepositoryImpl implements PlaylistRepository {
   final LocalMusicSource _localSource;
 
@@ -97,5 +102,17 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   @override
   Future<void> removeSongFromPlaylist(String playlistId, String songId) async {
     await _localSource.removeSongFromPlaylist(playlistId, songId);
+  }
+
+  @override
+  Stream<List<Playlist>> watchPlaylists() {
+    return _localSource.watchAllPlaylists().asyncMap((list) async {
+      final List<Playlist> results = [];
+      for (final l in list) {
+        await l.songs.load();
+        results.add(_mapLocalToPlaylist(l));
+      }
+      return results;
+    });
   }
 }

@@ -8,8 +8,8 @@
 - **Stack:** Flutter 3.0+, Riverpod 2.5, Audio Service, Just Audio, Firebase (optional), Isar DB
 
 ## Session State
-- **Last Updated:** 2026-06-23 (23:15 UTC)
-- **Current Focus:** Completed UI integration for offline downloads and optimization caches
+- **Last Updated:** 2026-06-25 (current session)
+- **Current Focus:** Android devFoss APK rebuilt, installed, and launched with updated launcher logo
 - **Platform Status:**
   - Windows: ✅ Fully functional with Caching & Downloading UI controls
   - Android: ✅ Fully functional, APK compiles and runs successfully
@@ -37,6 +37,60 @@
 
 ## Known Issues & Optimizations Needed
 (See ANALYSIS.md in next section)
+
+## Last Checkpoint
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Switched Moods & Genres back to Flutter's native `ReorderableListView.builder` in horizontal mode with `ReorderableDelayedDragStartListener` for more reliable hold-and-drag reordering. Ran `flutter clean`, `flutter pub get`, verified `flutter analyze`, clean-built optimized Android and Windows releases, fully uninstalled/reinstalled Android devFoss to remove stale app data/layout, and launched it.
+> **Files Modified:** `lib/presentation/widgets/mood_card.dart`, `MEMORY.md`
+> **Build Outputs:** `build\app\outputs\flutter-apk\app-devfoss-release.apk` (126.6MB), `build\windows\x64\runner\Release\melodrift.exe`
+> **Notes:** Android app data was cleared by uninstall/reinstall. Windows build succeeded with the existing `MSVCRT.lib` `.voltbl` linker warning.
+> **Next Action:** User should verify Android now shows the same single horizontal Moods & Genres row and that holding a tile starts reorder drag.
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Applied the latest shared Flutter Moods & Genres changes to both Android and Windows: single horizontal row, long-press drag reorder, expanded tile set, and refreshed logo assets. Verified `flutter analyze`, built optimized release outputs using `--obfuscate` and `--split-debug-info`, installed the Android devFoss release on device `8015bbb`, and launched it.
+> **Files Modified:** Shared Flutter UI/data files already in progress, `MEMORY.md`
+> **Build Outputs:** `build\app\outputs\flutter-apk\app-devfoss-release.apk`, `build\windows\x64\runner\Release\melodrift.exe`, symbols in `build\symbols\android` and `build\symbols\windows`
+> **Notes:** Windows build completed with a linker warning about multiple `.voltbl` sections from `MSVCRT.lib`, but the release executable built successfully.
+> **Next Action:** User should verify Android tile dragging and Windows row behavior visually.
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Corrected Moods & Genres to a single horizontal reorderable row with a 1-second hold-to-drag gesture, regenerated launcher icons, copied the new Android icon into all flavor-specific mipmap folders so devFoss no longer uses stale flavor icons, rebuilt and reinstalled the Android devFoss APK, force-stopped, and launched it.
+> **Files Modified:** `lib/presentation/widgets/mood_card.dart`, Android flavor `mipmap-*\ic_launcher.png` files, `MEMORY.md`
+> **Verification:** `flutter analyze` passed, Android devFoss release APK built and installed successfully on device `8015bbb`.
+> **Next Action:** User should verify long-hold tile reordering and launcher icon; Android launchers may cache icons until launcher/app cache refresh or device restart.
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Fixed Android not showing the latest Moods & Genres update by changing cached home-feed deserialization to always use the current `getMoodGenreCategories()` list instead of stale cached mood JSON. Removed the now-unused mood JSON reader, verified `flutter analyze` clean, rebuilt the devFoss release APK, installed it on device `8015bbb`, and launched the app.
+> **Files Modified:** `lib/data/datasources/youtube_music_remote_source.dart`, `MEMORY.md`
+> **Build Output:** `build\app\outputs\flutter-apk\app-devfoss-release.apk` (131.1MB)
+> **Next Action:** User should confirm Android Home now shows the horizontal Moods & Genres row with the expanded mood/genre set.
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Built Android devFoss release APK after the launcher-logo update, installed it on attached device `8015bbb`, and launched `com.melodrift.dev.foss` successfully.
+> **Files Modified:** `MEMORY.md`
+> **Build Output:** `build\app\outputs\flutter-apk\app-devfoss-release.apk` (131.1MB)
+> **Commands:** `flutter build apk --flavor devFoss -t lib/main.dart --release`, `adb install -r -d build\app\outputs\flutter-apk\app-devfoss-release.apk`, `adb shell monkey -p com.melodrift.dev.foss -c android.intent.category.LAUNCHER 1`
+> **Next Action:** User should confirm the updated launcher/installation logo is visible on Android.
+
+> **Timestamp:** 2026-06-25
+> **State:** `completed`
+> **Summary:** Updated `flutter_launcher_icons` config to use `assets/logo/melodrift.png` for Android and Windows, disabled iOS icon generation for this requested scope, regenerated Android mipmap launcher icons and `windows/runner/resources/app_icon.ico`, and ran `flutter pub get` successfully.
+> **Files Modified:** `pubspec.yaml`, `pubspec.lock`, `android/app/src/main/res/mipmap-*/ic_launcher.png`, `windows/runner/resources/app_icon.ico`, `MEMORY.md`
+> **Next Action:** Build Android/Windows installers or release outputs if the refreshed icons need to be packaged immediately.
+> **Context:** The chat image itself cannot be read by this model, so the update used the workspace image file `assets/logo/melodrift.png`.
+
+> **Timestamp:** 2026-06-25T10:31:16+05:30
+> **State:** `completed`
+> **Summary:** Updated the global opencode AgentRouter model mapping from `claude-opus-4-8` to `claude-opus-4-7`. Earlier logo work stalled because this session cannot read the uploaded image input directly.
+> **Files Modified:** `C:\Users\rajee\.config\opencode\opencode.json`, `D:\Code\Antigravity\My_Projects\melodrift\MEMORY.md`
+> **Next Action:** Restart opencode so the config change is loaded, then continue the Melodrift logo update using a concrete readable image file path.
+> **Context:** User wants Melodrift app logo applied across app icons and installer/build outputs for Windows and Android; the image was referenced as `melodrift.png`, but this model cannot read image uploads from chat.
 
 ## Phase 4: Encrypted Downloads - COMPLETED ✅
 

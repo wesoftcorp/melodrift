@@ -56,12 +56,25 @@ class LocalMusicSource {
 
   /// Get a playlist by ID
   Future<LocalPlaylist?> getPlaylist(String playlistId) async {
-    return await _isar.localPlaylists.filter().playlistIdEqualTo(playlistId).findFirst();
+    final playlist = await _isar.localPlaylists.filter().playlistIdEqualTo(playlistId).findFirst();
+    if (playlist != null) {
+      await playlist.songs.load();
+    }
+    return playlist;
   }
 
   /// Get all playlists (local and YouTube synced)
   Future<List<LocalPlaylist>> getAllPlaylists() async {
-    return await _isar.localPlaylists.where().findAll();
+    final list = await _isar.localPlaylists.where().findAll();
+    for (final playlist in list) {
+      await playlist.songs.load();
+    }
+    return list;
+  }
+
+  /// Watch all playlists
+  Stream<List<LocalPlaylist>> watchAllPlaylists() {
+    return _isar.localPlaylists.where().watch(fireImmediately: true);
   }
 
   /// Delete a playlist
@@ -76,30 +89,43 @@ class LocalMusicSource {
 
   /// Add a song to a playlist
   Future<void> addSongToPlaylist(String playlistId, LocalSong song) async {
-    final playlist = await getPlaylist(playlistId);
-    if (playlist == null) return;
-
-    final existingSong = await getSong(song.songId);
-    final songToLink = existingSong ?? song;
-
     await _isar.writeTxn(() async {
+      final playlist = await _isar.localPlaylists.filter().playlistIdEqualTo(playlistId).findFirst();
+      if (playlist == null) return;
+
+      final existingSong = await _isar.localSongs.filter().songIdEqualTo(song.songId).findFirst();
+      final songToLink = existingSong ?? song;
+
       if (existingSong == null) {
         await _isar.localSongs.put(songToLink);
       }
-      playlist.songs.add(songToLink);
-      await playlist.songs.save();
+
+      await playlist.songs.load();
+      if (!playlist.songs.any((s) => s.songId == song.songId)) {
+        playlist.songs.add(songToLink);
+        await playlist.songs.save();
+
+        playlist.trackCount = playlist.songs.length;
+        await _isar.localPlaylists.put(playlist);
+      }
     });
   }
 
   /// Remove a song from a playlist
   Future<void> removeSongFromPlaylist(String playlistId, String songId) async {
-    final playlist = await getPlaylist(playlistId);
-    final song = await getSong(songId);
-    if (playlist == null || song == null) return;
-
     await _isar.writeTxn(() async {
-      playlist.songs.remove(song);
-      await playlist.songs.save();
+      final playlist = await _isar.localPlaylists.filter().playlistIdEqualTo(playlistId).findFirst();
+      final song = await _isar.localSongs.filter().songIdEqualTo(songId).findFirst();
+      if (playlist == null || song == null) return;
+
+      await playlist.songs.load();
+      if (playlist.songs.any((s) => s.songId == songId)) {
+        playlist.songs.remove(song);
+        await playlist.songs.save();
+
+        playlist.trackCount = playlist.songs.length;
+        await _isar.localPlaylists.put(playlist);
+      }
     });
   }
 
