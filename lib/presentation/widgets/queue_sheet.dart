@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/player_notifier.dart';
+import '../providers/player_providers.dart';
 
 class QueueSheet extends ConsumerWidget {
   const QueueSheet({super.key});
@@ -9,9 +10,9 @@ class QueueSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final playerState = ref.watch(playerStateProvider);
-    final queue = playerState.queue;
-    final currentSong = playerState.currentSong;
+    // Fine-grained: only rebuilds when queue list or current song changes
+    final queue = ref.watch(queueProvider);
+    final currentSong = ref.watch(currentSongProvider);
 
     return Container(
       decoration: BoxDecoration(

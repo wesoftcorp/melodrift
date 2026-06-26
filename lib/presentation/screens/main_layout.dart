@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../app/router/app_router.gr.dart';
 import '../providers/player_notifier.dart';
+import '../providers/player_providers.dart';
 
 @RoutePage()
 class MainLayoutScreen extends ConsumerWidget {
@@ -12,8 +13,10 @@ class MainLayoutScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(playerStateProvider);
-    final hasActiveSong = playerState.currentSong != null;
+    // Only rebuilds when song presence changes (not on every position tick)
+    final hasActiveSong = ref.watch(
+      playerStateProvider.select((s) => s.currentSong != null),
+    );
 
     return AutoTabsScaffold(
       routes: const [
@@ -26,7 +29,7 @@ class MainLayoutScreen extends ConsumerWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (hasActiveSong) _buildMiniPlayerSlot(context, ref, playerState),
+            if (hasActiveSong) const _MiniPlayer(),
             NavigationBar(
               selectedIndex: tabsRouter.activeIndex,
               onDestinationSelected: tabsRouter.setActiveIndex,
@@ -58,19 +61,23 @@ class MainLayoutScreen extends ConsumerWidget {
       },
     );
   }
+}
 
-  Widget _buildMiniPlayerSlot(
-    BuildContext context,
-    WidgetRef ref,
-    PlayerState playerState,
-  ) {
+/// Mini-player extracted into its own widget so only it rebuilds on position ticks.
+class _MiniPlayer extends ConsumerWidget {
+  const _MiniPlayer();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final song = playerState.currentSong;
-    if (song == null) return const SizedBox.shrink();
 
-    final progress = playerState.duration.inMilliseconds > 0
-        ? playerState.position.inMilliseconds / playerState.duration.inMilliseconds
-        : 0.0;
+    // Metadata: only rebuilds when song/playing/loading changes
+    final song = ref.watch(currentSongProvider);
+    final (:isPlaying, :isLoading) = ref.watch(playbackStateProvider);
+    // Progress: rebuilds on every position tick — scoped only to this widget
+    final progress = ref.watch(progressRatioProvider);
+
+    if (song == null) return const SizedBox.shrink();
 
     return InkWell(
       onTap: () => context.router.push(const PlayerRoute()),
@@ -179,7 +186,7 @@ class MainLayoutScreen extends ConsumerWidget {
                               icon: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  if (playerState.isLoading)
+                                  if (isLoading)
                                     const SizedBox(
                                       width: 28,
                                       height: 28,
@@ -190,7 +197,7 @@ class MainLayoutScreen extends ConsumerWidget {
                                       ),
                                     ),
                                   Icon(
-                                    playerState.isPlaying
+                                    isPlaying
                                         ? Icons.pause
                                         : Icons.play_arrow,
                                   ),

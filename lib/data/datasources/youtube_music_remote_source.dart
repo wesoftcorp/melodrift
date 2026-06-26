@@ -18,9 +18,29 @@ final youtubeMusicRemoteSourceProvider = Provider<YouTubeMusicRemoteSource>((ref
   return source;
 });
 
+/// In-memory stream URL cache entry with expiry.
+class _StreamUrlCacheEntry {
+  final String url;
+  final DateTime expiresAt;
+  _StreamUrlCacheEntry(this.url, this.expiresAt);
+  bool get isValid => DateTime.now().isBefore(expiresAt);
+}
+
 class YouTubeMusicRemoteSource {
   final yt.YoutubeExplode _yt = yt.YoutubeExplode();
   final _log = AppLogger('YouTubeMusicRemoteSource');
+
+  /// In-memory stream URL cache: videoId+quality → cached entry.
+  /// YouTube CDN URLs are valid ~6 hours; we cache for 4 hours to stay safe.
+  final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
+  static const _streamUrlCacheTtl = Duration(hours: 4);
+
+  /// Ordered list of YouTube clients to try in sequence.
+  static final _ytClients = [
+    yt.YoutubeApiClient.androidVr,
+    yt.YoutubeApiClient.android,
+    yt.YoutubeApiClient.ios,
+  ];
 
   /// Search for songs matching [query]
   Future<List<Song>> searchSongs(String query, {List<String>? filters}) async {
@@ -391,24 +411,62 @@ class YouTubeMusicRemoteSource {
     );
   }
 
-  /// Get high-quality stream URL for playback
+  /// Get high-quality stream URL for playback.
+  /// Results are cached in memory for [_streamUrlCacheTtl] to avoid redundant
+  /// YouTube API round-trips on every play / prefetch.
   Future<String> getStreamUrl(String videoId, String quality) async {
-    final manifest = await _yt.videos.streamsClient.getManifest(
-      videoId,
-      ytClients: [yt.YoutubeApiClient.androidVr],
-    );
-    var audioStreams = manifest.audioOnly.toList();
-    
-    // Filter to only MP4 (AAC) streams for universal hardware decoding compatibility (especially on Windows)
-    final mp4Streams = audioStreams.where((s) => s.container.name.toLowerCase() == 'mp4').toList();
-    if (mp4Streams.isNotEmpty) {
-      audioStreams = mp4Streams;
+    final cacheKey = '$videoId:$quality';
+    final cached = _streamUrlCache[cacheKey];
+    if (cached != null && cached.isValid) {
+      _log.debug('Stream URL cache hit for $videoId ($quality)');
+      return cached.url;
     }
 
+    _log.debug('Fetching stream URL for $videoId ($quality)…');
+    yt.StreamManifest? manifest;
+    for (final client in _ytClients) {
+      try {
+        manifest = await _yt.videos.streamsClient
+            .getManifest(videoId, ytClients: [client])
+            .timeout(const Duration(seconds: 10));
+        break; // success — stop trying more clients
+      } catch (e) {
+        _log.warning('Client ${client.runtimeType} failed for $videoId: $e');
+      }
+    }
+
+    if (manifest == null) {
+      throw Exception('All YouTube clients failed to fetch manifest for $videoId');
+    }
+
+    var audioStreams = manifest.audioOnly.toList();
+
+    // Prefer MP4/AAC streams — hardware-decoded on both Windows and Android.
+    final mp4Streams = audioStreams
+        .where((s) => s.container.name.toLowerCase() == 'mp4')
+        .toList();
+    if (mp4Streams.isNotEmpty) audioStreams = mp4Streams;
+
     audioStreams.sort((a, b) => a.bitrate.bitsPerSecond.compareTo(b.bitrate.bitsPerSecond));
-    
-    final streamInfo = quality == 'Low' ? audioStreams.first : audioStreams.last;
-    return streamInfo.url.toString();
+    final streamInfo = switch (quality) {
+      'Low' => audioStreams.first,
+      'Medium' || 'Standard' => audioStreams[audioStreams.length ~/ 2],
+      _ => audioStreams.last,
+    };
+    final url = streamInfo.url.toString();
+
+    // Store in cache with TTL.
+    _streamUrlCache[cacheKey] =
+        _StreamUrlCacheEntry(url, DateTime.now().add(_streamUrlCacheTtl));
+
+    // Keep cache from growing unboundedly (cap at 200 entries).
+    if (_streamUrlCache.length > 200) {
+      final oldest = _streamUrlCache.entries
+          .reduce((a, b) => a.value.expiresAt.isBefore(b.value.expiresAt) ? a : b);
+      _streamUrlCache.remove(oldest.key);
+    }
+
+    return url;
   }
 
   /// Get video + audio stream URL for video player
@@ -501,7 +559,11 @@ class YouTubeMusicRemoteSource {
 
   /// Filter out short vertical videos (YouTube Shorts)
   List<Song> filterOutShorts(List<Song> songs) {
-    return songs.where((song) => song.duration.inSeconds >= 60).toList();
+    // Filter out shorts (< 60 seconds) and long tracks/albums (> 10 minutes = 600 seconds)
+    // Keep only individual songs (1-10 minutes)
+    return songs
+        .where((song) => song.duration.inSeconds >= 60 && song.duration.inSeconds <= 600)
+        .toList();
   }
 
   // --- Helper Methods ---
@@ -539,7 +601,12 @@ class YouTubeMusicRemoteSource {
     if (tracks.isEmpty) {
       _log.info('Attempting custom HTML scraper fallback for playlist: $playlistId');
       try {
-        final dio = Dio();
+        final dio = Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 15),
+            receiveTimeout: const Duration(seconds: 30),
+          ),
+        );
         final response = await dio.get<String>(
           'https://www.youtube.com/playlist?list=$playlistId',
           options: Options(

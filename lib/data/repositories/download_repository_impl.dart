@@ -7,7 +7,8 @@ import 'package:path/path.dart' as p;
 import '../../domain/entities/download_task.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
-import '../../core/services/encrypted_download_manager.dart';
+import '../../core/services/download_manager.dart';
+import '../../core/services/audio_quality_preferences.dart';
 import '../datasources/local_music_source.dart';
 import '../datasources/youtube_music_remote_source.dart';
 import '../models/local_models.dart';
@@ -17,12 +18,12 @@ final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
   final localSource = ref.watch(localMusicSourceProvider);
   final remoteSource = ref.watch(youtubeMusicRemoteSourceProvider);
   final dio = ref.watch(dioProvider);
-  final encryptedDownloadManager = ref.watch(encryptedDownloadManagerProvider);
+  final downloadManager = ref.watch(downloadManagerProvider);
   return DownloadRepositoryImpl(
     localSource,
     remoteSource,
     dio,
-    encryptedDownloadManager,
+    downloadManager,
   );
 });
 
@@ -35,7 +36,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
   final LocalMusicSource _localSource;
   final YouTubeMusicRemoteSource _remoteSource;
   final Dio _dio;
-  final EncryptedDownloadManager _encryptedDownloadManager;
+  final DownloadManager _downloadManager;
 
   // Track active downloads for cancellation
   final Map<String, CancelToken> _activeDownloads = {};
@@ -44,7 +45,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
     this._localSource,
     this._remoteSource,
     this._dio,
-    this._encryptedDownloadManager,
+    this._downloadManager,
   );
 
   DownloadStatus _mapLocalStatus(LocalDownloadStatus local) {
@@ -70,6 +71,9 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
   @override
   Future<void> downloadSong(Song song, {String quality = 'High'}) async {
+    final selectedQuality = quality == 'High'
+        ? (await AudioQualityPreferences.load()).downloadQuality
+        : quality;
     final existing = await _localSource.getDownloadRecord(song.id);
     if (existing != null && existing.status == LocalDownloadStatus.completed) {
       return;
@@ -79,7 +83,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
       ..songId = song.id
       ..title = song.title
       ..artist = song.artist
-      ..quality = quality
+      ..quality = selectedQuality
       ..progress = 0.0
       ..status = LocalDownloadStatus.pending
       ..createdAt = DateTime.now();
@@ -87,81 +91,101 @@ class DownloadRepositoryImpl implements DownloadRepository {
     await _localSource.saveDownloadRecord(record);
 
     // Trigger async download in background
-    unawaited(_startDownloadProcess(song, quality));
+    unawaited(_startDownloadProcess(song, selectedQuality));
   }
 
   Future<void> _startDownloadProcess(Song song, String quality) async {
     final record = await _localSource.getDownloadRecord(song.id);
     if (record == null) return;
 
-    final cancelToken = CancelToken();
-    _activeDownloads[song.id] = cancelToken;
+    const maxAttempts = 3;
+    int attempt = 0;
 
-    try {
-      record.status = LocalDownloadStatus.downloading;
-      await _localSource.saveDownloadRecord(record);
+    while (attempt < maxAttempts) {
+      attempt++;
+      final cancelToken = CancelToken();
+      _activeDownloads[song.id] = cancelToken;
 
-      // Resolve Audio Stream URL
-      final streamUrl = await _remoteSource.getStreamUrl(song.videoId, quality);
+      try {
+        record.status = LocalDownloadStatus.downloading;
+        await _localSource.saveDownloadRecord(record);
 
-      final tempDir = await getTemporaryDirectory();
-      final cleanTitle = song.title.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
-      final tempFile = File(p.join(tempDir.path, '${song.id}_$cleanTitle.download'));
+        // Resolve Audio Stream URL — enforce timeout so a hung YouTube API call
+        // doesn't silently stall the download task forever.
+        final streamUrl = await _remoteSource
+            .getStreamUrl(song.videoId, quality)
+            .timeout(const Duration(seconds: 20));
 
-      // Perform download to a temporary file before app-only storage.
-      await _dio.download(
-        streamUrl,
-        tempFile.path,
-        cancelToken: cancelToken,
-        onReceiveProgress: (received, total) async {
-          if (total != -1) {
-            final progress = received / total;
-            // Throttle database writes
-            final currentProgressPercent = (progress * 100).round() / 100;
-            if (currentProgressPercent - record.progress >= 0.02 || progress == 1.0) {
-              record.progress = currentProgressPercent;
-              await _localSource.saveDownloadRecord(record);
+        final tempDir = await getTemporaryDirectory();
+        final cleanTitle = song.title.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
+        final tempFile = File(p.join(tempDir.path, '${song.id}_$cleanTitle.download'));
+
+        // Perform download to a temporary file before app-only storage.
+        await _dio.download(
+          streamUrl,
+          tempFile.path,
+          cancelToken: cancelToken,
+          onReceiveProgress: (received, total) async {
+            if (total != -1) {
+              final progress = received / total;
+              // Throttle database writes
+              final currentProgressPercent = (progress * 100).round() / 100;
+              if (currentProgressPercent - record.progress >= 0.02 || progress == 1.0) {
+                record.progress = currentProgressPercent;
+                await _localSource.saveDownloadRecord(record);
+              }
             }
-          }
-        },
-      );
+          },
+        );
 
-      final encryptedPath = await _encryptedDownloadManager.downloadAndEncryptAudio(
-        songId: song.id,
-        title: song.title,
-        audioSourceFn: tempFile.readAsBytes,
-      );
+        final storedPath = await _downloadManager.storeDownloadedFile(
+          songId: song.id,
+          title: song.title,
+          tempFile: tempFile,
+        );
 
-      if (await tempFile.exists()) {
-        await tempFile.delete();
+        record.status = LocalDownloadStatus.completed;
+        record.filePath = storedPath;
+        record.progress = 1.0;
+        await _localSource.saveDownloadRecord(record);
+
+        final localSong = LocalSong()
+          ..songId = song.id
+          ..title = song.title
+          ..artist = song.artist
+          ..album = song.album
+          ..durationMs = song.duration.inMilliseconds
+          ..artworkUrl = song.artworkUrl
+          ..videoId = song.videoId
+          ..filePath = storedPath
+          ..isDownloaded = true;
+        await _localSource.saveSong(localSong);
+
+        // Success — exit retry loop.
+        _activeDownloads.remove(song.id);
+        return;
+
+      } catch (e) {
+        _activeDownloads.remove(song.id);
+
+        if (e is DioException && CancelToken.isCancel(e)) {
+          // User explicitly paused/cancelled — don't retry.
+          record.status = LocalDownloadStatus.paused;
+          await _localSource.saveDownloadRecord(record);
+          return;
+        }
+
+        if (attempt >= maxAttempts) {
+          record.status = LocalDownloadStatus.failed;
+          record.progress = 0.0;
+          await _localSource.saveDownloadRecord(record);
+          return;
+        }
+
+        // Wait briefly before retrying (exponential backoff: 2s, 4s).
+        await Future<void>.delayed(Duration(seconds: attempt * 2));
+        record.progress = 0.0;
       }
-
-      record.status = LocalDownloadStatus.completed;
-      record.filePath = encryptedPath;
-      record.progress = 1.0;
-      await _localSource.saveDownloadRecord(record);
-
-      final localSong = LocalSong()
-        ..songId = song.id
-        ..title = song.title
-        ..artist = song.artist
-        ..album = song.album
-        ..durationMs = song.duration.inMilliseconds
-        ..artworkUrl = song.artworkUrl
-        ..videoId = song.videoId
-        ..filePath = encryptedPath
-        ..isDownloaded = true;
-      await _localSource.saveSong(localSong);
-
-    } catch (e) {
-      if (e is DioException && CancelToken.isCancel(e)) {
-        record.status = LocalDownloadStatus.paused;
-      } else {
-        record.status = LocalDownloadStatus.failed;
-      }
-      await _localSource.saveDownloadRecord(record);
-    } finally {
-      _activeDownloads.remove(song.id);
     }
   }
 

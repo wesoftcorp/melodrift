@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/entities/song.dart';
 import '../providers/player_notifier.dart';
 import '../providers/song_recognition_notifier.dart';
@@ -25,11 +26,22 @@ class RecognizedSongCard extends ConsumerWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Image.network(
-              song.artworkUrl,
+            child: CachedNetworkImage(
+              imageUrl: song.artworkUrl,
               width: 160,
               height: 160,
               fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                width: 160,
+                height: 160,
+                color: Colors.grey.shade800,
+              ),
+              errorWidget: (_, __, ___) => Container(
+                width: 160,
+                height: 160,
+                color: Colors.grey.shade800,
+                child: const Icon(Icons.music_note, size: 48),
+              ),
             ),
           ),
           const SizedBox(height: 24),

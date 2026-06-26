@@ -10,7 +10,6 @@
 #include <firebase_auth/firebase_auth_plugin_c_api.h>
 #include <firebase_core/firebase_core_plugin_c_api.h>
 #include <firebase_database/firebase_database_plugin_c_api.h>
-#include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <isar_flutter_libs/isar_flutter_libs_plugin.h>
 #include <just_audio_windows/just_audio_windows_plugin.h>
 #include <rive_native/rive_native_plugin.h>
@@ -27,8 +26,6 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FirebaseCorePluginCApi"));
   FirebaseDatabasePluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FirebaseDatabasePluginCApi"));
-  FlutterSecureStorageWindowsPluginRegisterWithRegistrar(
-      registry->GetRegistrarForPlugin("FlutterSecureStorageWindowsPlugin"));
   IsarFlutterLibsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("IsarFlutterLibsPlugin"));
   JustAudioWindowsPluginRegisterWithRegistrar(

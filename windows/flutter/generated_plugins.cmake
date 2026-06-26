@@ -7,7 +7,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_auth
   firebase_core
   firebase_database
-  flutter_secure_storage_windows
   isar_flutter_libs
   just_audio_windows
   rive_native

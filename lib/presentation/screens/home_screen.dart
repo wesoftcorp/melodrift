@@ -23,7 +23,30 @@ import 'details_screen.dart';
 
 
 /// Holds the set of selected language filters. {'All'} means no filter.
-final homeLanguageProvider = StateProvider<Set<String>>((ref) => {'All'});
+/// Persisted language filter — survives app restarts via SharedPreferences.
+final homeLanguageProvider = StateNotifierProvider<HomeLanguageNotifier, Set<String>>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return HomeLanguageNotifier(prefs);
+});
+
+class HomeLanguageNotifier extends StateNotifier<Set<String>> {
+  final SharedPreferences _prefs;
+  static const _key = 'home_language_filter';
+
+  HomeLanguageNotifier(this._prefs)
+      : super(_load(_prefs));
+
+  static Set<String> _load(SharedPreferences prefs) {
+    final saved = prefs.getStringList(_key);
+    if (saved == null || saved.isEmpty) return {'All'};
+    return Set<String>.from(saved);
+  }
+
+  void setLanguages(Set<String> langs) {
+    state = langs.isEmpty ? {'All'} : langs;
+    _prefs.setStringList(_key, state.toList());
+  }
+}
 
 /// Public list of language options (also consumed by SettingsScreen).
 // ignore: constant_identifier_names
@@ -525,7 +548,7 @@ class HomeScreen extends ConsumerWidget {
                       backgroundColor:
                           Theme.of(context).colorScheme.surfaceContainerHighest,
                       backgroundImage: artist.artworkUrl.isNotEmpty
-                          ? NetworkImage(artist.artworkUrl)
+                          ? CachedNetworkImageProvider(artist.artworkUrl)
                           : null,
                       child: artist.artworkUrl.isEmpty
                           ? const Icon(Icons.person, size: 32)

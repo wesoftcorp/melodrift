@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../domain/entities/song.dart';
@@ -109,7 +110,7 @@ class SearchResultsView extends ConsumerWidget {
             return ListTile(
               leading: CircleAvatar(
                 backgroundImage: artist.artworkUrl.isNotEmpty
-                    ? NetworkImage(artist.artworkUrl)
+                    ? CachedNetworkImageProvider(artist.artworkUrl)
                     : null,
                 child: artist.artworkUrl.isEmpty ? const Icon(Icons.person) : null,
               ),

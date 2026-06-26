@@ -1,4 +1,4 @@
-import 'package:audio_service/audio_service.dart';
+﻿import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/logger.dart';
@@ -234,18 +234,16 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   AudioSource _createAudioSource(MediaItem item) {
     final streamUrl = item.extras?['streamUrl'] as String?;
-    final isEncrypted = item.extras?['isEncrypted'] as bool? ?? false;
     
-    _log.debug('Mapping MediaItem: ${item.title}, id: ${item.id}, isEncrypted: $isEncrypted, streamUrl: "$streamUrl"');
+    _log.debug('Creating AudioSource for MediaItem: ${item.title}, id: ${item.id}, streamUrl: "$streamUrl"');
     
     if (streamUrl != null && streamUrl.isNotEmpty) {
       final isNetworkUrl = streamUrl.startsWith('http://') || streamUrl.startsWith('https://');
       if (isNetworkUrl) {
         return AudioSource.uri(Uri.parse(streamUrl));
-      } else if (!isEncrypted) {
-        return AudioSource.file(streamUrl);
       } else {
-        return AudioSource.file(streamUrl, tag: item.id);
+        // Local file path (encrypted removed, files stored plain in cache)
+        return AudioSource.file(streamUrl);
       }
     }
     _log.warning('Empty stream URL for ${item.title}, using fallback silent audio');
@@ -395,3 +393,4 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     _queueHash = _generateQueueHash(updatedQueue);
   }
 }
+

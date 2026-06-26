@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/player_notifier.dart';
+import '../providers/player_providers.dart';
 
 /// Artwork card with breathing scale animation when playing.
 class PlayerArtworkView extends ConsumerStatefulWidget {
@@ -45,21 +46,20 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerStateProvider);
-    final song = playerState.currentSong;
+    // Metadata: only rebuilds when song or isPlaying changes
+    final song = ref.watch(currentSongProvider);
+    final isPlaying = ref.watch(playbackStateProvider).isPlaying;
     final theme = Theme.of(context);
 
     if (song == null) return const SizedBox.shrink();
 
-    _syncAnimation(playerState.isPlaying);
+    _syncAnimation(isPlaying);
 
-    final progress = playerState.duration.inMilliseconds > 0
-        ? playerState.position.inMilliseconds / playerState.duration.inMilliseconds
-        : 0.0;
-
-    final remaining = playerState.duration > playerState.position
-        ? playerState.duration - playerState.position
-        : Duration.zero;
+    // Progress values: rebuild only within seek bar — use fine-grained providers
+    final progress = ref.watch(progressRatioProvider);
+    final position = ref.watch(currentPositionProvider);
+    final duration = ref.watch(currentDurationProvider);
+    final remaining = duration > position ? duration - position : Duration.zero;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -149,7 +149,7 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                 child: Slider(
                   value: progress.clamp(0.0, 1.0),
                   onChanged: (val) {
-                    final targetMs = (val * playerState.duration.inMilliseconds).toInt();
+                    final targetMs = (val * duration.inMilliseconds).toInt();
                     ref.read(playerStateProvider.notifier).seek(
                           Duration(milliseconds: targetMs),
                         );
@@ -162,7 +162,7 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _formatDuration(playerState.position),
+                      _formatDuration(position),
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                     Text(

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -6,8 +6,8 @@ import '../../domain/entities/song.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../../data/datasources/local_music_source.dart';
-import '../../core/services/encrypted_download_manager.dart';
 import '../../core/services/audio_handler.dart';
+import '../../core/services/audio_quality_preferences.dart';
 import '../../core/utils/logger.dart';
 
 class PlayerState {
@@ -81,12 +81,10 @@ final playerStateProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
   final handler = ref.watch(audioHandlerProvider);
   final repository = ref.watch(musicRepositoryProvider);
   final localSource = ref.watch(localMusicSourceProvider);
-  final encryptedDownloadManager = ref.watch(encryptedDownloadManagerProvider);
   return PlayerNotifier(
     handler,
     repository,
     localSource,
-    encryptedDownloadManager,
   );
 });
 
@@ -94,7 +92,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final MelodriftAudioHandler _handler;
   final MusicRepository _repository;
   final LocalMusicSource _localSource;
-  final EncryptedDownloadManager _encryptedDownloadManager;
   final _log = AppLogger('PlayerNotifier');
   
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
@@ -111,7 +108,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     this._handler,
     this._repository,
     this._localSource,
-    this._encryptedDownloadManager,
   ) : super(const PlayerState()) {
     _subscribe();
   }
@@ -215,7 +211,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   MediaItem _mapSongToMediaItem(
     Song song, {
     String? streamUrl,
-    bool isEncrypted = false,
   }) {
     return MediaItem(
       id: song.id,
@@ -227,7 +222,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       extras: {
         'streamUrl': streamUrl ?? song.streamUrl,
         'videoId': song.videoId,
-        'isEncrypted': isEncrypted,
       },
     );
   }
@@ -254,18 +248,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
-          final playablePath = await _encryptedDownloadManager.preparePlayableFile(
-            encryptedFilePath: localSong.filePath!,
-            songId: videoId,
-          );
-          _log.info('Prepared encrypted download for offline playback: $playablePath');
-          return playablePath;
+          _log.info('Playing local download: ${localSong.filePath}');
+          return localSong.filePath!;
         }
       }
       
       // Add timeout to prevent hanging if YouTube API is slow
+      final quality = (await AudioQualityPreferences.load()).streamingQuality;
       final url = await _repository
-        .getStreamUrl(videoId, quality: 'High')
+        .getStreamUrl(videoId, quality: quality)
         .timeout(
           const Duration(seconds: 15),
           onTimeout: () {
@@ -543,6 +534,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _handler.removeQueueItem(mediaItem);
   }
 
+  /// Add a single song to the end of the current queue
+  Future<void> addToQueue(Song song) async {
+    final mediaItem = _mapSongToMediaItem(song);
+    final currentQueue = List<MediaItem>.from(_handler.queue.value);
+    currentQueue.add(mediaItem);
+    await _handler.updateQueue(currentQueue);
+    
+    // Update local state to include the new song
+    state = state.copyWith(
+      queue: [...state.queue, song],
+    );
+  }
+
+  /// Add multiple songs to the end of the current queue
+  Future<void> addSongsToQueue(List<Song> songs) async {
+    if (songs.isEmpty) return;
+    final mediaItems = songs.map((s) => _mapSongToMediaItem(s)).toList();
+    final currentQueue = List<MediaItem>.from(_handler.queue.value);
+    currentQueue.addAll(mediaItems);
+    await _handler.updateQueue(currentQueue);
+    
+    // Update local state
+    state = state.copyWith(
+      queue: [...state.queue, ...songs],
+    );
+  }
+
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
     if (newIndex > oldIndex) {
       newIndex -= 1;
@@ -594,3 +612,4 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     super.dispose();
   }
 }
+

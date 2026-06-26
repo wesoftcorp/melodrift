@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import '../providers/player_notifier.dart';
+import '../providers/player_providers.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
+import '../../data/repositories/music_repository_impl.dart';
 import '../../data/services/share_service_impl.dart';
 import '../../domain/entities/song.dart';
 import 'player_dialogs.dart';
@@ -19,7 +21,14 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerStateProvider);
+    // Fine-grained: controls only rebuild when playback state or controls change,
+    // NOT on every position/progress tick.
+    final (:isPlaying, :isLoading) = ref.watch(playbackStateProvider);
+    final controls = ref.watch(playbackControlsProvider);
+    final currentSong = ref.watch(currentSongProvider);
+    final sleepTimeRemaining = ref.watch(
+      playerStateProvider.select((s) => s.sleepTimeRemaining),
+    );
     final notifier = ref.read(playerStateProvider.notifier);
     final theme = Theme.of(context);
 
@@ -35,46 +44,53 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
             children: [
               IconButton(
                 icon: Icon(
-                  playerState.volume == 0.0 ? Icons.volume_mute : Icons.volume_up,
+                  controls.volume == 0.0 ? Icons.volume_mute : Icons.volume_up,
                   color: Colors.white70,
                 ),
                 onPressed: () => PlayerDialogs.showVolumeSlider(context),
               ),
-              if (playerState.currentSong != null)
+              if (currentSong != null)
                 IconButton(
                   icon: const Icon(Icons.share, color: Colors.white70),
                   onPressed: () {
-                    final song = playerState.currentSong!;
                     ref.read(shareServiceProvider).shareSong(
-                          title: song.title,
-                          artist: song.artist,
-                          youtubeId: song.videoId,
+                          title: currentSong.title,
+                          artist: currentSong.artist,
+                          youtubeId: currentSong.videoId,
                         );
                   },
                 ),
               TextButton.icon(
                 icon: const Icon(Icons.speed, color: Colors.white70, size: 18),
                 label: Text(
-                  '${playerState.speed}x',
+                  '${controls.speed}x',
                   style: theme.textTheme.labelMedium?.copyWith(color: Colors.white70),
                 ),
-                onPressed: () => PlayerDialogs.showSpeedSelection(context, playerState, notifier),
+                onPressed: () => PlayerDialogs.showSpeedSelection(
+                  context,
+                  ref.read(playerStateProvider),
+                  notifier,
+                ),
               ),
               TextButton.icon(
                 icon: Icon(
-                  playerState.sleepTimeRemaining != null ? Icons.snooze : Icons.access_time,
-                  color: playerState.sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
+                  sleepTimeRemaining != null ? Icons.snooze : Icons.access_time,
+                  color: sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
                   size: 18,
                 ),
                 label: Text(
-                  playerState.sleepTimeRemaining != null
-                      ? _formatTimerDuration(playerState.sleepTimeRemaining!)
+                  sleepTimeRemaining != null
+                      ? _formatTimerDuration(sleepTimeRemaining)
                       : 'Timer',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: playerState.sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
+                    color: sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
                   ),
                 ),
-                onPressed: () => PlayerDialogs.showSleepTimerDialog(context, playerState, notifier),
+                onPressed: () => PlayerDialogs.showSleepTimerDialog(
+                  context,
+                  ref.read(playerStateProvider),
+                  notifier,
+                ),
               ),
             ],
           ),
@@ -87,7 +103,7 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
             IconButton(
               icon: Icon(
                 Icons.shuffle,
-                color: playerState.isShuffle ? theme.colorScheme.primary : Colors.white54,
+                color: controls.isShuffle ? theme.colorScheme.primary : Colors.white54,
               ),
               iconSize: 28,
               onPressed: notifier.toggleShuffle,
@@ -122,7 +138,7 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    if (playerState.isLoading)
+                    if (isLoading)
                       const SizedBox(
                         width: 64,
                         height: 64,
@@ -132,7 +148,7 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
                         ),
                       ),
                     Icon(
-                      playerState.isPlaying ? Icons.pause : Icons.play_arrow,
+                      isPlaying ? Icons.pause : Icons.play_arrow,
                       size: 46,
                       color: Colors.black,
                     ),
@@ -141,7 +157,6 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
               ),
               onPressed: notifier.togglePlay,
             ),
-
             IconButton(
               icon: const Icon(Icons.skip_next, color: Colors.white),
               iconSize: 36,
@@ -149,10 +164,10 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
             ),
             IconButton(
               icon: Icon(
-                playerState.repeatMode == AudioServiceRepeatMode.one
+                controls.repeatMode == AudioServiceRepeatMode.one
                     ? Icons.repeat_one
                     : Icons.repeat,
-                color: playerState.repeatMode != AudioServiceRepeatMode.none
+                color: controls.repeatMode != AudioServiceRepeatMode.none
                     ? theme.colorScheme.primary
                     : Colors.white54,
               ),
@@ -163,12 +178,17 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
               icon: const Icon(Icons.playlist_add, color: Colors.white54),
               iconSize: 28,
               tooltip: 'Add to playlist',
-              onPressed: playerState.currentSong == null
+              onPressed: currentSong == null
                   ? null
-                  : () => _showAddToPlaylistDialog(
-                        context,
-                        playerState.currentSong!,
-                      ),
+                  : () => _showAddToPlaylistDialog(context, currentSong),
+            ),
+            IconButton(
+              icon: const Icon(Icons.queue_music, color: Colors.white54),
+              iconSize: 28,
+              tooltip: 'Add to queue',
+              onPressed: currentSong == null
+                  ? null
+                  : () => _showSearchAndAddToQueueDialog(context),
             ),
           ],
         ),
@@ -236,6 +256,100 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showSearchAndAddToQueueDialog(BuildContext context) {
+    final musicRepo = ref.read(musicRepositoryProvider);
+    final notifier = ref.read(playerStateProvider.notifier);
+    final searchController = TextEditingController();
+    List<Song> searchResults = [];
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Song to Queue'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search song, artist, or album...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onChanged: (query) async {
+                    if (query.isEmpty) {
+                      setDialogState(() => searchResults = []);
+                      return;
+                    }
+                    try {
+                      final results = await musicRepo.searchSongs(query);
+                      if (mounted) {
+                        setDialogState(() => searchResults = results);
+                      }
+                    } catch (e) {
+                      // Search error - just ignore
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: searchResults.isEmpty
+                      ? Center(
+                          child: Text(
+                            searchController.text.isEmpty
+                                ? 'Start typing to search...'
+                                : 'No songs found',
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: searchResults.length,
+                          itemBuilder: (context, index) {
+                            final song = searchResults[index];
+                            return ListTile(
+                              leading: const Icon(Icons.music_note),
+                              title: Text(song.title),
+                              subtitle: Text(song.artist),
+                              onTap: () async {
+                                await notifier.addToQueue(song);
+                                if (dialogContext.mounted) {
+                                  Navigator.pop(dialogContext);
+                                }
+                                if (mounted) {
+                                  ScaffoldMessenger.of(this.context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Added "${song.title}" to queue'),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                searchController.dispose();
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       ),
     );
   }

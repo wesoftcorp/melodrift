@@ -2,7 +2,7 @@ name: melodrift
 description: "Let the music drift - Premium YouTube Music client"
 publish_to: 'none'
 
-version: 1.0.0+3
+version: 1.0.0+0
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,7 +34,6 @@ dependencies:
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
   shared_preferences: ^2.2.2
-  flutter_secure_storage: ^9.0.0
   path_provider: ^2.1.6
   path: ^1.9.0
 
@@ -62,12 +61,6 @@ dependencies:
   cached_network_image: ^3.3.1
   flutter_blurhash: ^0.8.2
 
-  # Notifications & WorkManager
-  flutter_local_notifications: ^17.0.0
-  workmanager: ^0.9.0
-  workmanager_android: ^0.9.0
-  home_widget: ^0.9.3
-
   # Connectivity
   connectivity_plus: ^5.0.2
 
@@ -80,7 +73,6 @@ dependencies:
 
   # Security & Encryption
   crypto: ^3.0.0
-  encrypt: ^5.0.3
 
 dev_dependencies:
   flutter_test:
@@ -101,6 +93,9 @@ dev_dependencies:
 
   # App Icon Generation
   flutter_launcher_icons: ^0.14.3
+
+  # Windows Packaging
+  msix: ^3.17.0
 
 flutter:
   uses-material-design: true
@@ -153,3 +148,18 @@ flutter_launcher_icons:
     icon_size: 48
   macos:
     generate: false
+
+msix_config:
+  display_name: Melodrift
+  publisher_display_name: Rajeev Upadhyay
+  identity_name: RajeevUpadhyay.Melodrift
+  publisher: CN=B5B77226-98E6-49B2-8097-AE0D40E6D727
+  msix_version: 1.0.0.0
+  logo_path: assets/logo/melodrift.png
+  capabilities: internetClient, microphone
+  languages: en-us
+  architecture: x64
+  output_path: build/windows/msix
+  output_name: Melodrift-Store-1.0.0.0-x64
+  store: true
+  install_certificate: false

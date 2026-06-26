@@ -66,36 +66,52 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> with SingleTicker
     final titleController = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Create Playlist'),
         content: TextField(
           controller: titleController,
-          decoration: const InputDecoration(hintText: 'Enter playlist title'),
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter playlist title',
+            prefixIcon: Icon(Icons.playlist_add),
+          ),
+          textInputAction: TextInputAction.done,
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () async {
               final title = titleController.text.trim();
-              if (title.isNotEmpty) {
-                final id = DateTime.now().millisecondsSinceEpoch.toString();
-                final playlist = Playlist(
-                  id: id,
-                  title: title,
-                  description: 'Custom local playlist',
-                  artworkUrl: '',
-                  trackCount: 0,
-                  songs: const [],
-                  isYouTube: false,
-                  isLocal: true,
+              if (title.isEmpty) return;
+
+              // Close dialog immediately — avoid stale context issues
+              Navigator.pop(dialogContext);
+
+              final id = DateTime.now().millisecondsSinceEpoch.toString();
+              final playlist = Playlist(
+                id: id,
+                title: title,
+                description: 'Custom local playlist',
+                artworkUrl: '',
+                trackCount: 0,
+                songs: const [],
+                isYouTube: false,
+                isLocal: true,
+              );
+              await ref.read(playlistRepositoryProvider).createPlaylist(playlist);
+
+              // Show confirmation (Isar stream auto-updates the list)
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Playlist "$title" created'),
+                    duration: const Duration(seconds: 2),
+                  ),
                 );
-                await ref.read(playlistRepositoryProvider).createPlaylist(playlist);
-                setState(() {});
               }
-              if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Create'),
           ),

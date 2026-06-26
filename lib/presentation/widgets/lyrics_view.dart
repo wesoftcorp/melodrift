@@ -30,6 +30,9 @@ class LyricsView extends ConsumerStatefulWidget {
 class _LyricsViewState extends ConsumerState<LyricsView> {
   late final ScrollController _scrollController;
   int _lastActiveIndex = -1;
+  // Cache: last computed active index and the lines list it was computed for
+  int _cachedActiveIndex = -1;
+  List<LyricLine>? _cachedLines;
 
   @override
   void initState() {
@@ -58,6 +61,32 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     );
   }
 
+  /// O(n) scan but only runs when position crosses a line boundary.
+  int _computeActiveIndex(List<LyricLine> lines, Duration position) {
+    // Fast path: same lines list, check if current cached index is still valid
+    if (_cachedLines == lines && _cachedActiveIndex >= 0) {
+      final posMs = position.inMilliseconds;
+      final current = _cachedActiveIndex;
+      // Still valid if position is within the same line's range
+      final nextStart = (current + 1 < lines.length) ? lines[current + 1].timeMs : null;
+      if (posMs >= lines[current].timeMs && (nextStart == null || posMs < nextStart)) {
+        return current;
+      }
+    }
+    // Full scan only when line boundary is crossed
+    _cachedLines = lines;
+    int idx = -1;
+    for (int i = 0; i < lines.length; i++) {
+      if (position.inMilliseconds >= lines[i].timeMs) {
+        idx = i;
+      } else {
+        break;
+      }
+    }
+    _cachedActiveIndex = idx;
+    return idx;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -67,19 +96,12 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     return lyricsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
       error: (_, __) => const Center(child: Text('Lyrics not available', style: TextStyle(color: Colors.white70))),
-      data: (lines) {
+        data: (lines) {
         if (lines.isEmpty) {
           return const Center(child: Text('No lyrics found', style: TextStyle(color: Colors.white70)));
         }
 
-        int activeIndex = -1;
-        for (int i = 0; i < lines.length; i++) {
-          if (widget.position.inMilliseconds >= lines[i].timeMs) {
-            activeIndex = i;
-          } else {
-            break;
-          }
-        }
+        final activeIndex = _computeActiveIndex(lines, widget.position);
         if (activeIndex != -1) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive(activeIndex));
         }

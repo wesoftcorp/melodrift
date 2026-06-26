@@ -18,9 +18,12 @@ class SongCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final playerState = ref.watch(playerStateProvider);
-    final isCurrent = playerState.currentSong?.id == song.id;
-    final isPlaying = isCurrent && playerState.isPlaying;
+    // select: only rebuilds when currentSong id or isPlaying changes, not on every position tick
+    final (:currentId, :isPlaying) = ref.watch(
+      playerStateProvider.select((s) => (currentId: s.currentSong?.id, isPlaying: s.isPlaying)),
+    );
+    final isCurrent = currentId == song.id;
+    final isCurrentlyPlaying = isCurrent && isPlaying;
 
     return InkWell(
       onTap: () {
@@ -77,7 +80,7 @@ class SongCard extends ConsumerWidget {
             ),
             SongDownloadButton(song: song),
             IconButton(
-              icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow_outlined),
+              icon: Icon(isCurrentlyPlaying ? Icons.pause : Icons.play_arrow_outlined),
               color: isCurrent ? theme.colorScheme.primary : null,
               onPressed: () {
                 if (isCurrent) {

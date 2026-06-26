@@ -4,7 +4,15 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../../domain/entities/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 
-final dioProvider = Provider<Dio>((ref) => Dio());
+final dioProvider = Provider<Dio>((ref) {
+  return Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(minutes: 10), // large files need time
+      sendTimeout: const Duration(seconds: 30),
+    ),
+  );
+});
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   final dio = ref.watch(dioProvider);

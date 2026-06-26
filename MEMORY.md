@@ -4,41 +4,199 @@
 - **Name:** Melodrift
 - **Type:** Flutter app for Windows desktop + Android mobile
 - **Description:** Premium YouTube Music client with offline support, collaboration, and advanced features
-- **Status:** Windows testing phase underway
+- **Status:** Active development — optimisation pass complete, new features pending
 - **Stack:** Flutter 3.0+, Riverpod 2.5, Audio Service, Just Audio, Firebase (optional), Isar DB
 
+---
+
 ## Session State
-- **Last Updated:** 2026-06-25 (current session)
-- **Current Focus:** Android devFoss APK rebuilt, installed, and launched with updated launcher logo
-- **Platform Status:**
-  - Windows: ✅ Fully functional with Caching & Downloading UI controls
-  - Android: ✅ Fully functional, APK compiles and runs successfully
-  - iOS/macOS: Available but not primary focus
+- **Last Updated:** 2026-06-26T20:15:00+05:30
+- **Current Focus:** Song duration filtering implemented to show only individual songs
 
-## Key Architecture
-- **State Management:** Riverpod + Flutter Hooks
-- **Audio:** Audio Service + Just Audio (Windows-native support via just_audio_windows)
-- **Database:** Isar (local-first, mobile-optimized)
-- **Authentication:** Firebase Auth + Google Sign-In (Full flavor only)
-- **UI:** Material Design 3 + Flex Color Scheme + custom glassmorphism
-
-## Critical Code Locations
-- Entry: `lib/main.dart` (initialization, Firebase setup)
-- Audio Handler: `lib/core/services/audio_handler.dart`
-- Player State: `lib/presentation/providers/player_notifier.dart`
-- Windows Native: `windows/runner/main.cpp`
-- Player UI: `lib/presentation/screens/player_screen.dart`
-
-## Build Flavors
-1. **devFoss** - Dev FOSS variant (no Firebase)
-2. **prodFoss** - Production FOSS variant
-3. **devFull** - Dev with Firebase
-4. **prodFull** - Production with Firebase + Google Auth
-
-## Known Issues & Optimizations Needed
-(See ANALYSIS.md in next section)
+---
 
 ## Last Checkpoint
+
+> **Timestamp:** 2026-06-26T20:15:00+05:30
+> **State:** `completed`
+> **Summary:** Implemented song duration filtering to display only individual songs (1-10 minutes) and filter out albums/playlists. Modified `filterOutShorts()` method in youtube_music_remote_source.dart to check both minimum duration (≥60 seconds to remove shorts) and maximum duration (≤600 seconds to remove albums/playlists). This filter is automatically applied to all song search results and home feed categories. All song display sections (quickPicks, charts, listenAgain, indianMusic, forgottenFavorites) now show only individual tracks. Verified flutter analyze clean. Built both Android APK (127.8MB) and Windows app.
+> **Files Modified:**
+>   - `lib/data/datasources/youtube_music_remote_source.dart` - Updated `filterOutShorts()` method (lines 561-566)
+> **Build Output:**
+>   - Android APK: `build\app\outputs\flutter-apk\app-devfoss-release.apk` (127.8MB) ✅
+>   - Windows app: `build\windows\x64\runner\Release\melodrift.exe` ✅
+> **Duration Filter Logic:**
+>   - Removes shorts: < 60 seconds (YouTube shorts)
+>   - Keeps individual songs: 60 seconds - 10 minutes (600 seconds)
+>   - Removes albums/playlists: > 600 seconds
+> **Affected Sections:**
+>   - Home feed (quickPicks, charts, listenAgain, etc.)
+>   - Search results (songs tab)
+>   - Any other song listings throughout the app
+> **Next Action:** Manual testing to verify only individual songs appear in all song display sections.
+
+---
+
+## Completed This Session (2026-06-26)
+
+### Build Outputs — DONE
+- Android release APK built: `build\app\outputs\flutter-apk\app-devfoss-release.apk` (127.8MB)
+- Windows runner release target built: `build\windows\x64\runner\Release\melodrift.exe`
+- Fixed `windows/CMakeLists.txt` to force `CMAKE_INSTALL_PREFIX` to `$<TARGET_FILE_DIR:${BINARY_NAME}>`, avoiding admin-only `C:\Program Files\melodrift` install copies.
+- Verified full non-admin Windows command succeeds: `flutter build windows --release --obfuscate --split-debug-info=build\symbols\windows`
+
+### Encryption Removal — DONE ✅
+- Restored corrupted `audio_handler.dart` from git HEAD
+- Removed `encrypted_download_manager.dart` import and all references from `player_notifier.dart`
+- Removed `EncryptedDownloadManager` field, provider, and constructor arg from `PlayerNotifier`
+- Removed `isEncrypted` parameter from `_mapSongToMediaItem()` and extras map
+- Simplified `_resolveStream()` — returns local file path directly, no decryption step
+- Simplified `_createAudioSource()` in `audio_handler.dart` — removed `isEncrypted` branch
+- Deleted tombstone files: `encrypted_download_manager.dart`, `secure_storage_service.dart`
+
+### Optimisation Pass — DONE ✅
+
+| # | Area | What changed |
+|---|------|-------------|
+| 1 | Dead code | Deleted 5 orphaned files: `my_home_page.dart`, `encrypted_download_manager.dart`, `secure_storage_service.dart`, `encrypted_download_hook.dart`, `encrypted_audio_provider.dart` |
+| 2 | Image caching | Replaced 4 raw `NetworkImage`/`Image.network` → `CachedNetworkImageProvider`/`CachedNetworkImage` in `recognized_song_card.dart`, `home_screen.dart`, `search_results_view.dart`, `settings_screen.dart` |
+| 3 | Widget rebuilds | `SongCard`: `playerStateProvider.select((s) => (id, isPlaying))` — list of N cards no longer rebuilds on every position tick |
+| 4 | Widget rebuilds | `MainLayoutScreen`: extracted `_MiniPlayer` as isolated `ConsumerWidget` using `currentSongProvider`, `playbackStateProvider`, `progressRatioProvider` — scaffold rebuild scoped to song-presence change only |
+| 5 | Widget rebuilds | `PlayerArtworkView`: switched to `currentSongProvider`, `playbackStateProvider`, `progressRatioProvider`, `currentPositionProvider`, `currentDurationProvider` |
+| 6 | Widget rebuilds | `PlayerControls`: switched to `playbackStateProvider`, `playbackControlsProvider`, `currentSongProvider`, `sleepTimeRemaining` select |
+| 7 | Widget rebuilds | `QueueSheet`: switched to `queueProvider`, `currentSongProvider` |
+| 8 | LyricsView | O(n) scan per position tick → cached `activeIndex` with fast-path boundary check in `_computeActiveIndex()` |
+| 9 | Android release | R8 minification + resource shrinking enabled in `build.gradle.kts`; `proguard-rules.pro` created with keep rules for Flutter, Isar, Firebase, ExoPlayer, audio_service, OkHttp, Kotlin coroutines |
+| 10 | Dependencies | Removed 4 dead packages: `workmanager`, `workmanager_android`, `home_widget`, `flutter_local_notifications` |
+
+---
+
+## Pending Features
+> To be defined by user in next session.
+
+---
+
+## Performance & Bug Fix Log (2026-06-26)
+
+### Fixes Applied This Session
+
+| # | File | Bug | Fix |
+|---|------|-----|-----|
+| 1 | `audio_handler.dart` | `_syncPlaylist` overwrite used `clear()+addAll()` — reset active audio source mid-load, killing every play attempt | Surgical in-place replace: `removeAt(i)+insert(i, newSource)` per changed slot |
+| 2 | `encrypted_download_manager.dart` | `_verifyIntegrity` rethrew on any hash mismatch/parse error — permanently blocked offline playback | Non-fatal: logs warning, never throws; playback proceeds to decrypt attempt |
+| 3 | `encrypted_download_manager.dart` | `_storeIntegrityHash` wrote `join('\n')` with no trailing newline — `readAsLines()` misparsed last entry causing false hash mismatches | Added trailing `\n` to hash file writes |
+| 4 | `encrypted_download_manager.dart` | `preparePlayableFile` re-decrypted on every play; concurrent calls (play + prefetch) wrote to same temp path simultaneously, corrupting the file | Reuse cached temp file if exists and non-empty; invalidate (delete) stale temp on new download |
+| 5 | `encrypted_download_manager.dart` | AES-256 encryption during download ran on main Dart isolate — blocked UI for seconds on large files | Offloaded to `Isolate.run(_encryptInIsolate)` |
+| 6 | `encrypted_download_manager.dart` | AES-256 decryption during offline playback ran on main isolate | Offloaded to `Isolate.run(_decryptInIsolate)` |
+| 7 | `youtube_music_remote_source.dart` | `getStreamUrl` made a fresh `getManifest()` HTTP call on every play with no caching | In-memory URL cache with 4h TTL; `_streamUrlCache` map capped at 200 entries |
+| 8 | `youtube_music_remote_source.dart` | Single `androidVr` client — total failure if rate-limited | Fallback chain: `androidVr` → `android` → `ios` with per-client 10s timeout |
+| 9 | `download_repository_impl.dart` | `getStreamUrl` call in download pipeline had no timeout — hung forever on slow API | Added `.timeout(Duration(seconds: 20))` |
+| 10 | `download_repository_impl.dart` | Failed downloads had no retry — one transient error = permanent `failed` status | Auto-retry up to 3 times with exponential backoff (2s, 4s) |
+| 11 | `lyrics_repository_impl.dart` | Bare `Dio()` with no timeouts — downloads could hang indefinitely | `connectTimeout: 15s`, `receiveTimeout: 10m`, `sendTimeout: 30s` |
+| 12 | `encrypted_download_manager.dart` | `FlutterSecureStorage.read()` called on every AES key derivation | Master key cached in-memory after first read |
+
+### Windows Build Note
+- `flutter build windows --release --obfuscate --split-debug-info=build\symbols\windows` now works from non-elevated PowerShell.
+- Permanent fix lives in `windows/CMakeLists.txt`: force `CMAKE_INSTALL_PREFIX` to the local runner bundle directory.
+- If `C:\Program Files\melodrift` returns in generated CMake files, clear the Windows build cache and rerun the normal Flutter build.
+
+---
+
+> **Timestamp:** 2026-06-25T23:46:50+05:30
+> **State:** `completed`
+> **Summary:** Recorded Partner Center IARC rating details in `STORE_LISTING.md`.
+> **Files Modified:** `STORE_LISTING.md`, `MEMORY.md`
+> **Rating:** Current Rating ID `3bc14cf1-7c80-8bab-8da0-3f52d83eca34`, Rating Type `IARC Rating`, IARC Version `10.3`
+> **Next Action:** Perform final trademark/affiliation wording review, download/offline policy risk review, final manual smoke-test confirmation, and upload the Store MSIX.
+
+> **Timestamp:** 2026-06-25T23:45:15+05:30
+> **State:** `completed`
+> **Summary:** Marked the Partner Center age rating questionnaire as completed in `STORE_LISTING.md`.
+> **Files Modified:** `STORE_LISTING.md`, `MEMORY.md`
+> **Next Action:** Perform final trademark/affiliation wording review, download/offline policy risk review, final manual smoke-test confirmation, and then upload the Store MSIX.
+> **Open Items:** Trademark/affiliation wording review, download/offline behavior policy risk review, final manual smoke test confirmation, and Store submission upload.
+
+> **Timestamp:** 2026-06-25T23:42:10+05:30
+> **State:** `completed`
+> **Summary:** Verified the public privacy policy page and updated `STORE_LISTING.md` with the live URL.
+> **Files Modified:** `STORE_LISTING.md`, `MEMORY.md`
+> **Privacy URL:** `https://rockstarrajeev.github.io/melodrift/privacy-policy.html`
+> **Next Action:** Complete Partner Center age rating questionnaire, then perform final trademark/policy and submission-readiness review.
+> **Open Items:** Store age rating questionnaire, trademark/affiliation wording review, download/offline policy risk review, final manual smoke test confirmation, and Store submission upload.
+
+> **Timestamp:** 2026-06-25T23:01:43+05:30
+> **State:** `completed`
+> **Summary:** Created a web-ready `privacy-policy.html` page from the Melodrift privacy policy and added Partner Center age rating guidance to `STORE_LISTING.md`.
+> **Files Modified:** `privacy-policy.html`, `STORE_LISTING.md`, `MEMORY.md`
+> **Next Action:** Publish `privacy-policy.html` to a public URL, update the privacy URL in `STORE_LISTING.md`, then complete the age rating questionnaire in Partner Center.
+> **Open Items:** Public privacy URL, Partner Center age rating completion, final trademark/policy review, and final submission upload.
+
+> **Timestamp:** 2026-06-25T22:58:25+05:30
+> **State:** `completed`
+> **Summary:** Inventoried screenshots from `D:\Melodrift` and mapped them to the Microsoft Store screenshot checklist in `STORE_LISTING.md`.
+> **Files Modified:** `STORE_LISTING.md`, `MEMORY.md`
+> **Screenshot Assets:** `Melodrift Top.png` (home), `Melodrift Search.png`, `Melodrift Bottom.png` (playback controls), `Melodrift Library.png`, `Melodrift Settings.png`, and `Melodrift-logo.png`.
+> **Notes:** All provided screenshots exceed the recommended 1366 x 768 threshold. Downloads/offline-specific screenshot remains optional/open if a dedicated Store screenshot is desired.
+> **Next Action:** Publish privacy policy to a public URL, then update `STORE_LISTING.md`; complete age rating and final policy/compliance review.
+
+> **Timestamp:** 2026-06-25T22:41:46+05:30
+> **State:** `completed`
+> **Summary:** Created a general music streaming app privacy policy draft for Melodrift and updated the Store listing checklist to reference it.
+> **Files Modified:** `PRIVACY_POLICY.md`, `STORE_LISTING.md`, `MEMORY.md`
+> **Next Action:** Publish `PRIVACY_POLICY.md` to a public URL, replace the privacy URL placeholder in `STORE_LISTING.md`, and add screenshots when provided.
+> **Open Items:** Public privacy policy URL, Store screenshots, age rating questionnaire, and final policy/compliance review.
+
+> **Timestamp:** 2026-06-25T22:32:02+05:30
+> **State:** `completed`
+> **Summary:** Created `STORE_LISTING.md` with Microsoft Store listing draft content, package identity summary, category recommendation, description, search terms, support info, privacy policy draft, screenshot checklist, compliance checklist, policy risk notes, and submission notes.
+> **Files Modified:** `STORE_LISTING.md`, `MEMORY.md`
+> **Next Action:** Publish or provide a public privacy policy URL, then capture Store screenshots from the installed Windows app.
+> **Open Items:** Privacy policy URL is still `TODO`; screenshots, age rating questionnaire, and final policy/compliance review remain before submission.
+
+> **Timestamp:** 2026-06-25T22:27:59+05:30
+> **State:** `completed`
+> **Summary:** Updated Windows MSIX configuration with Microsoft Partner Center identity values and generated a Store-ready MSIX package.
+> **Files Modified:** `pubspec.yaml`, `MEMORY.md`
+> **Store Package:** `build\windows\msix\Melodrift-Store-1.0.0.3-x64.msix` (28.8MB)
+> **Partner Center Identity:** Name `RajeevUpadhyay.Melodrift`, Publisher `CN=B5B77226-98E6-49B2-8097-AE0D40E6D727`, PublisherDisplayName `Rajeev Upadhyay`
+> **Verification:** Extracted `AppxManifest.xml` from the MSIX and verified Identity Name, Publisher, Version `1.0.0.3`, architecture `x64`, DisplayName `Melodrift`, and `Windows.FullTrustApplication`. `flutter analyze` reported 0 issues.
+> **Notes:** Store MSIX is intentionally unsigned locally (`store: true`); Microsoft Store signs it during submission. Do not use this unsigned Store MSIX for local install testing.
+> **Next Action:** Prepare Store listing metadata: description, screenshots, privacy policy URL, support URL, category, age rating, and policy/compliance notes.
+
+> **Timestamp:** 2026-06-25T22:16:27+05:30
+> **State:** `completed`
+> **Summary:** Verified the locally packaged MSIX after the user trusted the test certificate with admin rights. The package installed, appears in Start Apps, launches through the Windows app identity, and the process is responding.
+> **Files Modified:** `MEMORY.md`
+> **Installed Package:** `com.melodrift_1.0.0.3_x64__fxkeb4dgdm144`
+> **AppID:** `com.melodrift_fxkeb4dgdm144!melodrift`
+> **Verification:** `Get-AppxPackage` reports `Status: Ok`, `Get-StartApps` lists `Melodrift`, launched with `Start-Process shell:AppsFolder\com.melodrift_fxkeb4dgdm144!melodrift`, process title is `Melodrift`, `Responding: True`, and no recent Application Error/Windows Error Reporting events mention Melodrift.
+> **Next Action:** Run manual functional smoke tests inside the installed MSIX app: startup UI, search, playback, queue controls, download/offline playback, settings/cache actions, and uninstall/reinstall behavior.
+
+> **Timestamp:** 2026-06-25T22:04:37+05:30
+> **State:** `blocked`
+> **Summary:** Attempted to install the local MSIX package for smoke testing. `Add-AppxPackage` failed with `0x800B0109` because the self-signed MSIX test certificate is not trusted by Windows AppX deployment.
+> **Files Modified:** `MEMORY.md`
+> **Artifacts:** `build\windows\msix\Melodrift-1.0.0.3-x64.msix`, exported test certificate `build\windows\msix\MsixTesting.cer`
+> **Verification:** `Get-AuthenticodeSignature` reports the MSIX signature as valid after importing the test certificate to CurrentUser stores, but AppX deployment still requires machine-level trust.
+> **Blocked On:** Admin/elevated PowerShell is required to run `certutil -addstore Root build\windows\msix\MsixTesting.cer`, then rerun `Add-AppxPackage -Path build\windows\msix\Melodrift-1.0.0.3-x64.msix`.
+> **Next Action:** Open PowerShell as Administrator, trust `MsixTesting.cer` in LocalMachine Root, install the MSIX, then launch/smoke-test Melodrift.
+
+> **Timestamp:** 2026-06-25T21:52:56+05:30
+> **State:** `completed`
+> **Summary:** Started Microsoft Store readiness one step at a time by adding MSIX packaging support, normalizing Windows app display metadata, rebuilding the Windows release, and generating a local MSIX package.
+> **Files Modified:** `pubspec.yaml`, `pubspec.lock`, `windows/runner/Runner.rc`, `windows/runner/main.cpp`, `MEMORY.md`
+> **Build Output:** `build\windows\msix\Melodrift-1.0.0.3-x64.msix` (28.8MB), `build\windows\x64\runner\Release\melodrift.exe`
+> **Verification:** `flutter build windows --release --obfuscate --split-debug-info=build\symbols\windows` succeeded, `dart run msix:create --build-windows false` succeeded, and `flutter analyze` reported 0 issues.
+> **Notes:** `msix_config` currently uses local/test packaging values. Microsoft Store submission will need Partner Center identity/publisher values before enabling `store: true`.
+> **Next Action:** Install and smoke-test the generated local MSIX package, then replace package identity values with Microsoft Partner Center values when available.
+
+> **Timestamp:** 2026-06-25T20:23:31+05:30
+> **State:** `completed`
+> **Summary:** Continued the interrupted Windows release build and completed an optimized Windows build with obfuscation symbols.
+> **Files Modified:** `MEMORY.md`
+> **Build Output:** `build\windows\x64\runner\Release\melodrift.exe` (5.0MB), symbols in `build\symbols\windows`
+> **Verification:** `flutter build windows --release --obfuscate --split-debug-info=build\symbols\windows` succeeded, output executable exists, and `flutter analyze` reported 0 issues.
+> **Next Action:** Smoke-test the Windows release executable from the full `Release` folder.
 
 > **Timestamp:** 2026-06-25
 > **State:** `completed`
