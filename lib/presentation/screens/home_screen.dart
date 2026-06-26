@@ -126,6 +126,12 @@ class HomeScreen extends ConsumerWidget {
                 // ── Featured Cascade Carousel ────────────────────────────
                 _buildFeaturedCascade(feed),
 
+                // ── Melodrift Trending Music ─────────────────────────────
+                if (feed.trendingSongs.isNotEmpty) ...[
+                  _buildSectionHeader('Melodrift Trending Music'),
+                  _buildSongCascade(context, ref, feed.trendingSongs),
+                ],
+
                 // ── Listen Again ─────────────────────────────────────────
                 if (feed.listenAgain.isNotEmpty) ...[  
                   _buildSectionHeader(
@@ -441,6 +447,17 @@ class HomeScreen extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.only(top: 8.0),
         child: _FeaturedCascade(items: items.take(9).toList()),
+      ),
+    );
+  }
+
+  // ── Melodrift Trending Music Cascade ──────────────────────────────────────
+  Widget _buildSongCascade(BuildContext context, WidgetRef ref, List<Song> songs) {
+    if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: _SongCascade(songs: songs.take(50).toList()),
       ),
     );
   }
@@ -965,6 +982,341 @@ class _CascadeTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Song Cascade Carousel Widget (Melodrift Trending Music)
+// ---------------------------------------------------------------------------
+
+class _SongCascade extends StatefulWidget {
+  final List<Song> songs;
+
+  const _SongCascade({required this.songs});
+
+  @override
+  State<_SongCascade> createState() => _SongCascadeState();
+}
+
+class _SongCascadeState extends State<_SongCascade> {
+  int _currentPage = 0;
+  Timer? _timer;
+  double _dragDx = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) return;
+      if (widget.songs.isEmpty) return;
+      setState(() {
+        _currentPage = (_currentPage + 1) % widget.songs.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.songs.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final cardSize = width > 700 ? 240.0 : (width * 0.58).clamp(188.0, 230.0);
+    final sideSize = cardSize * 0.72;
+    final sideOffset = cardSize * 0.58;
+    final leftIndex = _circularIndex(_currentPage - 1);
+    final rightIndex = _circularIndex(_currentPage + 1);
+    final farLeftIndex = _circularIndex(_currentPage - 2);
+    final farRightIndex = _circularIndex(_currentPage + 2);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (_) => _timer?.cancel(),
+          onHorizontalDragUpdate: (details) => _dragDx += details.primaryDelta ?? 0,
+          onHorizontalDragEnd: (_) {
+            if (_dragDx.abs() > 36) {
+              _rotate(_dragDx < 0 ? 1 : -1);
+            }
+            _dragDx = 0;
+            _startTimer();
+          },
+          child: SizedBox(
+            height: cardSize + 54,
+            child: Stack(
+              alignment: Alignment.topCenter,
+              clipBehavior: Clip.none,
+              children: [
+                if (widget.songs.length > 3)
+                  Positioned(
+                    top: cardSize * 0.27,
+                    child: Transform.translate(
+                      offset: Offset(-sideOffset * 1.58, 0),
+                      child: _SongCascadeTile(
+                        song: widget.songs[farLeftIndex],
+                        rank: farLeftIndex + 1,
+                        size: sideSize * 0.82,
+                        opacity: 0.28,
+                        onTap: () => _setPage(farLeftIndex),
+                      ),
+                    ),
+                  ),
+                if (widget.songs.length > 1)
+                  Positioned(
+                    top: cardSize * 0.18,
+                    child: Transform.translate(
+                      offset: Offset(-sideOffset, 0),
+                      child: _SongCascadeTile(
+                        song: widget.songs[leftIndex],
+                        rank: leftIndex + 1,
+                        size: sideSize,
+                        opacity: 0.58,
+                        onTap: () => _setPage(leftIndex),
+                      ),
+                    ),
+                  ),
+                if (widget.songs.length > 4)
+                  Positioned(
+                    top: cardSize * 0.27,
+                    child: Transform.translate(
+                      offset: Offset(sideOffset * 1.58, 0),
+                      child: _SongCascadeTile(
+                        song: widget.songs[farRightIndex],
+                        rank: farRightIndex + 1,
+                        size: sideSize * 0.82,
+                        opacity: 0.28,
+                        onTap: () => _setPage(farRightIndex),
+                      ),
+                    ),
+                  ),
+                if (widget.songs.length > 2)
+                  Positioned(
+                    top: cardSize * 0.18,
+                    child: Transform.translate(
+                      offset: Offset(sideOffset, 0),
+                      child: _SongCascadeTile(
+                        song: widget.songs[rightIndex],
+                        rank: rightIndex + 1,
+                        size: sideSize,
+                        opacity: 0.58,
+                        onTap: () => _setPage(rightIndex),
+                      ),
+                    ),
+                  ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 450),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _SongCascadeTile(
+                    key: ValueKey(widget.songs[_currentPage].id),
+                    song: widget.songs[_currentPage],
+                    rank: _currentPage + 1,
+                    size: cardSize,
+                    opacity: 1,
+                    showDetails: true,
+                    onTap: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Indicators
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            widget.songs.length > 20 ? 20 : widget.songs.length,
+            (index) {
+              final realIndex = widget.songs.length > 20
+                  ? (_currentPage * 20 ~/ widget.songs.length)
+                  : _currentPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 6,
+                width: index == realIndex ? 16 : 6,
+                decoration: BoxDecoration(
+                  color: index == realIndex
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _circularIndex(int index) => (index % widget.songs.length + widget.songs.length) % widget.songs.length;
+
+  void _rotate(int delta) => _setPage(_circularIndex(_currentPage + delta));
+
+  void _setPage(int index) {
+    if (!mounted || widget.songs.isEmpty) return;
+    setState(() {
+      _currentPage = _circularIndex(index);
+    });
+  }
+}
+
+class _SongCascadeTile extends StatelessWidget {
+  final Song song;
+  final int rank;
+  final double size;
+  final double opacity;
+  final bool showDetails;
+  final VoidCallback onTap;
+
+  const _SongCascadeTile({
+    required this.song,
+    required this.rank,
+    required this.size,
+    required this.opacity,
+    required this.onTap,
+    this.showDetails = false,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: opacity,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(showDetails ? 0.35 : 0.18),
+                blurRadius: showDetails ? 22 : 12,
+                offset: Offset(0, showDetails ? 12 : 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                song.artworkUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: song.artworkUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Icon(Icons.music_note, size: 56),
+                        ),
+                      )
+                    : Container(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.music_note, size: 56),
+                      ),
+                if (showDetails)
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.05),
+                          Colors.black.withOpacity(0.12),
+                          Colors.black.withOpacity(0.82),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (showDetails)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '#$rank TRENDING',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          song.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (song.artist.isNotEmpty)
+                          Text(
+                            song.artist,
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                // Rank badge on non-center tiles
+                if (!showDetails)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '#$rank',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
               ],

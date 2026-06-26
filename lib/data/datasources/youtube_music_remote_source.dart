@@ -187,6 +187,7 @@ class YouTubeMusicRemoteSource {
         'recommendedArtists': data.recommendedArtists.map(_artistToJson).toList(),
         'featuredPlaylist':
             data.featuredPlaylist != null ? _albumToJson(data.featuredPlaylist!) : null,
+        'trendingSongs': data.trendingSongs.map(_songToJson).toList(),
         'featuredPlaylistsForYou': data.featuredPlaylistsForYou.map(_albumToJson).toList(),
         'indianMusic': data.indianMusic.map(_songToJson).toList(),
         'forgottenFavorites': data.forgottenFavorites.map(_songToJson).toList(),
@@ -213,6 +214,10 @@ class YouTubeMusicRemoteSource {
         featuredPlaylist: json['featuredPlaylist'] != null
             ? _albumFromJson(json['featuredPlaylist'] as Map<String, dynamic>)
             : null,
+        trendingSongs: (json['trendingSongs'] as List?)
+                ?.map((s) => _songFromJson(s as Map<String, dynamic>))
+                .toList() ??
+            const [],
         featuredPlaylistsForYou: (json['featuredPlaylistsForYou'] as List?)
                 ?.map((a) => _albumFromJson(a as Map<String, dynamic>))
                 .toList() ??
@@ -274,6 +279,9 @@ class YouTubeMusicRemoteSource {
     Album? featuredPlaylist;
     final moods = getMoodGenreCategories();
 
+    // Melodrift Trending Music (top 50)
+    List<Song> trendingSongs = [];
+
     // New Rich Sections
     List<Album> featuredPlaylistsForYou = [];
     List<Song> indianMusic = [];
@@ -306,6 +314,11 @@ class YouTubeMusicRemoteSource {
       }).catchError((Object e, StackTrace s) {
         _log.error('Error fetching featured playlist', e, s);
         return null;
+      }),
+      // Melodrift Trending Music — fetch extra to ensure 50 after filtering
+      searchSongs('top 50 hit songs 2026 worldwide$langSuffix').then((v) => trendingSongs = v).catchError((Object e, StackTrace s) {
+        _log.error('Error fetching trending songs', e, s);
+        return <Song>[];
       }),
       // New rich section fetches
       searchAlbums('featured playlist$langSuffix').then((v) => featuredPlaylistsForYou = v).catchError((Object e, StackTrace s) {
@@ -344,6 +357,7 @@ class YouTubeMusicRemoteSource {
       listenAgain: listenAgain.take(12).toList(),
       recommendedArtists: recommendedArtists.take(8).toList(),
       featuredPlaylist: featuredPlaylist,
+      trendingSongs: trendingSongs.take(50).toList(),
       featuredPlaylistsForYou: featuredPlaylistsForYou.take(12).toList(),
       indianMusic: indianMusic.take(20).toList(),
       forgottenFavorites: forgottenFavorites.take(20).toList(),

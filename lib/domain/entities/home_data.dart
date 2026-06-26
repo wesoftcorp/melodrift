@@ -14,6 +14,8 @@ class HomeData {
   final List<Artist> recommendedArtists;
   /// Optional hero playlist / featured album shown at the top.
   final Album? featuredPlaylist;
+  /// Top 50 trending songs for the Melodrift Trending Music cascade.
+  final List<Song> trendingSongs;
 
   // New Rich Sections
   final List<Album> featuredPlaylistsForYou;
@@ -29,6 +31,7 @@ class HomeData {
     this.listenAgain = const [],
     this.recommendedArtists = const [],
     this.featuredPlaylist,
+    this.trendingSongs = const [],
     this.featuredPlaylistsForYou = const [],
     this.indianMusic = const [],
     this.forgottenFavorites = const [],
