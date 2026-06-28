@@ -10,12 +10,23 @@
 ---
 
 ## Session State
-- **Last Updated:** 2026-06-26T20:15:00+05:30
-- **Current Focus:** Song duration filtering implemented to show only individual songs
+- **Last Updated:** 2026-06-26T23:30:00+05:30
+- **Current Focus:** Melodrift Trending Music cascade added (commit c674602), user reports it's not reflecting on device — needs debugging tomorrow
 
 ---
 
 ## Last Checkpoint
+
+> **Timestamp:** 2026-06-27T12:49:00+05:30
+> **State:** `completed`
+> **Summary:** Complete UI overhaul to the Nocturnal Echo design language. Replaced FlexColorScheme with a custom deep Charcoal (#131313) and Rose (#ffb3b5) theme. Integrated glassmorphism (BackdropFilter) across MainLayout, HomeScreen, PlayerScreen, and LibraryScreen. Replaced typography with Be Vietnam Pro (primary) and JetBrains Mono (headers). Added animated WaveVisualizer and breathing/glowing player artwork. Verified user testing on Android emulator.
+> **Files Modified:**
+>   - `lib/core/theme/tokens.dart`, `theme_provider.dart`, `glassmorphism_extension.dart`
+>   - `lib/presentation/widgets/wave_visualizer.dart`, `album_card.dart`, `mood_card.dart`, `song_card.dart`
+>   - `lib/presentation/screens/main_layout.dart`, `home_screen.dart`, `player_screen.dart`, `player_controls.dart`, `player_artwork_view.dart`, `library_screen.dart`, `search_screen.dart`, `settings_screen.dart`
+> **Next Action:** Wait for user to request next feature or optimization.
+
+---
 
 > **Timestamp:** 2026-06-26T20:15:00+05:30
 > **State:** `completed`
@@ -34,6 +45,25 @@
 >   - Search results (songs tab)
 >   - Any other song listings throughout the app
 > **Next Action:** Manual testing to verify only individual songs appear in all song display sections.
+
+---
+
+## Pending: Melodrift Trending Music Cascade (Not Reflecting)
+
+> **Commit:** `c674602` — feat: add Melodrift Trending Music cascade with top 50 songs
+> **Issue:** User reports no visual change on Windows after running new build.
+> **Possible Causes to Check:**
+> 1. Old cache serving stale data — the daily cache key might still match, serving pre-trendingSongs data
+> 2. User may be running old binary from a different path/shortcut
+> 3. The `searchSongs('top 50 hit songs 2026 worldwide')` query may be returning 0 results (filtered out by duration filter or search failure)
+> 4. The new `trendingSongs` field in HomeData cache deserialization might be falling back to empty list
+>
+> **Debug Steps for Tomorrow:**
+> 1. Check if `feed.trendingSongs` is empty at runtime (add temporary debug print)
+> 2. Verify user is running `build\windows\x64\runner\Release\melodrift.exe`
+> 3. Try pull-to-refresh on home screen to force cache invalidation
+> 4. Check if search query returns results with different wording
+> 5. Verify the `_SongCascade` widget is being rendered (not returning `SizedBox.shrink`)
 
 ---
 

@@ -33,8 +33,22 @@ class SongCard extends ConsumerWidget {
           ref.read(playerStateProvider.notifier).playSong(song);
         }
       },
+      splashColor: theme.colorScheme.primary.withAlpha(50),
+      highlightColor: theme.colorScheme.primary.withAlpha(25),
       borderRadius: BorderRadius.circular(8),
-      child: Padding(
+      child: Container(
+        decoration: isCurrent ? BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh.withAlpha(150),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.primary.withAlpha(100)),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.primary.withAlpha(20),
+              blurRadius: 12,
+              spreadRadius: -2,
+            ),
+          ],
+        ) : null,
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         child: Row(
           children: [
@@ -69,18 +83,46 @@ class SongCard extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: _getSourceColor(song.source).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: _getSourceColor(song.source).withOpacity(0.4),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          song.source,
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: _getSourceColor(song.source),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          song.artist,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             SongDownloadButton(song: song),
             IconButton(
-              icon: Icon(isCurrentlyPlaying ? Icons.pause : Icons.play_arrow_outlined),
+              icon: isCurrentlyPlaying 
+                  ? Icon(Icons.equalizer, color: theme.colorScheme.primary)
+                  : Icon(Icons.play_arrow_outlined, color: isCurrent ? theme.colorScheme.primary : null),
               color: isCurrent ? theme.colorScheme.primary : null,
               onPressed: () {
                 if (isCurrent) {
@@ -94,5 +136,16 @@ class SongCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Color _getSourceColor(String source) {
+    switch (source) {
+      case 'Spotify':
+        return Colors.greenAccent;
+      case 'JioSaavn':
+        return Colors.tealAccent;
+      default:
+        return Colors.redAccent;
+    }
   }
 }

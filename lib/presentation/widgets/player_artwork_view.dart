@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/player_notifier.dart';
 import '../providers/player_providers.dart';
+import '../../core/theme/tokens.dart';
 
 /// Artwork card with breathing scale animation when playing.
 class PlayerArtworkView extends ConsumerStatefulWidget {
@@ -24,7 +25,7 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     );
-    _breathAnim = Tween<double>(begin: 1.0, end: 1.03).animate(
+    _breathAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _breathController, curve: Curves.easeInOut),
     );
   }
@@ -76,8 +77,8 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 24,
+                  color: theme.colorScheme.primary.withAlpha(isPlaying ? 80 : 0),
+                  blurRadius: isPlaying ? 30 : 0,
                   offset: const Offset(0, 8),
                 ),
               ],
@@ -141,10 +142,10 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                   trackHeight: 4,
                   thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                  activeTrackColor: Colors.white,
-                  inactiveTrackColor: Colors.white24,
-                  thumbColor: Colors.white,
-                  overlayColor: Colors.white24,
+                  activeTrackColor: theme.colorScheme.primary,
+                  inactiveTrackColor: theme.colorScheme.outlineVariant,
+                  thumbColor: theme.colorScheme.primary,
+                  overlayColor: theme.colorScheme.primary.withAlpha(50),
                 ),
                 child: Slider(
                   value: progress.clamp(0.0, 1.0),
@@ -163,11 +164,11 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                   children: [
                     Text(
                       _formatDuration(position),
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: AppTextStyles.monoCaption.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                     Text(
                       _formatDuration(remaining, isNegative: remaining.inSeconds > 0),
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: AppTextStyles.monoCaption.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),

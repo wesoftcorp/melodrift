@@ -8,6 +8,7 @@ class Album {
   final int? year;
   final List<Song> tracks;
   final int songCount;
+  final String source;
 
   const Album({
     required this.id,
@@ -17,5 +18,6 @@ class Album {
     required this.tracks,
     required this.songCount,
     this.year,
+    this.source = 'YouTube Music',
   });
 }

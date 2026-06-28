@@ -7,6 +7,7 @@ class Song {
   final String artworkUrl;
   final String? streamUrl;
   final String videoId;
+  final String source;
 
   const Song({
     required this.id,
@@ -17,5 +18,6 @@ class Song {
     required this.artworkUrl,
     required this.videoId,
     this.streamUrl,
+    this.source = 'YouTube Music',
   });
 }

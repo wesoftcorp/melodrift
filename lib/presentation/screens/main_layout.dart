@@ -17,6 +17,7 @@ class MainLayoutScreen extends ConsumerWidget {
     final hasActiveSong = ref.watch(
       playerStateProvider.select((s) => s.currentSong != null),
     );
+    final theme = Theme.of(context);
 
     return AutoTabsScaffold(
       routes: const [
@@ -29,32 +30,61 @@ class MainLayoutScreen extends ConsumerWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (hasActiveSong) const _MiniPlayer(),
-            NavigationBar(
-              selectedIndex: tabsRouter.activeIndex,
-              onDestinationSelected: tabsRouter.setActiveIndex,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.search_outlined),
-                  selectedIcon: Icon(Icons.search),
-                  label: 'Search',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  selectedIcon: Icon(Icons.library_music),
-                  label: 'Library',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+            if (hasActiveSong) const MiniPlayer(),
+            NavigationBarTheme(
+              data: NavigationBarThemeData(
+                labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const TextStyle(
+                      color: Color(0xFFFF5F1F),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    );
+                  }
+                  return TextStyle(
+                    color: const Color(0xFFFF5F1F).withOpacity(0.6),
+                    fontSize: 12,
+                  );
+                }),
+                iconTheme: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const IconThemeData(
+                      color: Color(0xFFFF5F1F),
+                    );
+                  }
+                  return IconThemeData(
+                    color: const Color(0xFFFF5F1F).withOpacity(0.6),
+                  );
+                }),
+              ),
+              child: NavigationBar(
+                selectedIndex: tabsRouter.activeIndex,
+                onDestinationSelected: tabsRouter.setActiveIndex,
+                backgroundColor: theme.colorScheme.surfaceContainerLow,
+                indicatorColor: const Color(0xFFFF5F1F).withAlpha(35),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined),
+                    selectedIcon: Icon(Icons.home),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.search_outlined),
+                    selectedIcon: Icon(Icons.search),
+                    label: 'Search',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.library_music_outlined),
+                    selectedIcon: Icon(Icons.library_music),
+                    label: 'Library',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              ),
             ),
           ],
         );
@@ -64,8 +94,8 @@ class MainLayoutScreen extends ConsumerWidget {
 }
 
 /// Mini-player extracted into its own widget so only it rebuilds on position ticks.
-class _MiniPlayer extends ConsumerWidget {
-  const _MiniPlayer();
+class MiniPlayer extends ConsumerWidget {
+  const MiniPlayer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,30 +129,24 @@ class _MiniPlayer extends ConsumerWidget {
               child: Container(
                 height: 72,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.55),
+                  color: theme.colorScheme.surfaceContainerHighest.withAlpha(140), // ~0.55 opacity
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: theme.colorScheme.outlineVariant,
                     width: 0.5,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withAlpha(25),
+                      blurRadius: 16,
+                      spreadRadius: -4,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
-                    // Gradient accent line at top
-                    Container(
-                      height: 2,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            theme.colorScheme.primary,
-                            theme.colorScheme.tertiary,
-                          ],
-                        ),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                      ),
-                    ),
+                    // Removed top gradient line for cleaner nocturnal-echo glass look
                     // Content row
                     Expanded(
                       child: Padding(

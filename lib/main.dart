@@ -22,7 +22,7 @@ final _log = AppLogger('main');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   final flavorName = appFlavor?.toLowerCase() ?? 'prodfull';
   F.appFlavor = Flavor.values.firstWhere(
     (element) => element.name.toLowerCase() == flavorName,
@@ -39,19 +39,20 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      
+
       // Set up Crashlytics collection
       await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(true);
-      
+
       // Pass uncaught exceptions to Crashlytics
       FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
-      
+
       // Pass isolate exceptions to Crashlytics
       ui.PlatformDispatcher.instance.onError = (error, stackTrace) {
-        FirebaseCrashlytics.instance.recordError(error, stackTrace as StackTrace?, fatal: true);
+        FirebaseCrashlytics.instance
+            .recordError(error, stackTrace as StackTrace?, fatal: true);
         return true;
       };
-      
+
       await prefs.setBool('firebase_initialized', true);
       _log.info('Firebase initialized successfully with Crashlytics enabled');
     } catch (e, st) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
 import '../../data/repositories/history_repository_impl.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../core/theme/tokens.dart';
 import '../widgets/search_results_view.dart';
 import '../widgets/voice_search_sheet.dart';
 
@@ -83,6 +84,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           focusNode: _focusNode,
           decoration: InputDecoration(
             hintText: 'Search songs, albums, artists...',
+            hintStyle: AppTextStyles.monoCaption.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             border: InputBorder.none,
             suffixIcon: _controller.text.isNotEmpty
                 ? IconButton(
@@ -142,7 +144,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text('Recent Searches', style: theme.textTheme.titleSmall),
+          child: Text('RECENT SEARCHES', style: AppTextStyles.monoSectionHeader),
         ),
         Expanded(
           child: ListView.builder(

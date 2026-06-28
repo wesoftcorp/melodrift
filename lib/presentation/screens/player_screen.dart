@@ -9,6 +9,7 @@ import '../widgets/player_controls.dart';
 import '../widgets/player_artwork_view.dart';
 import '../../domain/entities/song.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../core/theme/tokens.dart';
 
 final relatedSongsProvider = FutureProvider.family<List<Song>, String>((ref, videoId) async {
   final repository = ref.watch(musicRepositoryProvider);
@@ -41,17 +42,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Positioned.fill(
             child: song.artworkUrl.isNotEmpty
                 ? ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                    imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
                     child: CachedNetworkImage(
                       imageUrl: song.artworkUrl,
                       fit: BoxFit.cover,
-                      color: Colors.black.withOpacity(0.4),
+                      color: Colors.black.withOpacity(0.6),
                       colorBlendMode: BlendMode.darken,
                     ),
                   )
                 : Container(color: Colors.grey[900]),
           ),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.3))),
 
           // 2. Main content UI
           SafeArea(
@@ -86,19 +87,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               minChildSize: 0.12,
               maxChildSize: 0.85,
               builder: (context, scrollController) {
+                final theme = Theme.of(context);
                 return Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFF151518).withOpacity(0.95),
+                    color: theme.colorScheme.surface.withAlpha(200),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withAlpha(128),
                         blurRadius: 15,
                         spreadRadius: 2,
                       ),
                     ],
                   ),
-                  child: Column(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Column(
                     children: [
                       // Grab handle & tabs inside SingleChildScrollView to align scroll action
                       SingleChildScrollView(
@@ -116,14 +122,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            const TabBar(
-                              labelColor: Colors.white,
-                              unselectedLabelColor: Colors.white38,
-                              indicatorColor: Colors.white,
+                            TabBar(
+                              labelColor: theme.colorScheme.primary,
+                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                              indicatorColor: theme.colorScheme.primary,
                               indicatorSize: TabBarIndicatorSize.tab,
                               dividerColor: Colors.transparent,
-                              labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1),
-                              tabs: [
+                              labelStyle: AppTextStyles.monoSectionHeader,
+                              tabs: const [
                                 Tab(text: 'UP NEXT'),
                                 Tab(text: 'LYRICS'),
                                 Tab(text: 'RELATED'),
@@ -148,9 +154,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ],
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+            );
+          },
+        ),
           ),
         ],
       ),
@@ -167,14 +175,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 32),
             onPressed: () => context.router.maybePop(),
           ),
-          const Text(
+          Text(
             'NOW PLAYING',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
+            style: AppTextStyles.monoSectionHeader.copyWith(color: Colors.white70),
           ),
           const SizedBox(width: 48), // Spacer to balance back button
         ],

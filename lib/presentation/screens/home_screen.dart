@@ -7,6 +7,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../data/repositories/history_repository_impl.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/artist.dart';
 import '../../domain/entities/album.dart';
@@ -16,6 +17,7 @@ import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
 import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
 import 'details_screen.dart';
+import '../../core/theme/tokens.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -55,13 +57,47 @@ const kLanguageOptions = ['All', 'English', 'Hindi', 'Nepali'];
 final homeFeedProvider = FutureProvider<HomeData>((ref) async {
   final repository = ref.watch(musicRepositoryProvider);
   final languages = ref.watch(homeLanguageProvider);
+  final historySongsAsync = ref.watch(listeningHistoryProvider);
+  final historySongs = historySongsAsync.value ?? [];
 
   // Pass null when "All" is selected — API returns everything
   final lang = (languages.contains('All') || languages.isEmpty)
       ? null
       : languages.join(' ');
 
-  return repository.getHomeFeed(language: lang);
+  final feed = await repository.getHomeFeed(language: lang);
+
+  // Merge history/previously played songs into feed.listenAgain.
+  // Deduplicate and prioritize history.
+  final List<Song> combinedListenAgain = [];
+  final seenIds = <String>{};
+
+  for (final song in historySongs) {
+    if (seenIds.add(song.id)) {
+      combinedListenAgain.add(song);
+    }
+  }
+
+  for (final song in feed.listenAgain) {
+    if (seenIds.add(song.id)) {
+      combinedListenAgain.add(song);
+    }
+  }
+
+  return HomeData(
+    quickPicks: feed.quickPicks,
+    newReleases: feed.newReleases,
+    charts: feed.charts,
+    moods: feed.moods,
+    listenAgain: combinedListenAgain.take(15).toList(),
+    recommendedArtists: feed.recommendedArtists,
+    featuredPlaylist: feed.featuredPlaylist,
+    trendingSongs: feed.trendingSongs,
+    featuredPlaylistsForYou: feed.featuredPlaylistsForYou,
+    indianMusic: feed.indianMusic,
+    forgottenFavorites: feed.forgottenFavorites,
+    albumsForYou: feed.albumsForYou,
+  );
 });
 
 
@@ -117,19 +153,59 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
           data: (feed) {
-            return CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
+            return Stack(
+              children: [
+                if (isDark)
+                  Positioned(
+                    top: -150,
+                    left: -100,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 500,
+                        height: 500,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              theme.colorScheme.primary.withAlpha(25),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
                 // ── Glassmorphism App Bar ────────────────────────────────
                 _buildAppBar(context, ref, isDark),
 
-                // ── Featured Cascade Carousel ────────────────────────────
-                _buildFeaturedCascade(feed),
 
                 // ── Melodrift Trending Music ─────────────────────────────
                 if (feed.trendingSongs.isNotEmpty) ...[
-                  _buildSectionHeader('Melodrift Trending Music'),
-                  _buildSongCascade(context, ref, feed.trendingSongs),
+                  _buildSectionHeader(
+                    'Melodrift Trending Music',
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'trending_songs',
+                        title: 'Melodrift Trending Music',
+                        type: 'songList',
+                        preloadedSongs: feed.trendingSongs,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: _TrendingCascade(
+                        songs: feed.trendingSongs.take(30).toList(),
+                        onSongTap: (song) =>
+                            ref.read(playerStateProvider.notifier).playSong(song),
+                      ),
+                    ),
+                  ),
                 ],
 
                 // ── Listen Again ─────────────────────────────────────────
@@ -331,12 +407,14 @@ class HomeScreen extends ConsumerWidget {
                 // ── Moods & Genres ───────────────────────────────────────
                 _buildSectionHeader(
                   'Moods & Genres',
+                  textColor: const Color(0xFFFF5F1F),
                   onSeeAll: () => _openDetails(
                     context,
-                    const DetailsScreen(
+                    DetailsScreen(
                       id: 'moods',
                       title: 'Moods & Genres',
-                      type: 'mood',
+                      type: 'moodList',
+                      preloadedMoods: feed.moods,
                     ),
                   ),
                 ),
@@ -348,6 +426,8 @@ class HomeScreen extends ConsumerWidget {
                 ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 120)),
+              ],
+            ),
               ],
             );
           },
@@ -385,22 +465,45 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     // Logo / greeting
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Row(
                         children: [
-                          Text(
-                            'Melodrift',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                              color: theme.colorScheme.primary,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Melodrift',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                  color: const Color(0xFFFF5F1F),
+                                ),
+                              ),
+                              Text(
+                                _getGreeting(),
+                                style: AppTextStyles.monoCaption.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            _getGreeting(),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          const SizedBox(width: 12),
+                          // Status indicator chip
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: theme.colorScheme.primary.withAlpha(50),
+                              ),
+                            ),
+                            child: Text(
+                              'IDLE DRIFT',
+                              style: AppTextStyles.monoCaption.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontSize: 8,
+                              ),
                             ),
                           ),
                         ],
@@ -410,7 +513,7 @@ class HomeScreen extends ConsumerWidget {
                     IconButton(
                       icon: Icon(
                         isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                        color: theme.colorScheme.onSurface,
+                        color: const Color(0xFFFF5F1F),
                       ),
                       tooltip: isDark ? 'Light Mode' : 'Dark Mode',
                       onPressed: () {
@@ -421,8 +524,8 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     // Notifications placeholder
                     IconButton(
-                      icon: Icon(Icons.notifications_outlined,
-                          color: theme.colorScheme.onSurface),
+                      icon: const Icon(Icons.notifications_outlined,
+                          color: Color(0xFFFF5F1F)),
                       onPressed: () {},
                     ),
                   ],
@@ -435,32 +538,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  // ── Featured Cascade Carousel ─────────────────────────────────────────────
-  Widget _buildFeaturedCascade(HomeData feed) {
-    final items = [
-      if (feed.featuredPlaylist != null) feed.featuredPlaylist!,
-      ...feed.newReleases,
-    ];
-    if (items.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
 
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8.0),
-        child: _FeaturedCascade(items: items.take(9).toList()),
-      ),
-    );
-  }
-
-  // ── Melodrift Trending Music Cascade ──────────────────────────────────────
-  Widget _buildSongCascade(BuildContext context, WidgetRef ref, List<Song> songs) {
-    if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8.0),
-        child: _SongCascade(songs: songs.take(50).toList()),
-      ),
-    );
-  }
 
   // ── Compact Song Row (Listen Again) ───────────────────────────────────────
   Widget _buildCompactSongRow(BuildContext context, WidgetRef ref, List<Song> songs) {
@@ -632,39 +710,43 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll}) {
+  Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll, Color? textColor}) {
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: 16,
-          right: 8,
-          top: 28,
-          bottom: 8,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.3,
-                ),
-              ),
+      child: Builder(
+        builder: (context) {
+          return Padding(
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 8,
+              top: 28,
+              bottom: 8,
             ),
-            if (onSeeAll != null)
-              TextButton(
-                onPressed: onSeeAll,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    style: AppTextStyles.monoSectionHeader.copyWith(
+                      color: textColor ?? const Color(0xFFFF5F1F),
+                    ),
+                  ),
                 ),
-                child: const Text('See all'),
-              ),
-          ],
-        ),
+                if (onSeeAll != null)
+                  TextButton(
+                    onPressed: onSeeAll,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      foregroundColor: const Color(0xFFFF5F1F),
+                      textStyle: AppTextStyles.labelMedium,
+                    ),
+                    child: const Text('See all'),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -947,21 +1029,46 @@ class _CascadeTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Text(
-                            'FEATURED',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'FEATURED',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _getSourceColor(album.source).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: _getSourceColor(album.source).withOpacity(0.4),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                album.source.toUpperCase(),
+                                style: TextStyle(
+                                  color: _getSourceColor(album.source),
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -991,22 +1098,34 @@ class _CascadeTile extends StatelessWidget {
       ),
     );
   }
+
+  Color _getSourceColor(String source) {
+    switch (source) {
+      case 'Spotify':
+        return Colors.greenAccent;
+      case 'JioSaavn':
+        return Colors.tealAccent;
+      default:
+        return Colors.redAccent;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Song Cascade Carousel Widget (Melodrift Trending Music)
+// Trending Song Cascade Carousel (same look as album cascade, but for Songs)
 // ---------------------------------------------------------------------------
 
-class _SongCascade extends StatefulWidget {
+class _TrendingCascade extends StatefulWidget {
   final List<Song> songs;
+  final ValueChanged<Song> onSongTap;
 
-  const _SongCascade({required this.songs});
+  const _TrendingCascade({required this.songs, required this.onSongTap});
 
   @override
-  State<_SongCascade> createState() => _SongCascadeState();
+  State<_TrendingCascade> createState() => _TrendingCascadeState();
 }
 
-class _SongCascadeState extends State<_SongCascade> {
+class _TrendingCascadeState extends State<_TrendingCascade> {
   int _currentPage = 0;
   Timer? _timer;
   double _dragDx = 0;
@@ -1041,10 +1160,10 @@ class _SongCascadeState extends State<_SongCascade> {
     final cardSize = width > 700 ? 240.0 : (width * 0.58).clamp(188.0, 230.0);
     final sideSize = cardSize * 0.72;
     final sideOffset = cardSize * 0.58;
-    final leftIndex = _circularIndex(_currentPage - 1);
-    final rightIndex = _circularIndex(_currentPage + 1);
-    final farLeftIndex = _circularIndex(_currentPage - 2);
-    final farRightIndex = _circularIndex(_currentPage + 2);
+    final leftIndex = _tcCircularIndex(_currentPage - 1);
+    final rightIndex = _tcCircularIndex(_currentPage + 1);
+    final farLeftIndex = _tcCircularIndex(_currentPage - 2);
+    final farRightIndex = _tcCircularIndex(_currentPage + 2);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1052,10 +1171,11 @@ class _SongCascadeState extends State<_SongCascade> {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onHorizontalDragStart: (_) => _timer?.cancel(),
-          onHorizontalDragUpdate: (details) => _dragDx += details.primaryDelta ?? 0,
+          onHorizontalDragUpdate: (details) =>
+              _dragDx += details.primaryDelta ?? 0,
           onHorizontalDragEnd: (_) {
             if (_dragDx.abs() > 36) {
-              _rotate(_dragDx < 0 ? 1 : -1);
+              _tcRotate(_dragDx < 0 ? 1 : -1);
             }
             _dragDx = 0;
             _startTimer();
@@ -1071,12 +1191,11 @@ class _SongCascadeState extends State<_SongCascade> {
                     top: cardSize * 0.27,
                     child: Transform.translate(
                       offset: Offset(-sideOffset * 1.58, 0),
-                      child: _SongCascadeTile(
+                      child: _TrendingCascadeTile(
                         song: widget.songs[farLeftIndex],
-                        rank: farLeftIndex + 1,
                         size: sideSize * 0.82,
                         opacity: 0.28,
-                        onTap: () => _setPage(farLeftIndex),
+                        onTap: () => _tcSetPage(farLeftIndex),
                       ),
                     ),
                   ),
@@ -1085,12 +1204,11 @@ class _SongCascadeState extends State<_SongCascade> {
                     top: cardSize * 0.18,
                     child: Transform.translate(
                       offset: Offset(-sideOffset, 0),
-                      child: _SongCascadeTile(
+                      child: _TrendingCascadeTile(
                         song: widget.songs[leftIndex],
-                        rank: leftIndex + 1,
                         size: sideSize,
                         opacity: 0.58,
-                        onTap: () => _setPage(leftIndex),
+                        onTap: () => _tcSetPage(leftIndex),
                       ),
                     ),
                   ),
@@ -1099,12 +1217,11 @@ class _SongCascadeState extends State<_SongCascade> {
                     top: cardSize * 0.27,
                     child: Transform.translate(
                       offset: Offset(sideOffset * 1.58, 0),
-                      child: _SongCascadeTile(
+                      child: _TrendingCascadeTile(
                         song: widget.songs[farRightIndex],
-                        rank: farRightIndex + 1,
                         size: sideSize * 0.82,
                         opacity: 0.28,
-                        onTap: () => _setPage(farRightIndex),
+                        onTap: () => _tcSetPage(farRightIndex),
                       ),
                     ),
                   ),
@@ -1113,12 +1230,11 @@ class _SongCascadeState extends State<_SongCascade> {
                     top: cardSize * 0.18,
                     child: Transform.translate(
                       offset: Offset(sideOffset, 0),
-                      child: _SongCascadeTile(
+                      child: _TrendingCascadeTile(
                         song: widget.songs[rightIndex],
-                        rank: rightIndex + 1,
                         size: sideSize,
                         opacity: 0.58,
-                        onTap: () => _setPage(rightIndex),
+                        onTap: () => _tcSetPage(rightIndex),
                       ),
                     ),
                   ),
@@ -1126,14 +1242,13 @@ class _SongCascadeState extends State<_SongCascade> {
                   duration: const Duration(milliseconds: 450),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
-                  child: _SongCascadeTile(
+                  child: _TrendingCascadeTile(
                     key: ValueKey(widget.songs[_currentPage].id),
                     song: widget.songs[_currentPage],
-                    rank: _currentPage + 1,
                     size: cardSize,
                     opacity: 1,
                     showDetails: true,
-                    onTap: () {},
+                    onTap: () => widget.onSongTap(widget.songs[_currentPage]),
                   ),
                 ),
               ],
@@ -1141,57 +1256,51 @@ class _SongCascadeState extends State<_SongCascade> {
           ),
         ),
         const SizedBox(height: 8),
-        // Indicators
+        // Page indicators
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            widget.songs.length > 20 ? 20 : widget.songs.length,
-            (index) {
-              final realIndex = widget.songs.length > 20
-                  ? (_currentPage * 20 ~/ widget.songs.length)
-                  : _currentPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 6,
-                width: index == realIndex ? 16 : 6,
-                decoration: BoxDecoration(
-                  color: index == realIndex
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              );
-            },
+            widget.songs.length,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: 6,
+              width: _currentPage == index ? 16 : 6,
+              decoration: BoxDecoration(
+                color: _currentPage == index
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  int _circularIndex(int index) => (index % widget.songs.length + widget.songs.length) % widget.songs.length;
+  int _tcCircularIndex(int index) =>
+      (index % widget.songs.length + widget.songs.length) % widget.songs.length;
 
-  void _rotate(int delta) => _setPage(_circularIndex(_currentPage + delta));
+  void _tcRotate(int delta) => _tcSetPage(_tcCircularIndex(_currentPage + delta));
 
-  void _setPage(int index) {
+  void _tcSetPage(int index) {
     if (!mounted || widget.songs.isEmpty) return;
     setState(() {
-      _currentPage = _circularIndex(index);
+      _currentPage = _tcCircularIndex(index);
     });
   }
 }
 
-class _SongCascadeTile extends StatelessWidget {
+class _TrendingCascadeTile extends StatelessWidget {
   final Song song;
-  final int rank;
   final double size;
   final double opacity;
   final bool showDetails;
   final VoidCallback onTap;
 
-  const _SongCascadeTile({
+  const _TrendingCascadeTile({
     required this.song,
-    required this.rank,
     required this.size,
     required this.opacity,
     required this.onTap,
@@ -1261,21 +1370,50 @@ class _SongCascadeTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '#$rank TRENDING',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text(
+                                'TRENDING',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _getSourceColor(song.source)
+                                    .withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: _getSourceColor(song.source)
+                                      .withOpacity(0.4),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                song.source.toUpperCase(),
+                                style: TextStyle(
+                                  color: _getSourceColor(song.source),
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -1291,32 +1429,12 @@ class _SongCascadeTile extends StatelessWidget {
                         if (song.artist.isNotEmpty)
                           Text(
                             song.artist,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
-                    ),
-                  ),
-                // Rank badge on non-center tiles
-                if (!showDetails)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '#$rank',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ),
                   ),
               ],
@@ -1325,5 +1443,16 @@ class _SongCascadeTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _getSourceColor(String source) {
+    switch (source) {
+      case 'Spotify':
+        return Colors.greenAccent;
+      case 'JioSaavn':
+        return Colors.tealAccent;
+      default:
+        return Colors.redAccent;
+    }
   }
 }

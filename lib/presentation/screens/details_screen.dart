@@ -4,21 +4,25 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_route/auto_route.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/album.dart';
+import '../../domain/entities/mood_category.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
+import '../widgets/mood_card.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
+import 'main_layout.dart';
 
 @RoutePage()
 class DetailsScreen extends ConsumerWidget {
   final String id;
   final String title;
   final String artworkUrl;
-  final String type; // 'album', 'playlist', 'artist', 'mood', 'songList', 'albumList'
+  final String type; // 'album', 'playlist', 'artist', 'mood', 'songList', 'albumList', 'moodList'
   final List<Song>? preloadedSongs;
   final List<Album>? preloadedAlbums;
+  final List<MoodCategory>? preloadedMoods;
 
   const DetailsScreen({
     required this.id,
@@ -27,13 +31,16 @@ class DetailsScreen extends ConsumerWidget {
     this.artworkUrl = '',
     this.preloadedSongs,
     this.preloadedAlbums,
+    this.preloadedMoods,
     super.key,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(musicRepositoryProvider);
-
+    final hasActiveSong = ref.watch(
+      playerStateProvider.select((s) => s.currentSong != null),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -44,7 +51,9 @@ class DetailsScreen extends ConsumerWidget {
           ? _buildSongList(context, ref, preloadedSongs ?? [])
           : type == 'albumList'
               ? _buildAlbumGrid(context, preloadedAlbums ?? [])
-              : FutureBuilder<Map<String, dynamic>>(
+              : type == 'moodList'
+                  ? _buildMoodGrid(context, preloadedMoods ?? [])
+                  : FutureBuilder<Map<String, dynamic>>(
                   future: _fetchData(ref, repo),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -100,6 +109,14 @@ class DetailsScreen extends ConsumerWidget {
                     );
                   },
                 ),
+      bottomNavigationBar: hasActiveSong
+          ? const SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: MiniPlayer(),
+              ),
+            )
+          : null,
     );
   }
 
@@ -133,6 +150,26 @@ class DetailsScreen extends ConsumerWidget {
       itemBuilder: (context, index) {
         final album = albums[index];
         return AlbumCard(album: album, size: 140);
+      },
+    );
+  }
+
+  Widget _buildMoodGrid(BuildContext context, List<MoodCategory> moods) {
+    if (moods.isEmpty) {
+      return const Center(child: Text('No moods available'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 160,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 2.2,
+      ),
+      itemCount: moods.length,
+      itemBuilder: (context, index) {
+        final mood = moods[index];
+        return MoodCard(mood: mood);
       },
     );
   }

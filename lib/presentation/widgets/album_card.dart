@@ -52,22 +52,76 @@ class AlbumCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              album.title,
-              style: theme.textTheme.labelLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              album.artist,
-              style: theme.textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            Container(
+              width: size,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHigh.withAlpha(200),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withAlpha(100),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    album.title,
+                    style: theme.textTheme.labelLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: _getSourceColor(album.source).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: _getSourceColor(album.source).withOpacity(0.4),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          album.source,
+                          style: TextStyle(
+                            fontSize: 7,
+                            fontWeight: FontWeight.bold,
+                            color: _getSourceColor(album.source),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          album.artist,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Color _getSourceColor(String source) {
+    switch (source) {
+      case 'Spotify':
+        return Colors.greenAccent;
+      case 'JioSaavn':
+        return Colors.tealAccent;
+      default:
+        return Colors.redAccent;
+    }
   }
 }
 

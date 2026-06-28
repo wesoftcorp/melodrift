@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'tokens.dart';
@@ -46,63 +45,66 @@ class ThemeNotifier extends StateNotifier<AppThemeMode> {
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get lightTheme => FlexThemeData.light(
-        scheme: FlexScheme.deepPurple,
-        surfaceMode: FlexSurfaceMode.highScaffoldLowSurface,
-        blendLevel: 7,
-        subThemesData: const FlexSubThemesData(
-          blendOnLevel: 10,
-          blendOnColors: false,
-          useInputDecoratorThemeInDialogs: true,
-        ),
-        fontFamily: GoogleFonts.poppins().fontFamily,
-        keyColors: const FlexKeyColors(
-          useSecondary: true,
-          useTertiary: true,
+  static ThemeData get lightTheme => ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.light,
+        fontFamily: GoogleFonts.beVietnamPro().fontFamily,
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.lightPrimary,
+          onPrimary: Colors.white,
+          secondary: AppColors.lightSecondary,
+          tertiary: AppColors.lightTertiary,
+          surface: AppColors.lightSurface,
+          background: AppColors.lightBackground,
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        useMaterial3: true,
-      ).copyWith(
-        extensions: [GlassmorphismThemeExtension.light],
+        extensions: const [GlassmorphismThemeExtension.light],
       );
 
-  static ThemeData get darkTheme => FlexThemeData.dark(
-        scheme: FlexScheme.deepPurple,
-        surfaceMode: FlexSurfaceMode.highScaffoldLowSurface,
-        blendLevel: 13,
-        subThemesData: const FlexSubThemesData(
-          blendOnLevel: 20,
-          useInputDecoratorThemeInDialogs: true,
-        ),
-        fontFamily: GoogleFonts.poppins().fontFamily,
-        keyColors: const FlexKeyColors(
-          useSecondary: true,
-          useTertiary: true,
-        ),
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+  static ThemeData get darkTheme => ThemeData(
         useMaterial3: true,
-      ).copyWith(
+        brightness: Brightness.dark,
+        fontFamily: GoogleFonts.beVietnamPro().fontFamily,
         scaffoldBackgroundColor: AppColors.darkBackground,
-        extensions: [GlassmorphismThemeExtension.dark],
+        colorScheme: const ColorScheme.dark(
+          primary: AppColors.primary,
+          onPrimary: AppColors.onPrimary,
+          primaryContainer: AppColors.primaryContainer,
+          onPrimaryContainer: AppColors.onPrimaryContainer,
+          secondary: AppColors.primary, // mapping secondary to primary for some elements
+          surface: AppColors.darkSurface,
+          background: AppColors.darkBackground,
+          surfaceContainerLowest: AppColors.surfaceContainerLowest,
+          surfaceContainerLow: AppColors.surfaceContainerLow,
+          surfaceContainer: AppColors.surfaceContainer,
+          surfaceContainerHigh: AppColors.surfaceContainerHigh,
+          surfaceContainerHighest: AppColors.surfaceContainerHighest,
+          onSurface: AppColors.onSurface,
+          onSurfaceVariant: AppColors.onSurfaceVariant,
+          outline: AppColors.outline,
+          outlineVariant: AppColors.outlineVariant,
+        ),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        extensions: const [GlassmorphismThemeExtension.dark],
       );
 
-  static ThemeData get amoledTheme => FlexThemeData.dark(
-        scheme: FlexScheme.deepPurple,
-        surfaceMode: FlexSurfaceMode.level,
-        blendLevel: 0,
-        subThemesData: const FlexSubThemesData(
-          blendOnLevel: 0,
-          useInputDecoratorThemeInDialogs: true,
-        ),
-        fontFamily: GoogleFonts.poppins().fontFamily,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        useMaterial3: true,
-      ).copyWith(
+  static ThemeData get amoledTheme => darkTheme.copyWith(
         scaffoldBackgroundColor: AppColors.amoledBackground,
-        cardColor: AppColors.amoledSurface,
-        extensions: [GlassmorphismThemeExtension.amoled],
         colorScheme: const ColorScheme.dark(
+          primary: AppColors.primary,
+          onPrimary: AppColors.onPrimary,
           surface: AppColors.amoledSurface,
+          background: AppColors.amoledBackground,
+          surfaceContainerLowest: Color(0xFF050505),
+          surfaceContainerLow: Color(0xFF0A0A0A),
+          surfaceContainer: Color(0xFF0F0F0F),
+          surfaceContainerHigh: Color(0xFF141414),
+          surfaceContainerHighest: Color(0xFF1A1A1A),
+          onSurface: AppColors.onSurface,
+          onSurfaceVariant: AppColors.onSurfaceVariant,
+          outline: AppColors.outline,
+          outlineVariant: AppColors.outlineVariant,
         ),
+        extensions: const [GlassmorphismThemeExtension.amoled],
       );
 }

@@ -9,6 +9,11 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
   return HistoryRepositoryImpl(localSource);
 });
 
+final listeningHistoryProvider = FutureProvider<List<Song>>((ref) async {
+  final historyRepo = ref.watch(historyRepositoryProvider);
+  return historyRepo.getListeningHistory();
+});
+
 class HistoryRepositoryImpl implements HistoryRepository {
   final LocalMusicSource _localSource;
 
@@ -17,15 +22,24 @@ class HistoryRepositoryImpl implements HistoryRepository {
   @override
   Future<List<Song>> getListeningHistory() async {
     final list = await _localSource.getListeningHistory();
-    return list.map((record) => Song(
-      id: record.songId,
-      title: record.title,
-      artist: record.artist,
-      album: 'Single',
-      duration: Duration.zero,
-      artworkUrl: record.artworkUrl,
-      videoId: record.songId,
-    )).toList();
+    return list.map((record) {
+      String source = 'YouTube Music';
+      if (record.songId.startsWith('jiosaavn_')) {
+        source = 'JioSaavn';
+      } else if (record.songId.startsWith('spotify_')) {
+        source = 'Spotify';
+      }
+      return Song(
+        id: record.songId,
+        title: record.title,
+        artist: record.artist,
+        album: 'Single',
+        duration: Duration.zero,
+        artworkUrl: record.artworkUrl,
+        videoId: record.songId,
+        source: source,
+      );
+    }).toList();
   }
 
   @override

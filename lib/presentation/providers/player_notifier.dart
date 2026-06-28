@@ -1,11 +1,13 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/music_repository.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../data/repositories/history_repository_impl.dart';
 import '../../data/datasources/local_music_source.dart';
+import '../../data/models/local_models.dart';
 import '../../core/services/audio_handler.dart';
 import '../../core/services/audio_quality_preferences.dart';
 import '../../core/utils/logger.dart';
@@ -85,6 +87,7 @@ final playerStateProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
     handler,
     repository,
     localSource,
+    ref,
   );
 });
 
@@ -92,6 +95,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final MelodriftAudioHandler _handler;
   final MusicRepository _repository;
   final LocalMusicSource _localSource;
+  final Ref _ref;
   final _log = AppLogger('PlayerNotifier');
   
   StreamSubscription<MediaItem?>? _mediaItemSubscription;
@@ -103,11 +107,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   String? _resolvingVideoId;
   Timer? _playbackStateDebounceTimer;
+  String? _lastSavedSongId;
 
   PlayerNotifier(
     this._handler,
     this._repository,
     this._localSource,
+    this._ref,
   ) : super(const PlayerState()) {
     _subscribe();
   }
@@ -130,11 +136,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // 1. Current Song
     _mediaItemSubscription = _handler.mediaItem.listen((item) {
       if (item != null) {
+        final song = _mapMediaItemToSong(item);
         state = state.copyWith(
-          currentSong: _mapMediaItemToSong(item),
+          currentSong: song,
           duration: item.duration ?? Duration.zero,
         );
         unawaited(_resolveNextInQueue()); // Trigger pre-resolution
+
+        if (_lastSavedSongId != song.id) {
+          _lastSavedSongId = song.id;
+          _addToHistory(song);
+        }
       }
     });
 
@@ -206,6 +218,22 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       });
   }
 
+  Future<void> _addToHistory(Song song) async {
+    try {
+      final record = ListeningHistoryRecord()
+        ..songId = song.id
+        ..title = song.title
+        ..artist = song.artist
+        ..artworkUrl = song.artworkUrl
+        ..playedAt = DateTime.now();
+      await _localSource.saveListeningHistoryRecord(record);
+      _log.info('Saved song to history: ${song.title}');
+      _ref.invalidate(listeningHistoryProvider);
+    } catch (e, st) {
+      _log.error('Failed to save song to history', e, st);
+    }
+  }
+
   // --- Mappings ---
 
   MediaItem _mapSongToMediaItem(
@@ -239,12 +267,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
-  Future<String> _resolveStream(String videoId) async {
+  Future<String> _resolveStream(String videoId, {Song? song}) async {
     try {
       _log.debug('Resolving stream for videoId: $videoId');
       
+      String targetVideoId = videoId;
+      if (song != null && song.source != 'YouTube Music') {
+        final resolvedSong = await _ensureYouTubeVideoId(song);
+        targetVideoId = resolvedSong.videoId;
+      }
+      
       // Check if downloaded locally first
-      final localSong = await _localSource.getSong(videoId);
+      final localSong = await _localSource.getSong(targetVideoId);
       if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
@@ -256,11 +290,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // Add timeout to prevent hanging if YouTube API is slow
       final quality = (await AudioQualityPreferences.load()).streamingQuality;
       final url = await _repository
-        .getStreamUrl(videoId, quality: quality)
+        .getStreamUrl(targetVideoId, quality: quality)
         .timeout(
           const Duration(seconds: 15),
           onTimeout: () {
-            _log.warning('Stream resolution timeout for $videoId after 15 seconds');
+            _log.warning('Stream resolution timeout for $targetVideoId after 15 seconds');
             return '';
           },
         );
@@ -273,6 +307,35 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _log.error('Error resolving stream for videoId $videoId: $e', e, stackTrace);
       return '';
     }
+  }
+
+  Future<Song> _ensureYouTubeVideoId(Song song) async {
+    if (song.source == 'YouTube Music') {
+      return song;
+    }
+    
+    _log.info('Searching YouTube for source ${song.source}: ${song.title} - ${song.artist}');
+    try {
+      final searchResults = await _repository.searchSongs('${song.title} ${song.artist}');
+      if (searchResults.isNotEmpty) {
+        final ytSong = searchResults.first;
+        _log.info('Resolved ${song.source} song to YouTube videoId: ${ytSong.videoId}');
+        return Song(
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          album: song.album,
+          duration: song.duration,
+          artworkUrl: song.artworkUrl,
+          videoId: ytSong.videoId,
+          streamUrl: ytSong.streamUrl,
+          source: song.source,
+        );
+      }
+    } catch (e, st) {
+      _log.error('Failed to resolve YouTube videoId for ${song.source} song', e, st);
+    }
+    return song;
   }
 
   // Pre-resolve next song in queue for gapless playback
@@ -319,7 +382,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     for (final index in songsToResolve) {
       final song = state.queue[index];
       futures.add(
-        _resolveStream(song.videoId).then((url) => (index: index, url: url)),
+        _resolveStream(song.videoId, song: song).then((url) => (index: index, url: url)),
       );
     }
 
@@ -367,7 +430,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     try {
       // 3. Resolve the stream URL asynchronously in the background
-      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId);
+      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId, song: song);
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }
@@ -410,7 +473,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     try {
       // 3. Resolve the stream URL asynchronously in the background
-      final resolvedFirstUrl = selectedSong.streamUrl ?? await _resolveStream(selectedSong.videoId);
+      final resolvedFirstUrl = selectedSong.streamUrl ?? await _resolveStream(selectedSong.videoId, song: selectedSong);
       if (resolvedFirstUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${selectedSong.title}');
       }
@@ -505,7 +568,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     try {
-      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId);
+      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId, song: song);
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }

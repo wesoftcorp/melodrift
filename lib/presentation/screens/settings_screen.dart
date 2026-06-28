@@ -11,6 +11,7 @@ import '../../core/services/image_caching_service.dart';
 import '../../core/utils/widget_rebuild_tracker.dart';
 import '../../core/services/audio_quality_preferences.dart';
 import '../providers/audio_quality_provider.dart';
+import '../../core/theme/tokens.dart';
 import '../screens/home_screen.dart' show homeLanguageProvider, kLanguageOptions;
 
 @RoutePage()
@@ -36,15 +37,14 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Online Services',
-              style: theme.textTheme.titleSmall?.copyWith(
+              'ONLINE SERVICES',
+              style: AppTextStyles.monoSectionHeader.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),
           SwitchListTile(
-            secondary: const Icon(Icons.cloud_queue),
+            secondary: Icon(Icons.cloud_queue, color: theme.colorScheme.primary),
             title: const Text('Enable Firebase Sync'),
             subtitle: const Text('Sync Collaborative Listening rooms & data'),
             value: ref.watch(firebaseEnabledProvider),
@@ -60,15 +60,14 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Appearance',
-              style: theme.textTheme.titleSmall?.copyWith(
+              'APPEARANCE',
+              style: AppTextStyles.monoSectionHeader.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.palette_outlined),
+            leading: Icon(Icons.palette_outlined, color: theme.colorScheme.primary),
             title: const Text('Theme Mode'),
             subtitle: Text(_getThemeModeName(themeMode)),
             onTap: () => _showThemeSelectionDialog(context, ref, themeMode),
@@ -77,10 +76,9 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Content & Language',
-              style: theme.textTheme.titleSmall?.copyWith(
+              'CONTENT & LANGUAGE',
+              style: AppTextStyles.monoSectionHeader.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -91,7 +89,7 @@ class SettingsScreen extends ConsumerWidget {
                   ? 'All Languages'
                   : selected.join(', ');
               return ListTile(
-                leading: const Icon(Icons.language_rounded),
+                leading: Icon(Icons.language_rounded, color: theme.colorScheme.primary),
                 title: const Text('Music Language'),
                 subtitle: Text(label),
                 onTap: () => _showLanguageSelector(context, ref),
@@ -102,22 +100,21 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Performance & Playback',
-              style: theme.textTheme.titleSmall?.copyWith(
+              'PERFORMANCE & PLAYBACK',
+              style: AppTextStyles.monoSectionHeader.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),
           if (defaultTargetPlatform == TargetPlatform.android)
             ListTile(
-              leading: const Icon(Icons.battery_saver_outlined),
+              leading: Icon(Icons.battery_saver_outlined, color: theme.colorScheme.primary),
               title: const Text('Android Battery Optimization'),
               subtitle: const Text('Prevent background playback interruptions'),
               onTap: () => _showBatteryWhitelistDialog(context),
             ),
           ListTile(
-            leading: const Icon(Icons.speed_outlined),
+            leading: Icon(Icons.speed_outlined, color: theme.colorScheme.primary),
             title: const Text('Optimizations & Caching'),
             subtitle: const Text('Manage pre-fetching, image caching, and view performance stats'),
             onTap: () => _showOptimizationsDialog(context),
@@ -126,10 +123,9 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'About',
-              style: theme.textTheme.titleSmall?.copyWith(
+              'ABOUT',
+              style: AppTextStyles.monoSectionHeader.copyWith(
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),

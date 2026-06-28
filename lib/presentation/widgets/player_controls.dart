@@ -5,6 +5,7 @@ import '../providers/player_notifier.dart';
 import '../providers/player_providers.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../data/repositories/music_repository_impl.dart';
+import '../../data/repositories/download_repository_impl.dart';
 import '../../data/services/share_service_impl.dart';
 import '../../domain/entities/song.dart';
 import 'player_dialogs.dart';
@@ -134,23 +135,33 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
               icon: Container(
                 width: 80,
                 height: 80,
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withAlpha(25),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: theme.colorScheme.primary.withAlpha(100)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withAlpha(50),
+                      blurRadius: 16,
+                    ),
+                  ],
+                ),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     if (isLoading)
-                      const SizedBox(
+                      SizedBox(
                         width: 64,
                         height: 64,
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black26),
+                          valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
                         ),
                       ),
                     Icon(
                       isPlaying ? Icons.pause : Icons.play_arrow,
                       size: 46,
-                      color: Colors.black,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ],
                 ),
@@ -174,21 +185,57 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
               iconSize: 28,
               onPressed: notifier.toggleRepeat,
             ),
-            IconButton(
-              icon: const Icon(Icons.playlist_add, color: Colors.white54),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white54),
               iconSize: 28,
-              tooltip: 'Add to playlist',
-              onPressed: currentSong == null
-                  ? null
-                  : () => _showAddToPlaylistDialog(context, currentSong),
-            ),
-            IconButton(
-              icon: const Icon(Icons.queue_music, color: Colors.white54),
-              iconSize: 28,
-              tooltip: 'Add to queue',
-              onPressed: currentSong == null
-                  ? null
-                  : () => _showSearchAndAddToQueueDialog(context),
+              enabled: currentSong != null,
+              onSelected: (value) {
+                if (value == 'playlist' && currentSong != null) {
+                  _showAddToPlaylistDialog(context, currentSong);
+                } else if (value == 'queue') {
+                  _showSearchAndAddToQueueDialog(context);
+                } else if (value == 'download' && currentSong != null) {
+                  ref.read(downloadRepositoryProvider).downloadSong(currentSong);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Downloading ${currentSong.title}...'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem<String>(
+                  value: 'playlist',
+                  child: Row(
+                    children: [
+                      Icon(Icons.playlist_add, size: 20),
+                      SizedBox(width: 12),
+                      Text('Add to playlist'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'queue',
+                  child: Row(
+                    children: [
+                      Icon(Icons.queue_music, size: 20),
+                      SizedBox(width: 12),
+                      Text('Add to queue'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'download',
+                  child: Row(
+                    children: [
+                      Icon(Icons.download, size: 20),
+                      SizedBox(width: 12),
+                      Text('Download'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

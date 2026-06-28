@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
+import '../../core/theme/tokens.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../domain/entities/playlist.dart';
 import '../widgets/downloads_list.dart';
@@ -32,9 +34,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Library', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: theme.colorScheme.surface.withAlpha(200),
+        elevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_box_outlined),
@@ -44,10 +55,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> with SingleTicker
         ],
         bottom: TabBar(
           controller: _tabController,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+          indicatorColor: theme.colorScheme.primary,
+          labelStyle: AppTextStyles.monoSectionHeader,
           tabs: const [
-            Tab(text: 'Downloads'),
-            Tab(text: 'Playlists'),
-            Tab(text: 'History'),
+            Tab(text: 'DOWNLOADS'),
+            Tab(text: 'PLAYLISTS'),
+            Tab(text: 'HISTORY'),
           ],
         ),
       ),

@@ -48,15 +48,15 @@ class GlassmorphismThemeExtension
   );
 
   static const dark = GlassmorphismThemeExtension(
-    color: Color(0x1F000000),
-    borderColor: Color(0x1AFFFFFF),
+    color: Color(0x40131313), // 25% charcoal
+    borderColor: Color(0x33A8898A), // outline at 20%
     blur: 20.0,
   );
 
   static const amoled = GlassmorphismThemeExtension(
-    color: Color(0x1F121212),
-    borderColor: Color(0x1F888888),
-    blur: 10.0,
+    color: Color(0x66000000),
+    borderColor: Color(0x33A8898A),
+    blur: 15.0,
   );
 }
 
