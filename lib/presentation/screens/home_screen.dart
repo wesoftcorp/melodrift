@@ -467,6 +467,13 @@ class HomeScreen extends ConsumerWidget {
                     Expanded(
                       child: Row(
                         children: [
+                          Image.asset(
+                            'assets/images/melodrift.png',
+                            width: 32,
+                            height: 32,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(width: 8),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,

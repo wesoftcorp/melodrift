@@ -227,24 +227,12 @@ class _LibraryHeader extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 4),
       child: Row(
         children: [
-          // Avatar
-          Container(
+          // Logo Image
+          Image.asset(
+            'assets/images/melodrift.png',
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: theme.colorScheme.outline.withOpacity(0.2),
-                width: 1,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: CachedNetworkImage(
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBqIISH4GjXTabrYZEMmW0svbJPxeZcwSVA-4zsydRBu_hIbqOB82GQROp4mzuTgonMzTMtMftdVZpYRcDU8Ofz8tWWo1noS4S2UmIcEzePRIPg-9M1qiKOZTLDp9O8BySgNvfgFl--AUD2VHDniKcvuZHvLkU2r-adWigCPUPNl-ODuW__nBsOSnOx6WrllOPn8LYG4XAlrImSyOjRsFsgmCTdiw-yXh0i6XC0aCe7RNZ7SUun538SDjjiEpHvHCv-jGszncaXmYk',
-                fit: BoxFit.cover,
-              ),
-            ),
+            fit: BoxFit.contain,
           ),
           const Spacer(),
           // Center title "Melodrift"

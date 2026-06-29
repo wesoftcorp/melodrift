@@ -178,7 +178,15 @@ class _SearchHeader extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 4),
       child: Row(
         children: [
-          // Logo
+          // Logo Image
+          Image.asset(
+            'assets/images/melodrift.png',
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(width: 8),
+          // Logo Text
           const Text(
             'Melodrift',
             style: TextStyle(
