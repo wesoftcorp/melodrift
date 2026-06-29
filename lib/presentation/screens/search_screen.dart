@@ -109,7 +109,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             // ── Header ────────────────────────────────────────────────────
             _SearchHeader(onClear: _clearSearch),
 
-            // ── Search bar ────────────────────────────────────────────────
+             // ── Search bar ────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: _SearchBar(
@@ -117,6 +117,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                 focusNode: _focusNode,
                 onSubmitted: _runSearch,
                 onVoiceResult: _runSearch,
+                onBack: (_submittedQuery.isNotEmpty || _isFocused) ? _clearSearch : null,
               ),
             ),
 
@@ -217,12 +218,14 @@ class _SearchBar extends StatelessWidget {
   final FocusNode focusNode;
   final ValueChanged<String> onSubmitted;
   final ValueChanged<String> onVoiceResult;
+  final VoidCallback? onBack;
 
   const _SearchBar({
     required this.controller,
     required this.focusNode,
     required this.onSubmitted,
     required this.onVoiceResult,
+    this.onBack,
   });
 
   @override
@@ -251,13 +254,23 @@ class _SearchBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 16),
-          Icon(
-            Icons.search,
-            size: 20,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 10),
+          if (onBack != null)
+            IconButton(
+              icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: theme.colorScheme.onSurface),
+              onPressed: onBack,
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              splashRadius: 20,
+            )
+          else ...[
+            const SizedBox(width: 16),
+            Icon(
+              Icons.search,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: TextField(
               controller: controller,
