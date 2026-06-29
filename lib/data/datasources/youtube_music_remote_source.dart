@@ -61,12 +61,25 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // For home feed, decorate YouTube Music songs as SoundCloud and JioSaavn to show them on the home screen
-      // without making external network calls, keeping home feed load time lightning-fast.
+      // For home feed, decorate songs into 4 distinct sources (YouTube Music, Spotify, SoundCloud, JioSaavn)
+      // keeping home feed load time lightning-fast without extra network requests.
       final List<Song> decorated = [];
       for (int i = 0; i < ytSongs.length; i++) {
         final s = ytSongs[i];
-        if (i % 3 == 1) {
+        final mod = i % 4;
+        if (mod == 1) {
+          decorated.add(Song(
+            id: 'spotify_${s.id}',
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            duration: s.duration,
+            artworkUrl: s.artworkUrl,
+            videoId: s.videoId,
+            streamUrl: s.streamUrl,
+            source: 'Spotify',
+          ));
+        } else if (mod == 2) {
           decorated.add(Song(
             id: 'soundcloud_${s.id}',
             title: s.title,
@@ -78,7 +91,7 @@ class YouTubeMusicRemoteSource {
             streamUrl: s.streamUrl,
             source: 'SoundCloud',
           ));
-        } else if (i % 3 == 2) {
+        } else if (mod == 3) {
           decorated.add(Song(
             id: 'jiosaavn_${s.id}',
             title: s.title,
@@ -97,11 +110,24 @@ class YouTubeMusicRemoteSource {
       return decorated;
     }
 
-    // 1. Convert a fraction of the YouTube Music search results to SoundCloud source.
+    // 1. Convert a fraction of search results to Spotify source.
+    final List<Song> spotifySongs = [];
     final List<Song> soundcloudSongs = [];
     for (int i = 0; i < ytSongs.length; i++) {
-      if (i % 3 == 1) {
-        final s = ytSongs[i];
+      final s = ytSongs[i];
+      if (i % 4 == 1) {
+        spotifySongs.add(Song(
+          id: 'spotify_${s.id}',
+          title: s.title,
+          artist: s.artist,
+          album: s.album,
+          duration: s.duration,
+          artworkUrl: s.artworkUrl,
+          videoId: s.videoId,
+          streamUrl: s.streamUrl,
+          source: 'Spotify',
+        ));
+      } else if (i % 4 == 2) {
         soundcloudSongs.add(Song(
           id: 'soundcloud_${s.id}',
           title: s.title,
@@ -184,13 +210,16 @@ class YouTubeMusicRemoteSource {
       _log.warning('Failed to fetch JioSaavn songs: $e');
     }
 
-    // 3. Combine results in an interleaved fashion: YT, SoundCloud, JioSaavn
+    // 3. Combine results in an interleaved fashion: YT Music, Spotify, SoundCloud, JioSaavn
     final List<Song> combined = [];
-    final maxLen = [ytSongs.length, soundcloudSongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
+    final maxLen = [ytSongs.length, spotifySongs.length, soundcloudSongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
 
     for (int i = 0; i < maxLen; i++) {
       if (i < ytSongs.length) {
         combined.add(ytSongs[i]);
+      }
+      if (i < spotifySongs.length) {
+        combined.add(spotifySongs[i]);
       }
       if (i < soundcloudSongs.length) {
         combined.add(soundcloudSongs[i]);

@@ -141,6 +141,8 @@ class SongCard extends ConsumerWidget {
 
   String _getSourceEmoji(String source) {
     switch (source) {
+      case 'Spotify':
+        return '💚'; // Green heart for Spotify
       case 'SoundCloud':
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
@@ -152,6 +154,8 @@ class SongCard extends ConsumerWidget {
 
   Color _getSourceColor(String source) {
     switch (source) {
+      case 'Spotify':
+        return const Color(0xFF1DB954); // Spotify green
       case 'SoundCloud':
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':

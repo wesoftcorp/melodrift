@@ -326,7 +326,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final searchResults = await _repository.searchSongs('${song.title} ${song.artist}');
       if (searchResults.isNotEmpty) {
-        final ytSong = searchResults.first;
+        final ytSong = searchResults.firstWhere((s) => _isYouTubeVideoId(s.videoId), orElse: () => searchResults.first);
         _log.info('Resolved ${song.source} song to YouTube videoId: ${ytSong.videoId}');
         return Song(
           id: song.id,
