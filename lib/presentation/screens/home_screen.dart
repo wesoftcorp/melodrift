@@ -121,7 +121,7 @@ class HomeScreen extends ConsumerWidget {
           try {
             final prefs = await SharedPreferences.getInstance();
             // Clear all home feed cache keys so a fresh decorated feed is fetched
-            await prefs.remove('home_feed_cache_date_v4');
+            await prefs.remove('home_feed_cache_date_v5');
             await prefs.remove('home_feed_cache_data_all');
             await prefs.remove('home_feed_cache_data_English');
             await prefs.remove('home_feed_cache_data_Hindi');
@@ -1107,8 +1107,6 @@ class _CascadeTile extends StatelessWidget {
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
         return '🩵'; // Teal heart for JioSaavn
-      case 'Spotify':
-        return '💚'; // Green heart for Spotify
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -1120,8 +1118,6 @@ class _CascadeTile extends StatelessWidget {
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
         return Colors.tealAccent;
-      case 'Spotify':
-        return const Color(0xFF1DB954); // Spotify green
       default:
         return Colors.redAccent;
     }
@@ -1466,8 +1462,6 @@ class _TrendingCascadeTile extends StatelessWidget {
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
         return '🩵'; // Teal heart for JioSaavn
-      case 'Spotify':
-        return '💚'; // Green heart for Spotify
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -1479,8 +1473,6 @@ class _TrendingCascadeTile extends StatelessWidget {
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
         return Colors.tealAccent;
-      case 'Spotify':
-        return const Color(0xFF1DB954); // Spotify green
       default:
         return Colors.redAccent;
     }

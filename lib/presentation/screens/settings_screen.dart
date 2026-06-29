@@ -78,38 +78,6 @@ class AllowExplicitContentNotifier extends StateNotifier<bool> {
     state = value;
   }
 }
-
-// ── Spotify Integration Providers ───────────────────────────────────────────
-final spotifyClientIdProvider = StateNotifierProvider<SpotifyClientIdNotifier, String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return SpotifyClientIdNotifier(prefs);
-});
-
-class SpotifyClientIdNotifier extends StateNotifier<String> {
-  final SharedPreferences _prefs;
-  SpotifyClientIdNotifier(this._prefs) : super(_prefs.getString('spotify_client_id') ?? '');
-
-  Future<void> set(String value) async {
-    await _prefs.setString('spotify_client_id', value);
-    state = value;
-  }
-}
-
-final spotifyClientSecretProvider = StateNotifierProvider<SpotifyClientSecretNotifier, String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return SpotifyClientSecretNotifier(prefs);
-});
-
-class SpotifyClientSecretNotifier extends StateNotifier<String> {
-  final SharedPreferences _prefs;
-  SpotifyClientSecretNotifier(this._prefs) : super(_prefs.getString('spotify_client_secret') ?? '');
-
-  Future<void> set(String value) async {
-    await _prefs.setString('spotify_client_secret', value);
-    state = value;
-  }
-}
-
 // ── Settings Screen ──────────────────────────────────────────────────────────
 @RoutePage()
 class SettingsScreen extends ConsumerWidget {
@@ -250,21 +218,6 @@ class SettingsScreen extends ConsumerWidget {
               _buildStorageActionsItem(context, theme),
             ],
           ),
-
-          // ── Section: Spotify Integration ──────────────────────────────────
-          const _SettingsSectionHeader(title: 'Spotify Integration'),
-          _SettingsCard(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.music_note_rounded, color: Color(0xFF1DB954)),
-                title: const Text('Configure Spotify API'),
-                subtitle: const Text('Required to search and load real playlists'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _showSpotifyCredentialsDialog(context, ref, theme),
-              ),
-            ],
-          ),
-
           // ── Section: About ─────────────────────────────────────────────────
           const _SettingsSectionHeader(title: 'About'),
           _SettingsCard(
@@ -848,107 +801,7 @@ class SettingsScreen extends ConsumerWidget {
         );
       },
     );
-  }
 
-  void _showSpotifyCredentialsDialog(BuildContext context, WidgetRef ref, ThemeData theme) {
-    final clientController = TextEditingController(text: ref.read(spotifyClientIdProvider));
-    final secretController = TextEditingController(text: ref.read(spotifyClientSecretProvider));
-
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(
-            children: const [
-              Icon(Icons.music_note_rounded, color: Color(0xFF1DB954)),
-              SizedBox(width: 12),
-              Text('Spotify API Keys'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Provide your Spotify Developer credentials to fetch real Spotify songs, playlists, and albums.',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: clientController,
-                  decoration: const InputDecoration(
-                    labelText: 'Client ID',
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter Client ID',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: secretController,
-                  decoration: const InputDecoration(
-                    labelText: 'Client Secret',
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter Client Secret',
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () async {
-                    final url = Uri.parse('https://developer.spotify.com/dashboard/');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url, mode: LaunchMode.externalApplication);
-                    }
-                  },
-                  child: const Text(
-                    'Get keys from Spotify Developer Dashboard',
-                    style: TextStyle(
-                      color: Colors.blueAccent,
-                      decoration: TextDecoration.underline,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await ref.read(spotifyClientIdProvider.notifier).set('');
-                await ref.read(spotifyClientSecretProvider.notifier).set('');
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Spotify credentials cleared')),
-                );
-              },
-              child: const Text('Clear', style: TextStyle(color: Colors.redAccent)),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1DB954),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () async {
-                await ref.read(spotifyClientIdProvider.notifier).set(clientController.text.trim());
-                await ref.read(spotifyClientSecretProvider.notifier).set(secretController.text.trim());
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Spotify credentials saved')),
-                );
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }
 
