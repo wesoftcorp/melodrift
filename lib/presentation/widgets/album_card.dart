@@ -113,7 +113,14 @@ class AlbumCard extends StatelessWidget {
   }
 
   String _getSourceEmoji(String source) {
-    return '🩵'; // same heart symbol for all, color differentiates
+    switch (source) {
+      case 'SoundCloud':
+        return '💜'; // Purple heart for SoundCloud
+      case 'JioSaavn':
+        return '🩵'; // Teal heart for JioSaavn
+      default:
+        return '❤️'; // Red heart for YouTube Music
+    }
   }
 
   Color _getSourceColor(String source) {
