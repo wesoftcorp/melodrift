@@ -177,12 +177,12 @@ class _SearchHeader extends ConsumerWidget {
       child: Row(
         children: [
           // Logo
-          Text(
+          const Text(
             'Melodrift',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              color: const Color(0xFFFF5F1F),
+              color: Color(0xFFFF5F1F),
               letterSpacing: -0.5,
             ),
           ),
@@ -346,7 +346,7 @@ class _SearchHomePage extends ConsumerWidget {
       slivers: [
         // ── Recent searches ─────────────────────────────────────────────
         if (history.isNotEmpty) ...[
-          SliverToBoxAdapter(
+          const SliverToBoxAdapter(
             child: _SectionTitle(
               title: 'Recent Searches',
               icon: Icons.history,
@@ -385,10 +385,10 @@ class _SearchHomePage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionTitle(
+                  const _SectionTitle(
                     title: 'Trending Now',
                     icon: Icons.local_fire_department_rounded,
-                    iconColor: const Color(0xFFFF5F1F),
+                    iconColor: Color(0xFFFF5F1F),
                   ),
                   SizedBox(
                     height: 118,
@@ -428,7 +428,7 @@ class _SearchHomePage extends ConsumerWidget {
             if (moods.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
             return SliverList(
               delegate: SliverChildListDelegate([
-                _SectionTitle(title: 'Browse All'),
+                const _SectionTitle(title: 'Browse All'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: GridView.builder(
@@ -588,10 +588,10 @@ class _ArtistFallback extends StatelessWidget {
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFFFF5F1F),
+            color: Color(0xFFFF5F1F),
           ),
         ),
       ),
