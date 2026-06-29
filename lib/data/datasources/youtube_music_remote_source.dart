@@ -727,28 +727,60 @@ class YouTubeMusicRemoteSource {
   /// Results are cached in memory for [_streamUrlCacheTtl] to avoid redundant
   /// YouTube API round-trips on every play / prefetch.
   Future<String> getStreamUrl(String videoId, String quality) async {
-    final cacheKey = '$videoId:$quality';
+    String targetId = videoId;
+    if (!RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(videoId)) {
+      _log.info('videoId "$videoId" is not 11 chars. Searching YouTube for best match...');
+      try {
+        final searchList = await _yt.search.search('$videoId song').timeout(const Duration(seconds: 4));
+        if (searchList.isNotEmpty) {
+          targetId = searchList.first.id.value;
+          _log.info('Resolved "$videoId" to YouTube videoId "$targetId"');
+        }
+      } catch (e) {
+        _log.warning('Failed to resolve search for "$videoId": $e');
+      }
+    }
+
+    final cacheKey = '$targetId:$quality';
     final cached = _streamUrlCache[cacheKey];
     if (cached != null && cached.isValid) {
-      _log.debug('Stream URL cache hit for $videoId ($quality)');
+      _log.debug('Stream URL cache hit for $targetId ($quality)');
       return cached.url;
     }
 
-    _log.debug('Fetching stream URL for $videoId ($quality)…');
+    _log.debug('Fetching stream URL for $targetId ($quality)…');
     yt.StreamManifest? manifest;
-    for (final client in _ytClients) {
+
+    // Concurrently fetch manifest from clients for lightning fast resolution
+    final futures = _ytClients.map((client) async {
       try {
-        manifest = await _yt.videos.streamsClient
-            .getManifest(videoId, ytClients: [client])
-            .timeout(const Duration(seconds: 5));
-        break; // success — stop trying more clients
+        return await _yt.videos.streamsClient
+            .getManifest(targetId, ytClients: [client])
+            .timeout(const Duration(seconds: 4));
       } catch (e) {
-        _log.warning('Client ${client.runtimeType} failed for $videoId: $e');
+        return null;
+      }
+    });
+
+    for (final future in futures) {
+      final res = await future;
+      if (res != null) {
+        manifest = res;
+        break;
       }
     }
 
     if (manifest == null) {
-      throw Exception('All YouTube clients failed to fetch manifest for $videoId');
+      // Fallback: try default client without restriction
+      try {
+        manifest = await _yt.videos.streamsClient.getManifest(targetId).timeout(const Duration(seconds: 5));
+      } catch (e) {
+        _log.error('Fallback default client also failed for $targetId: $e');
+      }
+    }
+
+    if (manifest == null) {
+      throw Exception('All YouTube clients failed to fetch manifest for $targetId');
     }
 
     var audioStreams = manifest.audioOnly.toList();

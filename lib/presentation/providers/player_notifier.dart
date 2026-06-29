@@ -322,28 +322,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return song;
     }
     
-    _log.info('Searching YouTube for source ${song.source}: ${song.title} - ${song.artist}');
-    try {
-      final searchResults = await _repository.searchSongs('${song.title} ${song.artist}');
-      if (searchResults.isNotEmpty) {
-        final ytSong = searchResults.firstWhere((s) => _isYouTubeVideoId(s.videoId), orElse: () => searchResults.first);
-        _log.info('Resolved ${song.source} song to YouTube videoId: ${ytSong.videoId}');
-        return Song(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
-          duration: song.duration,
-          artworkUrl: song.artworkUrl,
-          videoId: ytSong.videoId,
-          streamUrl: ytSong.streamUrl,
-          source: song.source,
-        );
-      }
-    } catch (e, st) {
-      _log.error('Failed to resolve YouTube videoId for ${song.source} song', e, st);
-    }
-    return song;
+    // If videoId is not 11 characters (e.g. search suggestions), use title and artist as search key for streamUrl
+    _log.info('Non-YouTube videoId "${song.videoId}" detected for ${song.source}. Passing "${song.title} ${song.artist}" to stream resolver.');
+    return Song(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      duration: song.duration,
+      artworkUrl: song.artworkUrl,
+      videoId: '${song.title} ${song.artist}',
+      streamUrl: song.streamUrl,
+      source: song.source,
+    );
   }
 
   // Pre-resolve next song in queue for gapless playback
