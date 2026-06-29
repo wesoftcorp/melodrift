@@ -10,7 +10,6 @@ import '../../domain/entities/song.dart';
 import '../widgets/search_results_view.dart';
 import '../widgets/voice_search_sheet.dart';
 import '../../core/theme/theme_provider.dart';
-import '../../domain/entities/home_data.dart';
 import 'home_screen.dart';
 import '../providers/player_notifier.dart';
 
@@ -339,7 +338,7 @@ class _SearchHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<HomeData> feedAsync = ref.watch(homeFeedProvider);
+    final feedAsync = ref.watch(homeFeedProvider);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -414,12 +413,16 @@ class _SearchHomePage extends ConsumerWidget {
           },
         ),
 
-        // ── Browse All ──────────────────────────────────────────────────
+        // ── Browse All (Bento Grid) ──────────────────────────────────────
         feedAsync.when<Widget>(
           loading: () => const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(48),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5F1F)),
+                ),
+              ),
             ),
           ),
           error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
@@ -437,8 +440,8 @@ class _SearchHomePage extends ConsumerWidget {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
                       childAspectRatio: 1.45,
                     ),
                     itemCount: moods.length,
@@ -468,6 +471,50 @@ class _SearchHomePage extends ConsumerWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trending Artist Data & Glow Colors
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TrendingArtist {
+  final String name;
+  final String imageUrl;
+  final Color glowColor;
+
+  const _TrendingArtist({
+    required this.name,
+    required this.imageUrl,
+    required this.glowColor,
+  });
+}
+
+final List<_TrendingArtist> _trendingArtists = const [
+  _TrendingArtist(
+    name: 'The Midnight',
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBmQPdspzba88MglCboFdzTYlyj7gTglbqk7KKYlLjuU5KtvuwIKnOBAbtc0RZgDj2q2QMANjVpd_1FC3szklPsqYS8iyCb7lh0nltsGlqRT3xp8pOUjz18jlTkj5dZVaYVimkcveoI5Jznxia_gyRyjYFbzLwFFfHAIebWyisrZ6FDqO8wV3uQUwFAgkHaIV7A34H_LqkJvVMeJ9T4fMjcli7ji1CoIJXY6noTkbFzQ6C71VIC6dBCOH7ltEy-wzOCOAYT7t209vM',
+    glowColor: Color(0x59FF4500),
+  ),
+  _TrendingArtist(
+    name: 'Neon Pulse',
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDIEEb0s3k82dcIbwtMi59597UbYW2tHnBRhJwekuJxvD3VIjxm7oYmmsbDDIGDKHyX2pibRtBFPh7OE6kIub79mzfHvvnVSGortLLx9aI3nU6o8hfCdDY-UBB_3RXBWqjUR-xAKC0EcyupdKrJswnZ_mZ13k89SGhXOlGWG8fZfzZY317RG62fSPFqVT75F8AGFNKjo0Tbsv2HQlWJwl6mJ6pTEHgPpo-vyN8Zjmg_EpRFjDEWztlARgAYQTm8cJcjoRPZ0LCROhk',
+    glowColor: Color(0x3D00FFFF),
+  ),
+  _TrendingArtist(
+    name: 'Luna Flare',
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBl3bynVTMcfVhg4Zao2NJqmJ2L75h7A9nIXYI9Sgt3uec9zbCsLIrDXOhJBL0ra7lc5ewTA0ie8LUIACWOlu8mLse__HJnhQFyRNvaUVUxUHD8bil4lM5LhPm9064olw6tbiv1PKm4Ni8WmkBsdKZ6wQVrpowvD_GyE458HaOoBQNVIjaGjGpgRlD6YO4XDxxYOEy27ROfUrcWs-ruUlxFB09EyShM6HTJ0BSoM7nJoBoYi-oWCohLew7WVn_nOBiuAFaj8l9N9pU',
+    glowColor: Color(0x3DFF69B4),
+  ),
+  _TrendingArtist(
+    name: 'Echo Riot',
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpY0TGSKPmPe40OLzPH6IQY_poRhl3o3DrA4cKuqpWv3vhyVp8zWzvOTS-kQCUpz_6Rq37dkVTrPo7h_FnGe2aqNAcMjI3BVgV61nSKDFOhWT4qgNlZUCo4s3ZiQt_0XSMb6_ENm3TNbWRX0qDG_Wm2i2Ss3mRAJvWme6iim0OHrYVSc_PN7Dx0LS6QTcfwokJrdJ7e73NROWkospVSabLUvhNVA6l5vxDofOgSh8BplCAWJ9BCyauOLOvmjD6V3695LB2dfZeiBM',
+    glowColor: Color(0x3D32CD32),
+  ),
+  _TrendingArtist(
+    name: 'Aura',
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC4HAnpeu2zb0yCMqSdojahywXxttpMBw4rADzuXA6gs37dAEEjJ0-YUxbw8jr6szLusdEUxOxeDUvDiKtedEP669TAoBWzCPP1DORrXATgEuy2RIICCNeSgZ6qx9TVBvCUGYPNEhlvm6SlBfQmzHtR1aldLZNhoL3iZ6BfXvbrJI7Ih2ORa9PqTHYBg613K_S0IbzeQdy-tz_b3p9FC44etiETuyIqoG9rqYYQseKRLkA6qOO15DUWnP4XYstYgv5uOSY5uX4Sdrg',
+    glowColor: Color(0x3D8A2BE2),
+  ),
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section title
@@ -507,70 +554,84 @@ class _SectionTitle extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Trending artist circle tile
+// Trending artist circle tile (Stateful with touch scale down feedback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TrendingArtistTile extends StatelessWidget {
+class _TrendingArtistTile extends StatefulWidget {
   final String name;
   final String artworkUrl;
+  final Color? glowColor;
   final VoidCallback onTap;
 
   const _TrendingArtistTile({
     required this.name,
     required this.artworkUrl,
+    this.glowColor,
     required this.onTap,
   });
+
+  @override
+  State<_TrendingArtistTile> createState() => _TrendingArtistTileState();
+}
+
+class _TrendingArtistTileState extends State<_TrendingArtistTile> {
+  double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFFFF5F1F).withOpacity(0.35),
-                width: 2,
+      onTapDown: (_) => setState(() => _scale = 0.95),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.glowColor ?? theme.colorScheme.primary.withOpacity(0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF5F1F).withOpacity(0.18),
-                  blurRadius: 14,
-                  spreadRadius: 1,
+              child: ClipOval(
+                child: widget.artworkUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: widget.artworkUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => _ArtistFallback(name: widget.name),
+                      )
+                    : _ArtistFallback(name: widget.name),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 90,
+              child: Text(
+                widget.name,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
                 ),
-              ],
-            ),
-            child: ClipOval(
-              child: artworkUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: artworkUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => _ArtistFallback(name: name),
-                    )
-                  : _ArtistFallback(name: name),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 76,
-            child: Text(
-              name,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -600,10 +661,161 @@ class _ArtistFallback extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Browse All card (2-col grid with gradient + artwork)
+// Browse All Category Design system matching code.html
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BrowseCard extends StatelessWidget {
+class _MoodDesignPreset {
+  final String imageUrl;
+  final List<Color> gradientColors;
+  final Color glowColor;
+
+  const _MoodDesignPreset({
+    required this.imageUrl,
+    required this.gradientColors,
+    required this.glowColor,
+  });
+}
+
+final Map<String, _MoodDesignPreset> _moodDesignPresets = {
+  'pop': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD8bVtvbm45O2pOf0qmGkMzzoFZfp4tJCu5pt8kX7N3Ebn7D8EyJMbUn6-Hr4uL0ZVb9jolKmSSvtVj_WVn5Pq3T20sNIkdGClg39fqee8DS_QOC5Wij_GnH4oC3aSX3lTMQfmxOvcM9tBWk8RQnga8sz9rwjIGCWOttLr_bHXi9v7roQEH5dM-hvIMI76dKhe3gfVu6SafaSMhNWaA99jaXEiQ4HYKKKhLWBrDxkFYEYBaQhi_mcKCclf3mcnzrK8TERgOB4o6oEc',
+    gradientColors: [Color(0x669C27B0), Colors.black],
+    glowColor: Color(0xFFE91E63),
+  ),
+  'indie': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD8k2GHMYYX2Bki8U27EPTeMtvg766ilWLyvX6pl1RKgI2P9wy_uzC5XAj0A5OfQ7REqixgCgDoAAcyaAY-bCqNHRs_TLMJqfwt2Xv3cuJ06QFc8b_jPEDcskTo4331op5eArXc9JKZb_VDYlz5CZQOuudbkOFXj38PTxA6qcxxHYle08qN3SHcAEKxyTCkLEhxhBRk8US_VdwMTfgtYsTiMlai8wT1e9ZPoDW7gLlWjI6caMJaQpQZcQ5d-ALLbRmEgNiO7WcuQPA',
+    gradientColors: [Color(0x660D47A1), Colors.black],
+    glowColor: Color(0xFF2196F3),
+  ),
+  'rock': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7HXa1jGDbTONlmCMs8N4JkMaCVjEb0XohXbm3LtKJIBE_HHnYkZcSMWtbq4yxEnp7L0SNbRTmNk06093OjIVCxewnlyWFNO2HFwLlsfD0BXboPMgNio2J2IOvWrOXT9BXaUB-de7x2vwYLoSKjERY6A3ek161VH105SmKbdePWFceRWYfXPef5Lb_PPdlOYftRg6H2XFYQRJNN6dq8UZSCRfYdXOxYo7gX86rHULKjSDFH157nUaJ7CWBf-Rj5HpU38A51XjLjSA',
+    gradientColors: [Color(0x66B71C1C), Colors.black],
+    glowColor: Color(0xFFF44336),
+  ),
+  'edm': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB_uKXoOWvCq-rB0khJy7uYi9xI9pzd9gTJqzD_lMdBVOzx4tAbF8Q-lHBK9SUUewjVWO93U2AxYJJ4XdxLD21wI6AO3NB42rUrrlJbcUtqoKadl8HhKFKTy_AU4_WDDm7hjgkqkUN8w52z6xHURcNTii_JwWoQc3rML4CNgXHk_oZkkoguTZrBTruUbgr-i4KKKXA2LYG06OaOz1PlYMj95arZc-6wGMXCx-dEuoVvq6s0U0aoqrBlqUAOrJTLzMFWEP_hK3SP5HU',
+    gradientColors: [Color(0x66006064), Colors.black],
+    glowColor: Color(0xFF00BCD4),
+  ),
+  'hip_hop': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDm0OOyJVQRKQu-qMDMl5GkQ7h7PZ036BjweFfZWQ3ZveJ6uMjqSDCq2BXHi7sjPWqfIhHaSCfzfAIgfk0LOHvY6KjKPi5NgmmEQfY5jmDW_QKV6eeXdsMgAMb8izFkV-duTOl12kzlVa-6gAOK6_Qvx4OOr3TevKiRcDwrKr6tZNmKPzyW1fukiuYLd3tuU38PR5s43E8agZ0wZBrdK-5xYQeQfu7N9AYOSX7BD9EInFsBWrBEFIdtoE56oEAFFLQaWSnoA6eMNYM',
+    gradientColors: [Color(0x66FF6F00), Colors.black],
+    glowColor: Color(0xFFFF9800),
+  ),
+  'focus': const _MoodDesignPreset(
+    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDKYYCBN79OVf1RPNktmM_s25AoQpiXY_pC2mSCfWiyqEd7U9OvGlFaRWdTwyM6792D1Es7u0o1tV2bmPwnxXivI6cvjDyNaguOiJX5IM3rNUFepPb9DneJjWO8abeMhSJ-edk00I06cfUQ27B-LbITm0JEDJImzDitay8O9i-mSZBrWLToiwjecNUKpwCBiYfjsoV_oS4Pd6uY9RmakaCFFusWlQpKZYu-uYnHEO4LrX4rFBQwVyWkeO_EEdq2IiETp_DhOsYDHPg',
+    gradientColors: [Color(0x66004D40), Colors.black],
+    glowColor: Color(0xFF00E676),
+  ),
+};
+
+_MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
+  final id = mood.id.toLowerCase();
+  if (_moodDesignPresets.containsKey(id)) {
+    return _moodDesignPresets[id]!;
+  }
+
+  final title = mood.title.toLowerCase();
+
+  // Relax/Chill/Sleep/Acoustic
+  if (title.contains('relax') ||
+      title.contains('chill') ||
+      title.contains('sleep') ||
+      title.contains('acoustic') ||
+      title.contains('rainy')) {
+    return const _MoodDesignPreset(
+      imageUrl: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=400&q=80',
+      gradientColors: [Color(0x59003057), Colors.black],
+      glowColor: Color(0xFF00BCD4),
+    );
+  }
+
+  // Workout/Energize/Motivation/Gaming
+  if (title.contains('workout') ||
+      title.contains('energiz') ||
+      title.contains('motivation') ||
+      title.contains('gaming') ||
+      title.contains('party')) {
+    return const _MoodDesignPreset(
+      imageUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&q=80',
+      gradientColors: [Color(0x597A0016), Colors.black],
+      glowColor: Color(0xFFFF5F1F),
+    );
+  }
+
+  // Romantic/Happy/Feel Good/Morning
+  if (title.contains('romance') ||
+      title.contains('love') ||
+      title.contains('happy') ||
+      title.contains('feel') ||
+      title.contains('morning')) {
+    return const _MoodDesignPreset(
+      imageUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80',
+      gradientColors: [Color(0x595C003E), Colors.black],
+      glowColor: Color(0xFFE91E63),
+    );
+  }
+
+  // Classical/Jazz/Soul/Lofi/90s
+  if (title.contains('classical') ||
+      title.contains('jazz') ||
+      title.contains('soul') ||
+      title.contains('retro') ||
+      title.contains('lofi') ||
+      title.contains('90s')) {
+    return const _MoodDesignPreset(
+      imageUrl: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=400&q=80',
+      gradientColors: [Color(0x594A2C00), Colors.black],
+      glowColor: Color(0xFFFFB300),
+    );
+  }
+
+  // Bollywood/Indian/Punjabi/Ghazal/Sufi
+  if (title.contains('bollywood') ||
+      title.contains('indian') ||
+      title.contains('punjabi') ||
+      title.contains('ghazal') ||
+      title.contains('sufi') ||
+      title.contains('devotional')) {
+    return const _MoodDesignPreset(
+      imageUrl: 'https://images.unsplash.com/photo-1583258292688-d0213df4a3a8?w=400&q=80',
+      gradientColors: [Color(0x595F2300), Colors.black],
+      glowColor: Color(0xFFFF5F1F),
+    );
+  }
+
+  // Fallbacks
+  final List<List<Color>> fallbackGradients = const [
+    [Color(0x59330E62), Colors.black],
+    [Color(0x591B5E20), Colors.black],
+    [Color(0x5901579B), Colors.black],
+    [Color(0x593E2723), Colors.black],
+    [Color(0x59311B92), Colors.black],
+    [Color(0x59004D40), Colors.black],
+  ];
+  final List<Color> fallbackGlows = const [
+    Color(0xFF9C27B0),
+    Color(0xFF4CAF50),
+    Color(0xFF03A9F4),
+    Color(0xFF8D6E63),
+    Color(0xFF673AB7),
+    Color(0xFF009688),
+  ];
+  final List<String> fallbackImages = const [
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
+    'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80',
+    'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
+  ];
+
+  return _MoodDesignPreset(
+    imageUrl: fallbackImages[index % fallbackImages.length],
+    gradientColors: fallbackGradients[index % fallbackGradients.length],
+    glowColor: fallbackGlows[index % fallbackGlows.length],
+  );
+}
+
+class _BrowseCard extends StatefulWidget {
   final MoodCategory mood;
   final int index;
   final VoidCallback onTap;
@@ -614,96 +826,115 @@ class _BrowseCard extends StatelessWidget {
     required this.onTap,
   });
 
-  // Curated dark gradient palettes per card index
-  static const List<List<Color>> _palettes = [
-    [Color(0xFF6B1A2A), Color(0xFF2A0A10)], // Deep crimson
-    [Color(0xFF0D2B4A), Color(0xFF060F1A)], // Deep navy
-    [Color(0xFF1A3A1A), Color(0xFF080F08)], // Deep forest
-    [Color(0xFF2A1A4A), Color(0xFF0D0818)], // Deep purple
-    [Color(0xFF3A2A0A), Color(0xFF150F05)], // Deep amber
-    [Color(0xFF0A2A3A), Color(0xFF051018)], // Deep teal
-    [Color(0xFF3A0A2A), Color(0xFF150510)], // Deep magenta
-    [Color(0xFF1A2A0A), Color(0xFF0A1005)], // Deep olive
-    [Color(0xFF0A1A3A), Color(0xFF050A18)], // Deep blue
-    [Color(0xFF3A1A0A), Color(0xFF180805)], // Deep burnt orange
-    [Color(0xFF1A0A3A), Color(0xFF0A0518)], // Deep indigo
-    [Color(0xFF0A3A1A), Color(0xFF05180A)], // Deep emerald
-  ];
+  @override
+  State<_BrowseCard> createState() => _BrowseCardState();
+}
+
+class _BrowseCardState extends State<_BrowseCard> {
+  double _scale = 1.0;
 
   @override
   Widget build(BuildContext context) {
-    final palette = _palettes[index % _palettes.length];
+    final preset = _getPresetForMood(widget.mood, widget.index);
 
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: palette,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.07),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+      onTapDown: (_) => setState(() => _scale = 0.95),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12), // rounded-artwork
+            border: Border.all(
+              color: Colors.white.withOpacity(0.05),
+              width: 1,
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Decorative circle blobs for visual texture
-            Positioned(
-              right: -16,
-              bottom: -16,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.04),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: preset.gradientColors,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Background Image layer (mix-blend-overlay equivalent: opacity 0.5)
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.5,
+                  child: CachedNetworkImage(
+                    imageUrl: preset.imageUrl,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              right: 12,
-              top: -24,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.03),
-                ),
-              ),
-            ),
-            // Genre label
-            Positioned(
-              left: 14,
-              bottom: 14,
-              child: Text(
-                mood.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
-                  shadows: [
-                    Shadow(
-                      blurRadius: 8,
-                      color: Colors.black54,
+              // Soft black gradient overlay to ensure text readability
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.0),
+                        Colors.black.withOpacity(0.65),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              // Blur-2xl circle blob at the bottom right
+              Positioned(
+                right: -20,
+                bottom: -20,
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        preset.glowColor.withOpacity(0.25),
+                        preset.glowColor.withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Text label
+              Positioned(
+                left: 14,
+                bottom: 14,
+                child: Text(
+                  widget.mood.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                    shadows: [
+                      Shadow(
+                        blurRadius: 8,
+                        color: Colors.black54,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

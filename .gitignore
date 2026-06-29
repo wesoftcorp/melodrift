@@ -53,3 +53,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Vercel resolver dependencies
+youtube-music-resolver-vercel/node_modules/
+youtube-music-resolver-vercel/package-lock.json
+youtube-music-resolver-vercel/.vercel/
+
+node_modules/
