@@ -85,10 +85,9 @@ class AlbumCard extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          album.source,
+                          _getSourceEmoji(album.source),
                           style: TextStyle(
-                            fontSize: 7,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
                             color: _getSourceColor(album.source),
                           ),
                         ),
@@ -111,6 +110,17 @@ class AlbumCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getSourceEmoji(String source) {
+    switch (source) {
+      case 'SoundCloud':
+        return '🟠';
+      case 'JioSaavn':
+        return '🩵';
+      default:
+        return '🔴'; // YouTube Music
+    }
   }
 
   Color _getSourceColor(String source) {

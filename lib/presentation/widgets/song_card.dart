@@ -96,10 +96,9 @@ class SongCard extends ConsumerWidget {
                           ),
                         ),
                         child: Text(
-                          song.source,
+                          _getSourceEmoji(song.source),
                           style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
                             color: _getSourceColor(song.source),
                           ),
                         ),
@@ -136,6 +135,17 @@ class SongCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _getSourceEmoji(String source) {
+    switch (source) {
+      case 'SoundCloud':
+        return '🟠';
+      case 'JioSaavn':
+        return '🩵';
+      default:
+        return '🔴'; // YouTube Music
+    }
   }
 
   Color _getSourceColor(String source) {

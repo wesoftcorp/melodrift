@@ -1063,12 +1063,10 @@ class _CascadeTile extends StatelessWidget {
                                 ),
                               ),
                               child: Text(
-                                album.source.toUpperCase(),
+                                _getSourceEmoji(album.source),
                                 style: TextStyle(
                                   color: _getSourceColor(album.source),
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
@@ -1101,6 +1099,17 @@ class _CascadeTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getSourceEmoji(String source) {
+    switch (source) {
+      case 'SoundCloud':
+        return '🟠';
+      case 'JioSaavn':
+        return '🩵';
+      default:
+        return '🔴';
+    }
   }
 
   Color _getSourceColor(String source) {
@@ -1408,12 +1417,10 @@ class _TrendingCascadeTile extends StatelessWidget {
                                 ),
                               ),
                               child: Text(
-                                song.source.toUpperCase(),
+                                _getSourceEmoji(song.source),
                                 style: TextStyle(
                                   color: _getSourceColor(song.source),
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
@@ -1447,6 +1454,17 @@ class _TrendingCascadeTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getSourceEmoji(String source) {
+    switch (source) {
+      case 'SoundCloud':
+        return '🟠';
+      case 'JioSaavn':
+        return '🩵';
+      default:
+        return '🔴';
+    }
   }
 
   Color _getSourceColor(String source) {
