@@ -24,6 +24,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWide = screenWidth > 600;
+    final int crossAxisCount = isWide ? 4 : 2;
+    final double gridWidth = screenWidth - 32; // 16px horizontal margins
+    final double cardWidth = (gridWidth - (crossAxisCount - 1) * 16) / crossAxisCount; // 16px grid spacing
+    const double targetHeight = 120.0; // target height matching code.html
+    final double childAspectRatio = cardWidth / targetHeight;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -56,10 +63,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
+                    crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 1.4, // Shorter cards like code.html h-32
+                    childAspectRatio: childAspectRatio,
                     children: [
                       _LibraryCategoryCard(
                         title: 'Downloads',
