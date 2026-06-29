@@ -39,9 +39,9 @@ class YouTubeMusicRemoteSource {
 
   /// Ordered list of YouTube clients to try in sequence.
   static final _ytClients = [
-    yt.YoutubeApiClient.androidVr,
     yt.YoutubeApiClient.android,
     yt.YoutubeApiClient.ios,
+    yt.YoutubeApiClient.androidVr,
   ];
 
   /// Search for songs matching [query]
@@ -709,7 +709,7 @@ class YouTubeMusicRemoteSource {
       try {
         manifest = await _yt.videos.streamsClient
             .getManifest(videoId, ytClients: [client])
-            .timeout(const Duration(seconds: 10));
+            .timeout(const Duration(seconds: 5));
         break; // success — stop trying more clients
       } catch (e) {
         _log.warning('Client ${client.runtimeType} failed for $videoId: $e');

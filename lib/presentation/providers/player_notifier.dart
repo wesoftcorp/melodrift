@@ -474,8 +474,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       
       final mediaItem = _mapSongToMediaItem(song, streamUrl: streamUrl);
       _log.debug('updating queue with final media item: ${mediaItem.title}');
-      await _handler.updateQueue([mediaItem]);
-      await _handler.skipToQueueItem(0); // Seek to index 0 to reset completed/out-of-bounds states
+      await _handler.updateQueue([mediaItem], initialIndex: 0);
       
       _log.debug('invoking handler.play()');
       await _handler.play();
@@ -547,8 +546,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      await _handler.updateQueue(mItems);
-      await _handler.skipToQueueItem(targetIndex);
+      await _handler.updateQueue(mItems, initialIndex: targetIndex);
       await _handler.play();
     } catch (e) {
       _log.error('Error in playQueue: $e', e);

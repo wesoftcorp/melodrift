@@ -303,9 +303,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   }
 
   @override
-  Future<void> updateQueue(List<MediaItem> queue) async {
+  Future<void> updateQueue(List<MediaItem> queue, {int initialIndex = 0}) async {
     this.queue.add(queue);
-    await _syncPlaylist(queue);
+    await _syncPlaylist(queue, initialIndex: initialIndex);
   }
 
   AudioSource _createAudioSource(MediaItem item) {
@@ -322,12 +322,12 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         return AudioSource.file(streamUrl);
       }
     }
-    _log.warning('Empty stream URL for ${item.title}, using fallback silent audio');
-    return AudioSource.uri(Uri.parse('https://github.com/anars/blank-audio/raw/master/250-milliseconds-of-silence.mp3'));
+    _log.debug('No stream URL yet for ${item.title}, using instant local silent data URI');
+    return AudioSource.uri(Uri.parse('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='));
   }
 
-  Future<void> _syncPlaylist(List<MediaItem> newQueue) async {
-    _log.debug('_syncPlaylist invoked with ${newQueue.length} items');
+  Future<void> _syncPlaylist(List<MediaItem> newQueue, {int initialIndex = 0}) async {
+    _log.debug('_syncPlaylist invoked with ${newQueue.length} items (initialIndex: $initialIndex)');
     
     // Check if queue has actually changed using hash
     final newHash = _generateQueueHash(newQueue);
@@ -383,7 +383,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         }
       } else {
         // Overwrite
-        _log.debug('Overwriting playlist with ${newQueue.length} items');
+        _log.debug('Overwriting playlist with ${newQueue.length} items, initialIndex: $initialIndex');
         final prefs = await SharedPreferences.getInstance();
         final gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
         
@@ -391,7 +391,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
           useLazyPreparation: gaplessEnabled,
           children: newQueue.map(_createAudioSource).toList(),
         );
-        await _player.setAudioSource(_playlist);
+        final validInitialIndex = (initialIndex >= 0 && initialIndex < newQueue.length) ? initialIndex : 0;
+        await _player.setAudioSource(_playlist, initialIndex: validInitialIndex, initialPosition: Duration.zero);
       }
       
       _currentQueue.clear();
