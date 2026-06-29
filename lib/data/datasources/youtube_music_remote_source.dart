@@ -634,19 +634,21 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of an album (which is represented as a Playlist)
   Future<Album> getAlbumDetails(String albumId) async {
-    final cleanId = albumId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = albumId.replaceFirst('spotify_', '').replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (albumId.startsWith('soundcloud_')) {
+    if (albumId.startsWith('spotify_')) {
+      source = 'Spotify';
+    } else if (albumId.startsWith('soundcloud_')) {
       source = 'SoundCloud';
     } else if (albumId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
+      id: song.id.startsWith('spotify_') || song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
           ? song.id 
           : '${source.toLowerCase()}_${song.id}',
       title: song.title,
@@ -686,19 +688,21 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of a playlist
   Future<Playlist> getPlaylistDetails(String playlistId) async {
-    final cleanId = playlistId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = playlistId.replaceFirst('spotify_', '').replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (playlistId.startsWith('soundcloud_')) {
+    if (playlistId.startsWith('spotify_')) {
+      source = 'Spotify';
+    } else if (playlistId.startsWith('soundcloud_')) {
       source = 'SoundCloud';
     } else if (playlistId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
+      id: song.id.startsWith('spotify_') || song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
           ? song.id 
           : '${source.toLowerCase()}_${song.id}',
       title: song.title,

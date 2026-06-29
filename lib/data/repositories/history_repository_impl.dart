@@ -24,7 +24,9 @@ class HistoryRepositoryImpl implements HistoryRepository {
     final list = await _localSource.getListeningHistory();
     return list.map((record) {
       String source = 'YouTube Music';
-      if (record.songId.startsWith('jiosaavn_')) {
+      if (record.songId.startsWith('spotify_')) {
+        source = 'Spotify';
+      } else if (record.songId.startsWith('jiosaavn_')) {
         source = 'JioSaavn';
       } else if (record.songId.startsWith('soundcloud_')) {
         source = 'SoundCloud';
