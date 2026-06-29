@@ -138,14 +138,7 @@ class SongCard extends ConsumerWidget {
   }
 
   String _getSourceEmoji(String source) {
-    switch (source) {
-      case 'SoundCloud':
-        return '🟠';
-      case 'JioSaavn':
-        return '🩵';
-      default:
-        return '🔴'; // YouTube Music
-    }
+    return '🩵'; // same heart symbol for all, color differentiates
   }
 
   Color _getSourceColor(String source) {

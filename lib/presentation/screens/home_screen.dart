@@ -1102,14 +1102,7 @@ class _CascadeTile extends StatelessWidget {
   }
 
   String _getSourceEmoji(String source) {
-    switch (source) {
-      case 'SoundCloud':
-        return '🟠';
-      case 'JioSaavn':
-        return '🩵';
-      default:
-        return '🔴';
-    }
+    return '🩵'; // same heart symbol for all, color differentiates
   }
 
   Color _getSourceColor(String source) {
@@ -1457,14 +1450,7 @@ class _TrendingCascadeTile extends StatelessWidget {
   }
 
   String _getSourceEmoji(String source) {
-    switch (source) {
-      case 'SoundCloud':
-        return '🟠';
-      case 'JioSaavn':
-        return '🩵';
-      default:
-        return '🔴';
-    }
+    return '🩵'; // same heart symbol for all, color differentiates
   }
 
   Color _getSourceColor(String source) {
