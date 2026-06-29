@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import '../../domain/entities/song.dart';
@@ -11,6 +12,8 @@ import '../../data/models/local_models.dart';
 import '../../core/services/audio_handler.dart';
 import '../../core/services/audio_quality_preferences.dart';
 import '../../core/utils/logger.dart';
+import '../screens/settings_screen.dart' show allowExplicitContentProvider, gaplessPlaybackProvider;
+import '../../app.dart' show scaffoldMessengerKey;
 
 class PlayerState {
   final Song? currentSong;
@@ -340,6 +343,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // Pre-resolve next song in queue for gapless playback
   Future<void> _resolveNextInQueue() async {
+    final gapless = _ref.read(gaplessPlaybackProvider);
+    if (!gapless) {
+      _log.debug('Gapless playback is disabled. Skipping pre-resolution.');
+      return;
+    }
+
     final currentSong = state.currentSong;
     if (currentSong == null || state.queue.isEmpty) return;
 
@@ -408,10 +417,32 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  bool _isExplicit(Song song) {
+    final title = song.title.toLowerCase();
+    final artist = song.artist.toLowerCase();
+    final album = song.album.toLowerCase();
+    return title.contains('explicit') ||
+        title.contains('parental advisory') ||
+        artist.contains('explicit') ||
+        album.contains('explicit');
+  }
+
   // --- Playback Commands ---
 
   Future<void> playSong(Song song) async {
     _log.debug('playSong requested for: ${song.title} (${song.videoId})');
+
+    final allowExplicit = _ref.read(allowExplicitContentProvider);
+    if (!allowExplicit && _isExplicit(song)) {
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('"${song.title}" contains explicit content and is restricted in settings.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     _resolvingVideoId = song.videoId;
     
     // 1. Instantly update Riverpod state so UI (artwork, title, spinner) updates immediately
@@ -454,7 +485,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> playQueue(List<Song> songs, {int initialIndex = 0}) async {
     if (songs.isEmpty) return;
-    final selectedSong = songs[initialIndex];
+
+    final allowExplicit = _ref.read(allowExplicitContentProvider);
+    List<Song> filteredSongs = songs;
+    int targetIndex = initialIndex;
+
+    if (!allowExplicit) {
+      filteredSongs = songs.where((s) => !_isExplicit(s)).toList();
+      if (filteredSongs.isEmpty) {
+        scaffoldMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('All songs in the selection contain explicit content and were restricted.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      // Re-map the initialIndex to the filtered list
+      final selectedSong = songs[initialIndex];
+      targetIndex = filteredSongs.indexWhere((s) => s.id == selectedSong.id);
+      if (targetIndex == -1) {
+        targetIndex = 0;
+      }
+    }
+
+    final selectedSong = filteredSongs[targetIndex];
     _resolvingVideoId = selectedSong.videoId;
 
     // 1. Instantly update Riverpod state so UI updates immediately
@@ -467,8 +522,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     // 2. Instantly push metadata to audio handler streams
-    final tempItems = songs.map((s) => _mapSongToMediaItem(s)).toList();
-    _handler.mediaItem.add(tempItems[initialIndex]);
+    final tempItems = filteredSongs.map((s) => _mapSongToMediaItem(s)).toList();
+    _handler.mediaItem.add(tempItems[targetIndex]);
     _handler.queue.add(tempItems);
 
     try {
@@ -479,16 +534,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       
       final mItems = <MediaItem>[];
-      for (int i = 0; i < songs.length; i++) {
-        if (i == initialIndex) {
-          mItems.add(_mapSongToMediaItem(songs[i], streamUrl: resolvedFirstUrl));
+      for (int i = 0; i < filteredSongs.length; i++) {
+        if (i == targetIndex) {
+          mItems.add(_mapSongToMediaItem(filteredSongs[i], streamUrl: resolvedFirstUrl));
         } else {
-          mItems.add(_mapSongToMediaItem(songs[i]));
+          mItems.add(_mapSongToMediaItem(filteredSongs[i]));
         }
       }
 
       await _handler.updateQueue(mItems);
-      await _handler.skipToQueueItem(initialIndex);
+      await _handler.skipToQueueItem(targetIndex);
       await _handler.play();
     } catch (e) {
       _log.error('Error in playQueue: $e', e);

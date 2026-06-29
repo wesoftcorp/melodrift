@@ -11,6 +11,8 @@ final appRouterHelperProvider = Provider<AppRouter>((ref) {
   return AppRouter();
 });
 
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class App extends ConsumerWidget {
   const App({super.key});
 
@@ -39,6 +41,7 @@ class App extends ConsumerWidget {
     }
 
     return MaterialApp.router(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       title: F.title,
       theme: AppTheme.lightTheme,
       darkTheme: themeMode == AppThemeMode.amoled ? AppTheme.amoledTheme : AppTheme.darkTheme,

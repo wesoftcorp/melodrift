@@ -1,6 +1,7 @@
-﻿import 'package:audio_service/audio_service.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
 
 final audioHandlerProvider = Provider<MelodriftAudioHandler>((ref) {
@@ -9,9 +10,27 @@ final audioHandlerProvider = Provider<MelodriftAudioHandler>((ref) {
 
 class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   final AudioPlayer _player = AudioPlayer();
-  late final ConcatenatingAudioSource _playlist;
+  late ConcatenatingAudioSource _playlist;
   final List<MediaItem> _currentQueue = [];
   final _log = AppLogger('AudioHandler');
+
+  double _userVolume = 1.0;
+  bool _isFadingOut = false;
+
+  /// Fades the volume from current level to target level over a duration
+  Future<void> _fadeVolume(double targetVolume, Duration duration) async {
+    const steps = 8;
+    final stepDuration = Duration(milliseconds: duration.inMilliseconds ~/ steps);
+    final startVolume = _player.volume;
+    final scaledTarget = targetVolume * _userVolume;
+    final volumeDiff = scaledTarget - startVolume;
+
+    for (int i = 1; i <= steps; i++) {
+      final currentTarget = startVolume + (volumeDiff * (i / steps));
+      await _player.setVolume(currentTarget.clamp(0.0, 1.0));
+      await Future<void>.delayed(stepDuration);
+    }
+  }
   
   /// Hash of the current queue to avoid redundant syncs
   String _queueHash = '';
@@ -72,10 +91,38 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     });
 
     // 2. Listen to index changes to update mediaItem
-    _player.currentIndexStream.listen((index) {
+    _player.currentIndexStream.listen((index) async {
       _log.debug('Current index changed to: $index');
       if (index != null && queue.value.isNotEmpty && index < queue.value.length) {
         mediaItem.add(queue.value[index]);
+
+        // Crossfade: Fade in the new track
+        final prefs = await SharedPreferences.getInstance();
+        final crossfade = prefs.getBool('crossfade_enabled') ?? false;
+        if (crossfade && _player.playing) {
+          await _player.setVolume(0.0);
+          await _fadeVolume(1.0, const Duration(milliseconds: 600));
+        }
+      }
+    });
+
+    // Crossfade position monitoring
+    _player.positionStream.listen((position) async {
+      final duration = _player.duration;
+      if (duration == null || duration == Duration.zero) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final crossfade = prefs.getBool('crossfade_enabled') ?? false;
+      if (!crossfade) return;
+
+      final remaining = duration - position;
+      if (remaining <= const Duration(seconds: 3) && !_isFadingOut && _player.playing) {
+        _isFadingOut = true;
+        _log.debug('Crossfade: Nearing end of track. Fading out volume...');
+        await _fadeVolume(0.0, const Duration(seconds: 2500));
+        
+        await _player.setVolume(_userVolume);
+        _isFadingOut = false;
       }
     });
 
@@ -157,23 +204,45 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   @override
   Future<void> skipToNext() async {
     if (_playlist.length == 0) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final crossfade = prefs.getBool('crossfade_enabled') ?? false;
+
+    if (crossfade && _player.playing) {
+      await _fadeVolume(0.0, const Duration(milliseconds: 400));
+    }
+
     if (_player.hasNext) {
       await _player.seekToNext();
-      return;
-    }
-    if (_player.loopMode == LoopMode.all) {
+    } else if (_player.loopMode == LoopMode.all) {
       await _player.seek(Duration.zero, index: 0);
+    }
+
+    if (crossfade && _player.playing) {
+      await _fadeVolume(1.0, const Duration(milliseconds: 400));
     }
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_playlist.length == 0) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final crossfade = prefs.getBool('crossfade_enabled') ?? false;
+
+    if (crossfade && _player.playing) {
+      await _fadeVolume(0.0, const Duration(milliseconds: 400));
+    }
+
     if (_player.hasPrevious) {
       await _player.seekToPrevious();
-      return;
+    } else {
+      await _player.seek(Duration.zero);
     }
-    await _player.seek(Duration.zero);
+
+    if (crossfade && _player.playing) {
+      await _fadeVolume(1.0, const Duration(milliseconds: 400));
+    }
   }
 
   Future<void> _handleTrackCompleted() async {
@@ -181,6 +250,13 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       await _player.seek(Duration.zero);
       await _player.play();
       return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
+    if (!gaplessEnabled) {
+      await _player.pause();
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
     }
 
     if (_player.hasNext || _player.loopMode == LoopMode.all) {
@@ -308,13 +384,13 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       } else {
         // Overwrite
         _log.debug('Overwriting playlist with ${newQueue.length} items');
-        await _playlist.clear();
-        final newSources = newQueue.map(_createAudioSource).toList();
-        await _playlist.addAll(newSources);
-      }
-      
-      if (_player.audioSource == null) {
-        _log.debug('Setting playlist audio source for the first time');
+        final prefs = await SharedPreferences.getInstance();
+        final gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
+        
+        _playlist = ConcatenatingAudioSource(
+          useLazyPreparation: gaplessEnabled,
+          children: newQueue.map(_createAudioSource).toList(),
+        );
         await _player.setAudioSource(_playlist);
       }
       
@@ -348,7 +424,10 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   // --- Audio Parameters ---
 
-  Future<void> setVolume(double volume) => _player.setVolume(volume);
+  Future<void> setVolume(double volume) async {
+    _userVolume = volume;
+    await _player.setVolume(volume);
+  }
 
   Future<void> setPlaybackSpeed(double speed) => _player.setSpeed(speed);
 

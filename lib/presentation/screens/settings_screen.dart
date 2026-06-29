@@ -32,6 +32,52 @@ class DownloadOnlyWifiNotifier extends StateNotifier<bool> {
   }
 }
 
+// ── Playback & Content Providers ─────────────────────────────────────────────
+final crossfadeEnabledProvider = StateNotifierProvider<CrossfadeEnabledNotifier, bool>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return CrossfadeEnabledNotifier(prefs);
+});
+
+class CrossfadeEnabledNotifier extends StateNotifier<bool> {
+  final SharedPreferences _prefs;
+  CrossfadeEnabledNotifier(this._prefs) : super(_prefs.getBool('crossfade_enabled') ?? false);
+
+  Future<void> toggle(bool value) async {
+    await _prefs.setBool('crossfade_enabled', value);
+    state = value;
+  }
+}
+
+final gaplessPlaybackProvider = StateNotifierProvider<GaplessPlaybackNotifier, bool>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return GaplessPlaybackNotifier(prefs);
+});
+
+class GaplessPlaybackNotifier extends StateNotifier<bool> {
+  final SharedPreferences _prefs;
+  GaplessPlaybackNotifier(this._prefs) : super(_prefs.getBool('gapless_playback') ?? true);
+
+  Future<void> toggle(bool value) async {
+    await _prefs.setBool('gapless_playback', value);
+    state = value;
+  }
+}
+
+final allowExplicitContentProvider = StateNotifierProvider<AllowExplicitContentNotifier, bool>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return AllowExplicitContentNotifier(prefs);
+});
+
+class AllowExplicitContentNotifier extends StateNotifier<bool> {
+  final SharedPreferences _prefs;
+  AllowExplicitContentNotifier(this._prefs) : super(_prefs.getBool('allow_explicit_content') ?? true);
+
+  Future<void> toggle(bool value) async {
+    await _prefs.setBool('allow_explicit_content', value);
+    state = value;
+  }
+}
+
 // ── Settings Screen ──────────────────────────────────────────────────────────
 @RoutePage()
 class SettingsScreen extends ConsumerWidget {
@@ -77,7 +123,7 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 48),
+        padding: const EdgeInsets.only(bottom: 100),
         children: [
           // ── Section: Account ───────────────────────────────────────────────
           const _SettingsSectionHeader(title: 'Account'),
@@ -98,16 +144,16 @@ class SettingsScreen extends ConsumerWidget {
               _buildSwitchItem(
                 title: 'Crossfade',
                 icon: Icons.shuffle_rounded,
-                value: true, // Placeholder switch
-                onChanged: (_) {},
+                value: ref.watch(crossfadeEnabledProvider),
+                onChanged: (val) => ref.read(crossfadeEnabledProvider.notifier).toggle(val),
                 theme: theme,
               ),
               _buildDivider(theme),
               _buildSwitchItem(
                 title: 'Gapless Playback',
                 icon: Icons.format_align_justify_rounded,
-                value: true, // Placeholder switch
-                onChanged: (_) {},
+                value: ref.watch(gaplessPlaybackProvider),
+                onChanged: (val) => ref.read(gaplessPlaybackProvider.notifier).toggle(val),
                 theme: theme,
               ),
               if (defaultTargetPlatform == TargetPlatform.android) ...[
@@ -130,8 +176,8 @@ class SettingsScreen extends ConsumerWidget {
               _buildSwitchItem(
                 title: 'Allow Explicit Content',
                 icon: Icons.explicit_rounded,
-                value: true, // Placeholder switch
-                onChanged: (_) {},
+                value: ref.watch(allowExplicitContentProvider),
+                onChanged: (val) => ref.read(allowExplicitContentProvider.notifier).toggle(val),
                 theme: theme,
               ),
               _buildDivider(theme),

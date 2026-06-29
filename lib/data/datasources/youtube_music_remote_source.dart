@@ -55,6 +55,11 @@ class YouTubeMusicRemoteSource {
 
     final ytSongs = filterOutShorts(songs);
 
+    final filterExplicit = await _shouldFilterExplicit();
+    if (filterExplicit) {
+      ytSongs.removeWhere((s) => _isExplicit(s.title, s.artist, s.album));
+    }
+
     if (isHomeFeed) {
       // For home feed, decorate YouTube Music songs as SoundCloud and JioSaavn to show them on the home screen
       // without making external network calls, keeping home feed load time lightning-fast.
@@ -1013,7 +1018,31 @@ class YouTubeMusicRemoteSource {
       }
     }
 
+    final filterExplicit = await _shouldFilterExplicit();
+    if (filterExplicit) {
+      tracks.removeWhere((s) => _isExplicit(s.title, s.artist, s.album));
+    }
+
     return tracks;
+  }
+
+  Future<bool> _shouldFilterExplicit() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return !(prefs.getBool('allow_explicit_content') ?? true);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isExplicit(String title, String artist, String album) {
+    final t = title.toLowerCase();
+    final a = artist.toLowerCase();
+    final al = album.toLowerCase();
+    return t.contains('explicit') ||
+        t.contains('parental advisory') ||
+        a.contains('explicit') ||
+        al.contains('explicit');
   }
 
   /// Closes resources
