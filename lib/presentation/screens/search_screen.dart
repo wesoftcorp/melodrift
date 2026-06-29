@@ -434,23 +434,30 @@ class _SearchHomePage extends ConsumerWidget {
                 const _SectionTitle(title: 'Browse All'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.45,
-                    ),
-                    itemCount: moods.length,
-                    itemBuilder: (_, i) {
-                      final mood = moods[i];
-                      return _BrowseCard(
-                        mood: mood,
-                        index: i,
-                        onTap: () => _openMoodDialog(context, ref, mood),
+                  child: Builder(
+                    builder: (context) {
+                      final width = MediaQuery.of(context).size.width;
+                      final crossAxisCount = width > 900 ? 4 : (width > 600 ? 3 : 2);
+                      final childAspectRatio = width > 600 ? 1.6 : 1.8;
+
+                      return GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: childAspectRatio,
+                        ),
+                        itemCount: moods.length,
+                        itemBuilder: (_, i) {
+                          final mood = moods[i];
+                          return _BrowseCard(
+                            mood: mood,
+                            index: i,
+                            onTap: () => _openMoodDialog(context, ref, mood),
+                          );
+                        },
                       );
                     },
                   ),
