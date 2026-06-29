@@ -222,11 +222,19 @@ class HomeScreen extends ConsumerWidget {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 8.0),
-                      child: _TrendingCascade(
-                        songs: feed.trendingSongs.take(30).toList(),
-                        onSongTap: (song) =>
-                            ref.read(playerStateProvider.notifier).playSong(song),
-                      ),
+                      child: Builder(builder: (context) {
+                        final trendingSongs = feed.trendingSongs.take(30).toList();
+                        return _TrendingCascade(
+                          songs: trendingSongs,
+                          onSongTap: (song) {
+                            final index = trendingSongs.indexWhere((s) => s.id == song.id);
+                            ref.read(playerStateProvider.notifier).playQueue(
+                              trendingSongs,
+                              initialIndex: index >= 0 ? index : 0,
+                            );
+                          },
+                        );
+                      }),
                     ),
                   ),
                 ],
@@ -556,7 +564,7 @@ class HomeScreen extends ConsumerWidget {
           itemBuilder: (context, index) {
             final song = songs[index];
             return GestureDetector(
-              onTap: () => ref.read(playerStateProvider.notifier).playSong(song),
+              onTap: () => ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index),
               child: Container(
                 width: 220,
                 margin: const EdgeInsets.only(right: 10),
@@ -700,12 +708,19 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: colSongs.map((song) {
+                children: List.generate(colSongs.length, (rowIndex) {
+                  final globalIndex = colIndex * 4 + rowIndex;
+                  final song = colSongs[rowIndex];
                   return SizedBox(
                     height: 64,
-                    child: SongCard(song: song, size: 48),
+                    child: SongCard(
+                      song: song,
+                      size: 48,
+                      queue: songs,
+                      queueIndex: globalIndex,
+                    ),
                   );
-                }).toList(),
+                }),
               ),
             );
           },

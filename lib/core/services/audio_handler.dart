@@ -119,7 +119,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       if (remaining <= const Duration(seconds: 3) && !_isFadingOut && _player.playing) {
         _isFadingOut = true;
         _log.debug('Crossfade: Nearing end of track. Fading out volume...');
-        await _fadeVolume(0.0, const Duration(seconds: 2500));
+        await _fadeVolume(0.0, const Duration(milliseconds: 2500));
         
         await _player.setVolume(_userVolume);
         _isFadingOut = false;

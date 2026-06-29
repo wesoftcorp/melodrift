@@ -270,12 +270,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
+  /// Returns true if [id] looks like a real YouTube video ID (11 alphanumeric chars).
+  static bool _isYouTubeVideoId(String id) {
+    return RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(id);
+  }
+
   Future<String> _resolveStream(String videoId, {Song? song}) async {
     try {
       _log.debug('Resolving stream for videoId: $videoId');
       
       String targetVideoId = videoId;
-      if (song != null && song.source != 'YouTube Music') {
+      if (song != null && song.source != 'YouTube Music' && !_isYouTubeVideoId(videoId)) {
         final resolvedSong = await _ensureYouTubeVideoId(song);
         targetVideoId = resolvedSong.videoId;
       }
@@ -313,7 +318,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<Song> _ensureYouTubeVideoId(Song song) async {
-    if (song.source == 'YouTube Music') {
+    if (song.source == 'YouTube Music' || _isYouTubeVideoId(song.videoId)) {
       return song;
     }
     

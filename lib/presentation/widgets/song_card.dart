@@ -8,10 +8,14 @@ import 'song_download_button.dart';
 class SongCard extends ConsumerWidget {
   final Song song;
   final double size;
+  final List<Song>? queue;
+  final int? queueIndex;
 
   const SongCard({
     required this.song,
     this.size = 56.0,
+    this.queue,
+    this.queueIndex,
     super.key,
   });
 
@@ -25,14 +29,18 @@ class SongCard extends ConsumerWidget {
     final isCurrent = currentId == song.id;
     final isCurrentlyPlaying = isCurrent && isPlaying;
 
+    void onPlay() {
+      if (isCurrent) {
+        ref.read(playerStateProvider.notifier).togglePlay();
+      } else if (queue != null && queueIndex != null) {
+        ref.read(playerStateProvider.notifier).playQueue(queue!, initialIndex: queueIndex!);
+      } else {
+        ref.read(playerStateProvider.notifier).playSong(song);
+      }
+    }
+
     return InkWell(
-      onTap: () {
-        if (isCurrent) {
-          ref.read(playerStateProvider.notifier).togglePlay();
-        } else {
-          ref.read(playerStateProvider.notifier).playSong(song);
-        }
-      },
+      onTap: onPlay,
       splashColor: theme.colorScheme.primary.withAlpha(50),
       highlightColor: theme.colorScheme.primary.withAlpha(25),
       borderRadius: BorderRadius.circular(8),
@@ -123,13 +131,7 @@ class SongCard extends ConsumerWidget {
                   ? Icon(Icons.equalizer, color: theme.colorScheme.primary)
                   : Icon(Icons.play_arrow_outlined, color: isCurrent ? theme.colorScheme.primary : null),
               color: isCurrent ? theme.colorScheme.primary : null,
-              onPressed: () {
-                if (isCurrent) {
-                  ref.read(playerStateProvider.notifier).togglePlay();
-                } else {
-                  ref.read(playerStateProvider.notifier).playSong(song);
-                }
-              },
+              onPressed: onPlay,
             ),
           ],
         ),
