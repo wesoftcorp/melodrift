@@ -373,13 +373,23 @@ class _SearchHomePage extends ConsumerWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
 
-        // ── Trending Now ────────────────────────────────────────────────
+        // ── Trending Now (Real Artists from Feed) ─────────────────────────
         feedAsync.when<Widget>(
           loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
           error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
           data: (feed) {
             final artists = feed.recommendedArtists;
             if (artists.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+            const List<Color> glowColors = [
+              Color(0x59FF4500), // Orange-red shadow
+              Color(0x3D00FFFF), // Cyan shadow
+              Color(0x3DFF69B4), // Pink shadow
+              Color(0x3D32CD32), // Lime green shadow
+              Color(0x3D8A2BE2), // Violet shadow
+              Color(0x3DFFD700), // Gold shadow
+            ];
+
             return SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,10 +397,10 @@ class _SearchHomePage extends ConsumerWidget {
                   const _SectionTitle(
                     title: 'Trending Now',
                     icon: Icons.local_fire_department_rounded,
-                    iconColor: Color(0xFFFF5F1F),
+                    iconColor: Color(0xFFFF4500),
                   ),
                   SizedBox(
-                    height: 118,
+                    height: 124,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -398,9 +408,11 @@ class _SearchHomePage extends ConsumerWidget {
                       separatorBuilder: (_, __) => const SizedBox(width: 16),
                       itemBuilder: (_, i) {
                         final artist = artists[i];
+                        final glowColor = glowColors[artist.name.hashCode.abs() % glowColors.length];
                         return _TrendingArtistTile(
                           name: artist.name,
                           artworkUrl: artist.artworkUrl,
+                          glowColor: glowColor,
                           onTap: () => onTap(artist.name),
                         );
                       },
@@ -479,49 +491,7 @@ class _SearchHomePage extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Trending Artist Data & Glow Colors
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _TrendingArtist {
-  final String name;
-  final String imageUrl;
-  final Color glowColor;
-
-  const _TrendingArtist({
-    required this.name,
-    required this.imageUrl,
-    required this.glowColor,
-  });
-}
-
-final List<_TrendingArtist> _trendingArtists = const [
-  _TrendingArtist(
-    name: 'The Midnight',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBmQPdspzba88MglCboFdzTYlyj7gTglbqk7KKYlLjuU5KtvuwIKnOBAbtc0RZgDj2q2QMANjVpd_1FC3szklPsqYS8iyCb7lh0nltsGlqRT3xp8pOUjz18jlTkj5dZVaYVimkcveoI5Jznxia_gyRyjYFbzLwFFfHAIebWyisrZ6FDqO8wV3uQUwFAgkHaIV7A34H_LqkJvVMeJ9T4fMjcli7ji1CoIJXY6noTkbFzQ6C71VIC6dBCOH7ltEy-wzOCOAYT7t209vM',
-    glowColor: Color(0x59FF4500),
-  ),
-  _TrendingArtist(
-    name: 'Neon Pulse',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDIEEb0s3k82dcIbwtMi59597UbYW2tHnBRhJwekuJxvD3VIjxm7oYmmsbDDIGDKHyX2pibRtBFPh7OE6kIub79mzfHvvnVSGortLLx9aI3nU6o8hfCdDY-UBB_3RXBWqjUR-xAKC0EcyupdKrJswnZ_mZ13k89SGhXOlGWG8fZfzZY317RG62fSPFqVT75F8AGFNKjo0Tbsv2HQlWJwl6mJ6pTEHgPpo-vyN8Zjmg_EpRFjDEWztlARgAYQTm8cJcjoRPZ0LCROhk',
-    glowColor: Color(0x3D00FFFF),
-  ),
-  _TrendingArtist(
-    name: 'Luna Flare',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBl3bynVTMcfVhg4Zao2NJqmJ2L75h7A9nIXYI9Sgt3uec9zbCsLIrDXOhJBL0ra7lc5ewTA0ie8LUIACWOlu8mLse__HJnhQFyRNvaUVUxUHD8bil4lM5LhPm9064olw6tbiv1PKm4Ni8WmkBsdKZ6wQVrpowvD_GyE458HaOoBQNVIjaGjGpgRlD6YO4XDxxYOEy27ROfUrcWs-ruUlxFB09EyShM6HTJ0BSoM7nJoBoYi-oWCohLew7WVn_nOBiuAFaj8l9N9pU',
-    glowColor: Color(0x3DFF69B4),
-  ),
-  _TrendingArtist(
-    name: 'Echo Riot',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpY0TGSKPmPe40OLzPH6IQY_poRhl3o3DrA4cKuqpWv3vhyVp8zWzvOTS-kQCUpz_6Rq37dkVTrPo7h_FnGe2aqNAcMjI3BVgV61nSKDFOhWT4qgNlZUCo4s3ZiQt_0XSMb6_ENm3TNbWRX0qDG_Wm2i2Ss3mRAJvWme6iim0OHrYVSc_PN7Dx0LS6QTcfwokJrdJ7e73NROWkospVSabLUvhNVA6l5vxDofOgSh8BplCAWJ9BCyauOLOvmjD6V3695LB2dfZeiBM',
-    glowColor: Color(0x3D32CD32),
-  ),
-  _TrendingArtist(
-    name: 'Aura',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC4HAnpeu2zb0yCMqSdojahywXxttpMBw4rADzuXA6gs37dAEEjJ0-YUxbw8jr6szLusdEUxOxeDUvDiKtedEP669TAoBWzCPP1DORrXATgEuy2RIICCNeSgZ6qx9TVBvCUGYPNEhlvm6SlBfQmzHtR1aldLZNhoL3iZ6BfXvbrJI7Ih2ORa9PqTHYBg613K_S0IbzeQdy-tz_b3p9FC44etiETuyIqoG9rqYYQseKRLkA6qOO15DUWnP4XYstYgv5uOSY5uX4Sdrg',
-    glowColor: Color(0x3D8A2BE2),
-  ),
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section title
