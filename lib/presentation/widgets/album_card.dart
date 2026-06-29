@@ -118,6 +118,8 @@ class AlbumCard extends StatelessWidget {
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
         return '🩵'; // Teal heart for JioSaavn
+      case 'Spotify':
+        return '💚'; // Green heart for Spotify
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -129,6 +131,8 @@ class AlbumCard extends StatelessWidget {
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
         return Colors.tealAccent;
+      case 'Spotify':
+        return const Color(0xFF1DB954); // Spotify green
       default:
         return Colors.redAccent;
     }

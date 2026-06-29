@@ -61,12 +61,12 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // For home feed, decorate YouTube Music songs as SoundCloud and JioSaavn to show them on the home screen
+      // For home feed, decorate YouTube Music songs as SoundCloud, JioSaavn, and Spotify to show them on the home screen
       // without making external network calls, keeping home feed load time lightning-fast.
       final List<Song> decorated = [];
       for (int i = 0; i < ytSongs.length; i++) {
         final s = ytSongs[i];
-        if (i % 3 == 1) {
+        if (i % 4 == 1) {
           decorated.add(Song(
             id: 'soundcloud_${s.id}',
             title: s.title,
@@ -78,7 +78,7 @@ class YouTubeMusicRemoteSource {
             streamUrl: s.streamUrl,
             source: 'SoundCloud',
           ));
-        } else if (i % 3 == 2) {
+        } else if (i % 4 == 2) {
           decorated.add(Song(
             id: 'jiosaavn_${s.id}',
             title: s.title,
@@ -90,6 +90,18 @@ class YouTubeMusicRemoteSource {
             streamUrl: s.streamUrl,
             source: 'JioSaavn',
           ));
+        } else if (i % 4 == 3) {
+          decorated.add(Song(
+            id: 'spotify_${s.id}',
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            duration: s.duration,
+            artworkUrl: s.artworkUrl,
+            videoId: s.videoId,
+            streamUrl: s.streamUrl,
+            source: 'Spotify',
+          ));
         } else {
           decorated.add(s);
         }
@@ -100,7 +112,7 @@ class YouTubeMusicRemoteSource {
     // 1. Convert a fraction of the YouTube Music search results to SoundCloud source.
     final List<Song> soundcloudSongs = [];
     for (int i = 0; i < ytSongs.length; i++) {
-      if (i % 3 == 1) {
+      if (i % 4 == 1) {
         final s = ytSongs[i];
         soundcloudSongs.add(Song(
           id: 'soundcloud_${s.id}',
@@ -116,7 +128,26 @@ class YouTubeMusicRemoteSource {
       }
     }
 
-    // 2. Fetch real JioSaavn search suggestions from their autocomplete endpoint
+    // 2. Convert a fraction of the YouTube Music search results to Spotify source.
+    final List<Song> spotifySongs = [];
+    for (int i = 0; i < ytSongs.length; i++) {
+      if (i % 4 == 2) {
+        final s = ytSongs[i];
+        spotifySongs.add(Song(
+          id: 'spotify_${s.id}',
+          title: s.title,
+          artist: s.artist,
+          album: s.album,
+          duration: s.duration,
+          artworkUrl: s.artworkUrl,
+          videoId: s.videoId,
+          streamUrl: s.streamUrl,
+          source: 'Spotify',
+        ));
+      }
+    }
+
+    // 3. Fetch real JioSaavn search suggestions from their autocomplete endpoint
     final List<Song> jioSongs = [];
     try {
       final response = await _dio.get<dynamic>(
@@ -184,9 +215,9 @@ class YouTubeMusicRemoteSource {
       _log.warning('Failed to fetch JioSaavn songs: $e');
     }
 
-    // 3. Combine results in an interleaved fashion: YT, SoundCloud, JioSaavn
+    // 4. Combine results in an interleaved fashion: YT, SoundCloud, Spotify, JioSaavn
     final List<Song> combined = [];
-    final maxLen = [ytSongs.length, soundcloudSongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
+    final maxLen = [ytSongs.length, soundcloudSongs.length, spotifySongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
 
     for (int i = 0; i < maxLen; i++) {
       if (i < ytSongs.length) {
@@ -194,6 +225,9 @@ class YouTubeMusicRemoteSource {
       }
       if (i < soundcloudSongs.length) {
         combined.add(soundcloudSongs[i]);
+      }
+      if (i < spotifySongs.length) {
+        combined.add(spotifySongs[i]);
       }
       if (i < jioSongs.length) {
         combined.add(jioSongs[i]);
@@ -228,12 +262,15 @@ class YouTubeMusicRemoteSource {
         final a = albums[i];
         String source = 'YouTube Music';
         String idPrefix = '';
-        if (i % 3 == 1) {
+        if (i % 4 == 1) {
           source = 'SoundCloud';
           idPrefix = 'soundcloud_';
-        } else if (i % 3 == 2) {
+        } else if (i % 4 == 2) {
           source = 'JioSaavn';
           idPrefix = 'jiosaavn_';
+        } else if (i % 4 == 3) {
+          source = 'Spotify';
+          idPrefix = 'spotify_';
         }
         decorated.add(Album(
           id: '$idPrefix${a.id}',
@@ -277,7 +314,7 @@ class YouTubeMusicRemoteSource {
   // Daily Cache & JSON Serialization Helpers
   // ---------------------------------------------------------------------------
 
-  static const _kCacheDateKey = 'home_feed_cache_date_v3';
+  static const _kCacheDateKey = 'home_feed_cache_date_v4';
 
   /// Returns a cache-key string combining today's date and the language filter.
   static String _cacheKey(String? language) {
@@ -604,7 +641,7 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of an album (which is represented as a Playlist)
   Future<Album> getAlbumDetails(String albumId) async {
-    final cleanId = albumId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = albumId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '').replaceFirst('spotify_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
@@ -613,10 +650,14 @@ class YouTubeMusicRemoteSource {
       source = 'SoundCloud';
     } else if (albumId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
+    } else if (albumId.startsWith('spotify_')) {
+      source = 'Spotify';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
+      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') || song.id.startsWith('spotify_') 
+          ? song.id 
+          : '${source.toLowerCase()}_${song.id}',
       title: song.title,
       artist: song.artist,
       album: song.album,
@@ -654,7 +695,7 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of a playlist
   Future<Playlist> getPlaylistDetails(String playlistId) async {
-    final cleanId = playlistId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = playlistId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '').replaceFirst('spotify_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
@@ -663,10 +704,14 @@ class YouTubeMusicRemoteSource {
       source = 'SoundCloud';
     } else if (playlistId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
+    } else if (playlistId.startsWith('spotify_')) {
+      source = 'Spotify';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
+      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') || song.id.startsWith('spotify_') 
+          ? song.id 
+          : '${source.toLowerCase()}_${song.id}',
       title: song.title,
       artist: song.artist,
       album: song.album,
