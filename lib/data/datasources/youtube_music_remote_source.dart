@@ -56,14 +56,14 @@ class YouTubeMusicRemoteSource {
     final ytSongs = filterOutShorts(songs);
 
     if (isHomeFeed) {
-      // For home feed, decorate YouTube Music songs as Spotify and JioSaavn to show them on the home screen
+      // For home feed, decorate YouTube Music songs as SoundCloud and JioSaavn to show them on the home screen
       // without making external network calls, keeping home feed load time lightning-fast.
       final List<Song> decorated = [];
       for (int i = 0; i < ytSongs.length; i++) {
         final s = ytSongs[i];
         if (i % 3 == 1) {
           decorated.add(Song(
-            id: 'spotify_${s.id}',
+            id: 'soundcloud_${s.id}',
             title: s.title,
             artist: s.artist,
             album: s.album,
@@ -71,7 +71,7 @@ class YouTubeMusicRemoteSource {
             artworkUrl: s.artworkUrl,
             videoId: s.videoId,
             streamUrl: s.streamUrl,
-            source: 'Spotify',
+            source: 'SoundCloud',
           ));
         } else if (i % 3 == 2) {
           decorated.add(Song(
@@ -92,13 +92,13 @@ class YouTubeMusicRemoteSource {
       return decorated;
     }
 
-    // 1. Convert a fraction of the YouTube Music search results to Spotify source.
-    final List<Song> spotifySongs = [];
+    // 1. Convert a fraction of the YouTube Music search results to SoundCloud source.
+    final List<Song> soundcloudSongs = [];
     for (int i = 0; i < ytSongs.length; i++) {
       if (i % 3 == 1) {
         final s = ytSongs[i];
-        spotifySongs.add(Song(
-          id: 'spotify_${s.id}',
+        soundcloudSongs.add(Song(
+          id: 'soundcloud_${s.id}',
           title: s.title,
           artist: s.artist,
           album: s.album,
@@ -106,7 +106,7 @@ class YouTubeMusicRemoteSource {
           artworkUrl: s.artworkUrl,
           videoId: s.videoId,
           streamUrl: s.streamUrl,
-          source: 'Spotify',
+          source: 'SoundCloud',
         ));
       }
     }
@@ -179,16 +179,16 @@ class YouTubeMusicRemoteSource {
       _log.warning('Failed to fetch JioSaavn songs: $e');
     }
 
-    // 3. Combine results in an interleaved fashion: YT, Spotify, JioSaavn
+    // 3. Combine results in an interleaved fashion: YT, SoundCloud, JioSaavn
     final List<Song> combined = [];
-    final maxLen = [ytSongs.length, spotifySongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
+    final maxLen = [ytSongs.length, soundcloudSongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
 
     for (int i = 0; i < maxLen; i++) {
       if (i < ytSongs.length) {
         combined.add(ytSongs[i]);
       }
-      if (i < spotifySongs.length) {
-        combined.add(spotifySongs[i]);
+      if (i < soundcloudSongs.length) {
+        combined.add(soundcloudSongs[i]);
       }
       if (i < jioSongs.length) {
         combined.add(jioSongs[i]);
@@ -217,15 +217,15 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // Decorate with Spotify, JioSaavn, and YouTube Music
+      // Decorate with SoundCloud, JioSaavn, and YouTube Music
       final List<Album> decorated = [];
       for (int i = 0; i < albums.length; i++) {
         final a = albums[i];
         String source = 'YouTube Music';
         String idPrefix = '';
         if (i % 3 == 1) {
-          source = 'Spotify';
-          idPrefix = 'spotify_';
+          source = 'SoundCloud';
+          idPrefix = 'soundcloud_';
         } else if (i % 3 == 2) {
           source = 'JioSaavn';
           idPrefix = 'jiosaavn_';
@@ -447,7 +447,7 @@ class YouTubeMusicRemoteSource {
               _log.debug('Loaded home feed from daily cache ($key).');
               return homeData;
             } else {
-              _log.info('Cache is stale (missing JioSaavn/Spotify in one or more sections). Re-fetching...');
+              _log.info('Cache is stale (missing JioSaavn/SoundCloud in one or more sections). Re-fetching...');
 
             }
           } else {
@@ -599,19 +599,19 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of an album (which is represented as a Playlist)
   Future<Album> getAlbumDetails(String albumId) async {
-    final cleanId = albumId.replaceFirst('spotify_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = albumId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (albumId.startsWith('spotify_')) {
-      source = 'Spotify';
+    if (albumId.startsWith('soundcloud_')) {
+      source = 'SoundCloud';
     } else if (albumId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('spotify_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
+      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
       title: song.title,
       artist: song.artist,
       album: song.album,
@@ -649,19 +649,19 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of a playlist
   Future<Playlist> getPlaylistDetails(String playlistId) async {
-    final cleanId = playlistId.replaceFirst('spotify_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = playlistId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (playlistId.startsWith('spotify_')) {
-      source = 'Spotify';
+    if (playlistId.startsWith('soundcloud_')) {
+      source = 'SoundCloud';
     } else if (playlistId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('spotify_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
+      id: song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') ? song.id : '${source.toLowerCase()}_${song.id}',
       title: song.title,
       artist: song.artist,
       album: song.album,

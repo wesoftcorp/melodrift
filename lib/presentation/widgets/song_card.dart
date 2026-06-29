@@ -140,12 +140,12 @@ class SongCard extends ConsumerWidget {
 
   Color _getSourceColor(String source) {
     switch (source) {
-      case 'Spotify':
-        return Colors.greenAccent;
+      case 'SoundCloud':
+        return const Color(0xFFFF5500); // SoundCloud orange
       case 'JioSaavn':
         return Colors.tealAccent;
       default:
-        return Colors.redAccent;
+        return Colors.redAccent; // YouTube Music red
     }
   }
 }

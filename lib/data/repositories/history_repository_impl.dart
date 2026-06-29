@@ -26,8 +26,8 @@ class HistoryRepositoryImpl implements HistoryRepository {
       String source = 'YouTube Music';
       if (record.songId.startsWith('jiosaavn_')) {
         source = 'JioSaavn';
-      } else if (record.songId.startsWith('spotify_')) {
-        source = 'Spotify';
+      } else if (record.songId.startsWith('soundcloud_')) {
+        source = 'SoundCloud';
       }
       return Song(
         id: record.songId,
