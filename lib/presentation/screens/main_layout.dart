@@ -20,6 +20,7 @@ class MainLayoutScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return AutoTabsScaffold(
+      extendBody: true,
       routes: const [
         HomeRoute(),
         SearchRoute(),
@@ -27,68 +28,148 @@ class MainLayoutScreen extends ConsumerWidget {
         SettingsRoute(),
       ],
       bottomNavigationBuilder: (_, tabsRouter) {
+        final isDark = theme.brightness == Brightness.dark;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (hasActiveSong) const MiniPlayer(),
-            NavigationBarTheme(
-              data: NavigationBarThemeData(
-                labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return const TextStyle(
-                      color: Color(0xFFFF5F1F),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    );
-                  }
-                  return TextStyle(
-                    color: const Color(0xFFFF5F1F).withOpacity(0.6),
-                    fontSize: 12,
-                  );
-                }),
-                iconTheme: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return const IconThemeData(
-                      color: Color(0xFFFF5F1F),
-                    );
-                  }
-                  return IconThemeData(
-                    color: const Color(0xFFFF5F1F).withOpacity(0.6),
-                  );
-                }),
+            if (hasActiveSong)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: MiniPlayer(),
               ),
-              child: NavigationBar(
-                selectedIndex: tabsRouter.activeIndex,
-                onDestinationSelected: tabsRouter.setActiveIndex,
-                backgroundColor: theme.colorScheme.surfaceContainerLow,
-                indicatorColor: const Color(0xFFFF5F1F).withAlpha(35),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.home_outlined),
-                    selectedIcon: Icon(Icons.home),
-                    label: 'Home',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? theme.colorScheme.surfaceContainerHigh.withOpacity(0.75)
+                          : theme.colorScheme.surfaceContainerLowest.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withOpacity(0.12),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF5F1F).withOpacity(0.08),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildNavItem(
+                          index: 0,
+                          icon: Icons.home_outlined,
+                          selectedIcon: Icons.home,
+                          label: 'Home',
+                          tabsRouter: tabsRouter,
+                          theme: theme,
+                        ),
+                        _buildNavItem(
+                          index: 1,
+                          icon: Icons.search_outlined,
+                          selectedIcon: Icons.search,
+                          label: 'Browse',
+                          tabsRouter: tabsRouter,
+                          theme: theme,
+                        ),
+                        _buildNavItem(
+                          index: 2,
+                          icon: Icons.library_music_outlined,
+                          selectedIcon: Icons.library_music,
+                          label: 'Library',
+                          tabsRouter: tabsRouter,
+                          theme: theme,
+                        ),
+                        _buildNavItem(
+                          index: 3,
+                          icon: Icons.settings_outlined,
+                          selectedIcon: Icons.settings,
+                          label: 'Settings',
+                          tabsRouter: tabsRouter,
+                          theme: theme,
+                        ),
+                      ],
+                    ),
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.search_outlined),
-                    selectedIcon: Icon(Icons.search),
-                    label: 'Search',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.library_music_outlined),
-                    selectedIcon: Icon(Icons.library_music),
-                    label: 'Library',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.settings_outlined),
-                    selectedIcon: Icon(Icons.settings),
-                    label: 'Settings',
-                  ),
-                ],
+                ),
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required TabsRouter tabsRouter,
+    required ThemeData theme,
+  }) {
+    final isActive = tabsRouter.activeIndex == index;
+    const activeColor = Color(0xFFFF4500); // Orange-red matching style="color: rgb(255, 69, 0);"
+    final inactiveColor = theme.colorScheme.onSurface.withOpacity(0.6);
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => tabsRouter.setActiveIndex(index),
+        child: AnimatedScale(
+          scale: isActive ? 1.1 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    isActive ? selectedIcon : icon,
+                    color: isActive ? activeColor : inactiveColor,
+                    size: 24,
+                  ),
+                  if (isActive)
+                    Positioned(
+                      bottom: -6,
+                      child: Container(
+                        width: 4,
+                        height: 4,
+                        decoration: const BoxDecoration(
+                          color: activeColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isActive ? activeColor : inactiveColor,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 11,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
