@@ -1115,7 +1115,7 @@ class _CascadeTile extends StatelessWidget {
   Color _getSourceColor(String source) {
     switch (source) {
       case 'SoundCloud':
-        return const Color(0xFFFF5500);
+        return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
         return Colors.tealAccent;
       default:
@@ -1470,7 +1470,7 @@ class _TrendingCascadeTile extends StatelessWidget {
   Color _getSourceColor(String source) {
     switch (source) {
       case 'SoundCloud':
-        return const Color(0xFFFF5500);
+        return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
         return Colors.tealAccent;
       default:
