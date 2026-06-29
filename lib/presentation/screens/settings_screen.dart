@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/theme_provider.dart';
 import '../providers/auth_provider.dart';
@@ -242,7 +243,12 @@ class SettingsScreen extends ConsumerWidget {
               ListTile(
                 title: const Text('Privacy Policy'),
                 trailing: const Icon(Icons.open_in_new_rounded, size: 16),
-                onTap: () {},
+                onTap: () async {
+                  final url = Uri.parse('https://rockstarrajeev.github.io/melodrift/privacy-policy.html');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
               ),
             ],
           ),
