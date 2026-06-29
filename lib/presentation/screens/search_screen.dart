@@ -181,12 +181,12 @@ class _SearchHeader extends ConsumerWidget {
           // Logo Image
           Image.asset(
             'assets/images/melodrift.png',
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             fit: BoxFit.contain,
           ),
-          const SizedBox(width: 8),
-          // Logo Text
+          const Spacer(),
+          // Center title "Melodrift"
           const Text(
             'Melodrift',
             style: TextStyle(

@@ -181,6 +181,20 @@ class HomeScreen extends ConsumerWidget {
                 // ── Glassmorphism App Bar ────────────────────────────────
                 _buildAppBar(context, ref, isDark),
 
+                // ── Greeting Title ───────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                    child: Text(
+                      _getGreeting(),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                ),
+
 
                 // ── Melodrift Trending Music ─────────────────────────────
                 if (feed.trendingSongs.isNotEmpty) ...[
@@ -463,77 +477,51 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
                   children: [
-                    // Logo / greeting
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Image.asset(
-                            'assets/images/melodrift.png',
-                            width: 32,
-                            height: 32,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Melodrift',
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.5,
-                                  color: const Color(0xFFFF5F1F),
-                                ),
-                              ),
-                              Text(
-                                _getGreeting(),
-                                style: AppTextStyles.monoCaption.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          // Status indicator chip
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withAlpha(25),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: theme.colorScheme.primary.withAlpha(50),
-                              ),
-                            ),
-                            child: Text(
-                              'IDLE DRIFT',
-                              style: AppTextStyles.monoCaption.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontSize: 8,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    // Logo Image
+                    Image.asset(
+                      'assets/images/melodrift.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.contain,
                     ),
-                    // Theme toggle
-                    IconButton(
-                      icon: Icon(
-                        isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    const Spacer(),
+                    // Center title "Melodrift"
+                    Text(
+                      'Melodrift',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
                         color: const Color(0xFFFF5F1F),
+                        fontSize: 24,
                       ),
-                      tooltip: isDark ? 'Light Mode' : 'Dark Mode',
-                      onPressed: () {
-                        final notifier = ref.read(themeProvider.notifier);
-                        notifier.setThemeMode(
-                            isDark ? AppThemeMode.light : AppThemeMode.dark);
-                      },
                     ),
-                    // Notifications placeholder
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined,
-                          color: Color(0xFFFF5F1F)),
-                      onPressed: () {},
+                    const Spacer(),
+                    // Actions
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                            color: const Color(0xFFFF5F1F),
+                            size: 22,
+                          ),
+                          tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+                          onPressed: () {
+                            final notifier = ref.read(themeProvider.notifier);
+                            notifier.setThemeMode(
+                                isDark ? AppThemeMode.light : AppThemeMode.dark);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.notifications_outlined,
+                            color: Color(0xFFFF5F1F),
+                            size: 22,
+                          ),
+                          onPressed: () {},
+                        ),
+                      ],
                     ),
                   ],
                 ),
