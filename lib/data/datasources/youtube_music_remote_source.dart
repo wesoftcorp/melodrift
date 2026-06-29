@@ -27,10 +27,72 @@ class _StreamUrlCacheEntry {
   bool get isValid => DateTime.now().isBefore(expiresAt);
 }
 
+class SpotifyUrlParser {
+  static String? getTrackId(String url) {
+    final regExp = RegExp(r'spotify\.com/track/([a-zA-Z0-9]{22})');
+    final match = regExp.firstMatch(url);
+    return match?.group(1);
+  }
+
+  static String? getPlaylistId(String url) {
+    final regExp = RegExp(r'spotify\.com/playlist/([a-zA-Z0-9]{22})');
+    final match = regExp.firstMatch(url);
+    return match?.group(1);
+  }
+
+  static String? getAlbumId(String url) {
+    final regExp = RegExp(r'spotify\.com/album/([a-zA-Z0-9]{22})');
+    final match = regExp.firstMatch(url);
+    return match?.group(1);
+  }
+}
+
 class YouTubeMusicRemoteSource {
   final yt.YoutubeExplode _yt = yt.YoutubeExplode();
   final _dio = Dio();
   final _log = AppLogger('YouTubeMusicRemoteSource');
+
+  String? _spotifyToken;
+  DateTime? _spotifyTokenExpiry;
+
+  Future<String?> _getSpotifyAccessToken() async {
+    if (_spotifyToken != null && _spotifyTokenExpiry != null && DateTime.now().isBefore(_spotifyTokenExpiry!)) {
+      return _spotifyToken;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final clientId = prefs.getString('spotify_client_id') ?? '';
+      final clientSecret = prefs.getString('spotify_client_secret') ?? '';
+
+      if (clientId.isEmpty || clientSecret.isEmpty) {
+        return null;
+      }
+
+      final basicAuth = base64.encode(utf8.encode('$clientId:$clientSecret'));
+      final response = await _dio.post<Map<dynamic, dynamic>>(
+        'https://accounts.spotify.com/api/token',
+        data: {'grant_type': 'client_credentials'},
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {
+            'Authorization': 'Basic $basicAuth',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final token = response.data!['access_token'] as String;
+        final expiresIn = response.data!['expires_in'] as int;
+        _spotifyToken = token;
+        _spotifyTokenExpiry = DateTime.now().add(Duration(seconds: expiresIn - 60));
+        return token;
+      }
+    } catch (e, s) {
+      _log.error('Failed to get Spotify access token', e, s);
+    }
+    return null;
+  }
 
   /// In-memory stream URL cache: videoId+quality → cached entry.
   /// YouTube CDN URLs are valid ~6 hours; we cache for 4 hours to stay safe.
@@ -46,6 +108,61 @@ class YouTubeMusicRemoteSource {
 
   /// Search for songs matching [query]
   Future<List<Song>> searchSongs(String query, {List<String>? filters, bool isHomeFeed = false}) async {
+    final queryTrim = query.trim();
+    final spotifyTrackId = SpotifyUrlParser.getTrackId(queryTrim);
+    final spotifyPlaylistId = SpotifyUrlParser.getPlaylistId(queryTrim);
+    final spotifyAlbumId = SpotifyUrlParser.getAlbumId(queryTrim);
+
+    if (spotifyTrackId != null) {
+      final token = await _getSpotifyAccessToken();
+      if (token != null) {
+        try {
+          final response = await _dio.get<Map<dynamic, dynamic>>(
+            'https://api.spotify.com/v1/tracks/$spotifyTrackId',
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+          if (response.statusCode == 200 && response.data != null) {
+            final item = response.data!;
+            final name = item['name'] as String;
+            final artist = (item['artists'] as List).map((a) => a['name']).join(', ');
+            final album = item['album']?['name'] as String? ?? '';
+            final durationMs = item['duration_ms'] as int;
+            final images = item['album']?['images'] as List?;
+            final artworkUrl = images != null && images.isNotEmpty ? images.first['url'] as String : '';
+
+            final track = Song(
+              id: 'spotify_$spotifyTrackId',
+              title: name,
+              artist: artist,
+              album: album,
+              duration: Duration(milliseconds: durationMs),
+              artworkUrl: artworkUrl,
+              videoId: '$name $artist',
+              source: 'Spotify',
+            );
+
+            final filterExplicit = await _shouldFilterExplicit();
+            if (filterExplicit && _isExplicit(track.title, track.artist, track.album)) {
+              return const [];
+            }
+            return [track];
+          }
+        } catch (e, s) {
+          _log.error('Failed to resolve Spotify track URL', e, s);
+        }
+      }
+    }
+
+    if (spotifyPlaylistId != null) {
+      final playlist = await getPlaylistDetails('spotify_$spotifyPlaylistId');
+      return playlist.songs;
+    }
+
+    if (spotifyAlbumId != null) {
+      final album = await getAlbumDetails('spotify_$spotifyAlbumId');
+      return album.tracks;
+    }
+
     final searchList = await _yt.search.search('$query song');
     final songs = <Song>[];
 
@@ -128,23 +245,72 @@ class YouTubeMusicRemoteSource {
       }
     }
 
-    // 2. Convert a fraction of the YouTube Music search results to Spotify source.
+    // 2. Fetch real Spotify search results if token is available, else fallback to decoration
     final List<Song> spotifySongs = [];
-    for (int i = 0; i < ytSongs.length; i++) {
-      if (i % 4 == 2) {
-        final s = ytSongs[i];
-        spotifySongs.add(Song(
-          id: 'spotify_${s.id}',
-          title: s.title,
-          artist: s.artist,
-          album: s.album,
-          duration: s.duration,
-          artworkUrl: s.artworkUrl,
-          videoId: s.videoId,
-          streamUrl: s.streamUrl,
-          source: 'Spotify',
-        ));
+    final spotifyToken = await _getSpotifyAccessToken();
+    if (spotifyToken != null) {
+      try {
+        final response = await _dio.get<Map<dynamic, dynamic>>(
+          'https://api.spotify.com/v1/search',
+          queryParameters: {
+            'q': query,
+            'type': 'track',
+            'limit': 10,
+          },
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $spotifyToken',
+            },
+          ),
+        );
+
+        if (response.statusCode == 200 && response.data != null && response.data!['tracks'] != null) {
+          final items = response.data!['tracks']['items'] as List;
+          for (final item in items) {
+            final id = item['id'] as String;
+            final name = item['name'] as String;
+            final artist = (item['artists'] as List).map((a) => a['name']).join(', ');
+            final album = item['album']?['name'] as String? ?? '';
+            final durationMs = item['duration_ms'] as int;
+            final images = item['album']?['images'] as List?;
+            final artworkUrl = images != null && images.isNotEmpty ? images.first['url'] as String : '';
+
+            spotifySongs.add(Song(
+              id: 'spotify_$id',
+              title: name,
+              artist: artist,
+              album: album,
+              duration: Duration(milliseconds: durationMs),
+              artworkUrl: artworkUrl,
+              videoId: '$name $artist',
+              source: 'Spotify',
+            ));
+          }
+        }
+      } catch (e, s) {
+        _log.error('Failed to search Spotify songs via API', e, s);
       }
+    } else {
+      for (int i = 0; i < ytSongs.length; i++) {
+        if (i % 4 == 2) {
+          final s = ytSongs[i];
+          spotifySongs.add(Song(
+            id: 'spotify_${s.id}',
+            title: s.title,
+            artist: s.artist,
+            album: s.album,
+            duration: s.duration,
+            artworkUrl: s.artworkUrl,
+            videoId: s.videoId,
+            streamUrl: s.streamUrl,
+            source: 'Spotify',
+          ));
+        }
+      }
+    }
+
+    if (filterExplicit) {
+      spotifySongs.removeWhere((s) => _isExplicit(s.title, s.artist, s.album));
     }
 
     // 3. Fetch real JioSaavn search suggestions from their autocomplete endpoint
@@ -237,7 +403,6 @@ class YouTubeMusicRemoteSource {
     return combined;
   }
 
-  /// Search for albums matching [query]
   Future<List<Album>> searchAlbums(String query, {bool isHomeFeed = false}) async {
     final searchList = await _yt.search.searchContent(query, filter: yt.TypeFilters.playlist);
     final albums = <Album>[];
@@ -286,7 +451,62 @@ class YouTubeMusicRemoteSource {
       return decorated;
     }
 
-    return albums;
+    final spotifyToken = await _getSpotifyAccessToken();
+    final List<Album> spotifyAlbums = [];
+    if (spotifyToken != null) {
+      try {
+        final response = await _dio.get<Map<dynamic, dynamic>>(
+          'https://api.spotify.com/v1/search',
+          queryParameters: {
+            'q': query,
+            'type': 'album',
+            'limit': 8,
+          },
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $spotifyToken',
+            },
+          ),
+        );
+
+        if (response.statusCode == 200 && response.data != null && response.data!['albums'] != null) {
+          final items = response.data!['albums']['items'] as List;
+          for (final item in items) {
+            final id = item['id'] as String;
+            final name = item['name'] as String;
+            final artist = (item['artists'] as List).map((a) => a['name']).join(', ');
+            final images = item['images'] as List?;
+            final artworkUrl = images != null && images.isNotEmpty ? images.first['url'] as String : '';
+            final totalTracks = item['total_tracks'] as int? ?? 0;
+
+            spotifyAlbums.add(Album(
+              id: 'spotify_$id',
+              title: name,
+              artist: artist,
+              artworkUrl: artworkUrl,
+              tracks: const [],
+              songCount: totalTracks,
+              source: 'Spotify',
+            ));
+          }
+        }
+      } catch (e, s) {
+        _log.error('Failed to search Spotify albums via API', e, s);
+      }
+    }
+
+    final List<Album> combined = [];
+    final maxLen = [albums.length, spotifyAlbums.length].reduce((a, b) => a > b ? a : b);
+    for (int i = 0; i < maxLen; i++) {
+      if (i < albums.length) {
+        combined.add(albums[i]);
+      }
+      if (i < spotifyAlbums.length) {
+        combined.add(spotifyAlbums[i]);
+      }
+    }
+
+    return combined;
   }
 
   /// Search for artists matching [query]
@@ -641,6 +861,67 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of an album (which is represented as a Playlist)
   Future<Album> getAlbumDetails(String albumId) async {
+    if (albumId.startsWith('spotify_')) {
+      final spotifyToken = await _getSpotifyAccessToken();
+      if (spotifyToken != null) {
+        try {
+          final cleanId = albumId.replaceFirst('spotify_', '');
+          final response = await _dio.get<Map<dynamic, dynamic>>(
+            'https://api.spotify.com/v1/albums/$cleanId',
+            options: Options(
+              headers: {'Authorization': 'Bearer $spotifyToken'},
+            ),
+          );
+
+          if (response.statusCode == 200 && response.data != null) {
+            final data = response.data!;
+            final name = data['name'] as String;
+            final artist = (data['artists'] as List).map((a) => a['name']).join(', ');
+            final images = data['images'] as List?;
+            final artworkUrl = images != null && images.isNotEmpty ? images.first['url'] as String : '';
+            
+            final List<Song> tracks = [];
+            final items = data['tracks']?['items'] as List? ?? [];
+            for (final item in items) {
+              final trackId = item['id'] as String;
+              final trackName = item['name'] as String;
+              final trackArtist = (item['artists'] as List).map((a) => a['name']).join(', ');
+              final durationMs = item['duration_ms'] as int;
+
+              tracks.add(Song(
+                id: 'spotify_$trackId',
+                title: trackName,
+                artist: trackArtist,
+                album: name,
+                duration: Duration(milliseconds: durationMs),
+                artworkUrl: artworkUrl,
+                videoId: '$trackName $trackArtist',
+                source: 'Spotify',
+              ));
+            }
+
+            final filterExplicit = await _shouldFilterExplicit();
+            if (filterExplicit) {
+              tracks.removeWhere((s) => _isExplicit(s.title, s.artist, s.album));
+            }
+
+            return Album(
+              id: albumId,
+              title: name,
+              artist: artist,
+              artworkUrl: artworkUrl,
+              year: int.tryParse(data['release_date']?.toString().split('-').first ?? ''),
+              tracks: tracks,
+              songCount: tracks.length,
+              source: 'Spotify',
+            );
+          }
+        } catch (e, s) {
+          _log.error('Failed to fetch Spotify album details', e, s);
+        }
+      }
+    }
+
     final cleanId = albumId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '').replaceFirst('spotify_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
@@ -695,6 +976,74 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of a playlist
   Future<Playlist> getPlaylistDetails(String playlistId) async {
+    if (playlistId.startsWith('spotify_')) {
+      final spotifyToken = await _getSpotifyAccessToken();
+      if (spotifyToken != null) {
+        try {
+          final cleanId = playlistId.replaceFirst('spotify_', '');
+          final response = await _dio.get<Map<dynamic, dynamic>>(
+            'https://api.spotify.com/v1/playlists/$cleanId',
+            options: Options(
+              headers: {'Authorization': 'Bearer $spotifyToken'},
+            ),
+          );
+
+          if (response.statusCode == 200 && response.data != null) {
+            final data = response.data!;
+            final name = data['name'] as String;
+            final desc = data['description'] as String? ?? '';
+            final images = data['images'] as List?;
+            final artworkUrl = images != null && images.isNotEmpty ? images.first['url'] as String : '';
+            
+            final List<Song> tracks = [];
+            final items = data['tracks']?['items'] as List? ?? [];
+            for (final item in items) {
+              final track = item['track'] as Map?;
+              if (track == null) continue;
+              final trackId = track['id'] as String? ?? '';
+              final trackName = track['name'] as String? ?? '';
+              final trackArtist = (track['artists'] as List?)?.map((a) => a['name']).join(', ') ?? 'Unknown Artist';
+              final durationMs = track['duration_ms'] as int? ?? 0;
+              final trackAlbum = track['album']?['name'] as String? ?? '';
+              final trackAlbumImages = track['album']?['images'] as List?;
+              final trackArtworkUrl = trackAlbumImages != null && trackAlbumImages.isNotEmpty 
+                  ? trackAlbumImages.first['url'] as String 
+                  : artworkUrl;
+
+              tracks.add(Song(
+                id: 'spotify_$trackId',
+                title: trackName,
+                artist: trackArtist,
+                album: trackAlbum,
+                duration: Duration(milliseconds: durationMs),
+                artworkUrl: trackArtworkUrl,
+                videoId: '$trackName $trackArtist',
+                source: 'Spotify',
+              ));
+            }
+
+            final filterExplicit = await _shouldFilterExplicit();
+            if (filterExplicit) {
+              tracks.removeWhere((s) => _isExplicit(s.title, s.artist, s.album));
+            }
+
+            return Playlist(
+              id: playlistId,
+              title: name,
+              description: desc,
+              artworkUrl: artworkUrl,
+              trackCount: tracks.length,
+              songs: tracks,
+              isYouTube: false,
+              isLocal: false,
+            );
+          }
+        } catch (e, s) {
+          _log.error('Failed to fetch Spotify playlist details', e, s);
+        }
+      }
+    }
+
     final cleanId = playlistId.replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '').replaceFirst('spotify_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
