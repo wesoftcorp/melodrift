@@ -4,6 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../domain/entities/download_task.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
@@ -71,6 +74,18 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
   @override
   Future<void> downloadSong(Song song, {String quality = 'High'}) async {
+    // Wi-Fi Only Check
+    final prefs = await SharedPreferences.getInstance();
+    final downloadOnlyWifi = prefs.getBool('download_only_wifi') ?? false;
+    if (downloadOnlyWifi) {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult != ConnectivityResult.wifi &&
+          connectivityResult != ConnectivityResult.ethernet &&
+          connectivityResult != ConnectivityResult.vpn) {
+        throw Exception('Wi-Fi Only downloads active. Connect to Wi-Fi to start.');
+      }
+    }
+
     final selectedQuality = quality == 'High'
         ? (await AudioQualityPreferences.load()).downloadQuality
         : quality;

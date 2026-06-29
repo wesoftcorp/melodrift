@@ -31,14 +31,28 @@ class SongDownloadButton extends ConsumerWidget {
       return IconButton(
         icon: Icon(Icons.download_outlined, size: size),
         tooltip: 'Download song',
-        onPressed: () {
-          ref.read(downloadRepositoryProvider).downloadSong(song);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Starting download for "${song.title}"'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+        onPressed: () async {
+          try {
+            await ref.read(downloadRepositoryProvider).downloadSong(song);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Starting download for "${song.title}"'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(e.toString().replaceAll('Exception: ', '')),
+                  backgroundColor: theme.colorScheme.error,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          }
         },
       );
     }
@@ -77,8 +91,28 @@ class SongDownloadButton extends ConsumerWidget {
         return IconButton(
           icon: Icon(Icons.error_outline, color: theme.colorScheme.error, size: size),
           tooltip: 'Download failed. Tap to retry.',
-          onPressed: () {
-            ref.read(downloadRepositoryProvider).downloadSong(song);
+          onPressed: () async {
+            try {
+              await ref.read(downloadRepositoryProvider).downloadSong(song);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Retrying download for "${song.title}"'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: theme.colorScheme.error,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
           },
         );
       case DownloadStatus.paused:
