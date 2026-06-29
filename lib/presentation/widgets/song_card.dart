@@ -146,7 +146,7 @@ class SongCard extends ConsumerWidget {
       case 'SoundCloud':
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
-        return '🩵'; // Teal heart for JioSaavn
+        return '💛'; // Yellow heart for JioSaavn
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -159,7 +159,7 @@ class SongCard extends ConsumerWidget {
       case 'SoundCloud':
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
-        return Colors.tealAccent;
+        return Colors.amberAccent; // JioSaavn yellow
       default:
         return Colors.redAccent; // YouTube Music red
     }

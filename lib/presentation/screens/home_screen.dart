@@ -1123,7 +1123,7 @@ class _CascadeTile extends StatelessWidget {
       case 'SoundCloud':
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
-        return '🩵'; // Teal heart for JioSaavn
+        return '💛'; // Yellow heart for JioSaavn
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -1136,7 +1136,7 @@ class _CascadeTile extends StatelessWidget {
       case 'SoundCloud':
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
-        return Colors.tealAccent;
+        return Colors.amberAccent; // JioSaavn yellow
       default:
         return Colors.redAccent;
     }
@@ -1482,7 +1482,7 @@ class _TrendingCascadeTile extends StatelessWidget {
       case 'SoundCloud':
         return '💜'; // Purple heart for SoundCloud
       case 'JioSaavn':
-        return '🩵'; // Teal heart for JioSaavn
+        return '💛'; // Yellow heart for JioSaavn
       default:
         return '❤️'; // Red heart for YouTube Music
     }
@@ -1495,7 +1495,7 @@ class _TrendingCascadeTile extends StatelessWidget {
       case 'SoundCloud':
         return const Color(0xFFAA00FF); // SoundCloud purple
       case 'JioSaavn':
-        return Colors.tealAccent;
+        return Colors.amberAccent; // JioSaavn yellow
       default:
         return Colors.redAccent;
     }
