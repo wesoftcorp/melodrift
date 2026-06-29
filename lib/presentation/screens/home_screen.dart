@@ -120,7 +120,16 @@ class HomeScreen extends ConsumerWidget {
         onRefresh: () async {
           try {
             final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('home_feed_cache_date');
+            // Clear all home feed cache keys so a fresh decorated feed is fetched
+            await prefs.remove('home_feed_cache_date_v3');
+            await prefs.remove('home_feed_cache_data_all');
+            await prefs.remove('home_feed_cache_data_English');
+            await prefs.remove('home_feed_cache_data_Hindi');
+            await prefs.remove('home_feed_cache_data_Nepali');
+            await prefs.remove('home_feed_cache_data_English Hindi');
+            await prefs.remove('home_feed_cache_data_English Nepali');
+            await prefs.remove('home_feed_cache_data_Hindi Nepali');
+            await prefs.remove('home_feed_cache_data_English Hindi Nepali');
           } catch (_) {}
           return ref.refresh(homeFeedProvider.future);
         },

@@ -272,7 +272,7 @@ class YouTubeMusicRemoteSource {
   // Daily Cache & JSON Serialization Helpers
   // ---------------------------------------------------------------------------
 
-  static const _kCacheDateKey = 'home_feed_cache_date_v2';
+  static const _kCacheDateKey = 'home_feed_cache_date_v3';
 
   /// Returns a cache-key string combining today's date and the language filter.
   static String _cacheKey(String? language) {
