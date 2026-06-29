@@ -250,16 +250,20 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // Decorate with SoundCloud, JioSaavn, and YouTube Music
+      // Decorate with YouTube Music, Spotify, SoundCloud, and JioSaavn
       final List<Album> decorated = [];
       for (int i = 0; i < albums.length; i++) {
         final a = albums[i];
         String source = 'YouTube Music';
         String idPrefix = '';
-        if (i % 3 == 1) {
+        final mod = i % 4;
+        if (mod == 1) {
+          source = 'Spotify';
+          idPrefix = 'spotify_';
+        } else if (mod == 2) {
           source = 'SoundCloud';
           idPrefix = 'soundcloud_';
-        } else if (i % 3 == 2) {
+        } else if (mod == 3) {
           source = 'JioSaavn';
           idPrefix = 'jiosaavn_';
         }
@@ -466,13 +470,12 @@ class YouTubeMusicRemoteSource {
               decoded.containsKey('forgottenFavorites') &&
               decoded.containsKey('albumsForYou')) {
             final homeData = _homeDataFromJson(decoded);
-            // Every section that supports multi-source must have at least one
-            // non-YouTube entry — otherwise the cache is stale and needs a re-fetch.
+            // Every section that supports multi-source must have Spotify entries
+            // otherwise the cache is stale and needs a re-fetch.
             final hasMultiSource =
-                homeData.quickPicks.any((s) => s.source != 'YouTube Music') &&
-                homeData.trendingSongs.any((s) => s.source != 'YouTube Music') &&
-                homeData.featuredPlaylistsForYou.any((a) => a.source != 'YouTube Music') &&
-                homeData.albumsForYou.any((a) => a.source != 'YouTube Music');
+                homeData.quickPicks.any((s) => s.source == 'Spotify') &&
+                homeData.trendingSongs.any((s) => s.source == 'Spotify') &&
+                homeData.albumsForYou.any((a) => a.source == 'Spotify');
             final isCacheComplete = homeData.quickPicks.isNotEmpty &&
                 homeData.trendingSongs.isNotEmpty &&
                 homeData.featuredPlaylistsForYou.isNotEmpty;
@@ -480,8 +483,7 @@ class YouTubeMusicRemoteSource {
               _log.debug('Loaded home feed from daily cache ($key).');
               return homeData;
             } else {
-              _log.info('Cache is stale (missing JioSaavn/SoundCloud in one or more sections). Re-fetching...');
-
+              _log.info('Cache is stale (missing Spotify in sections). Re-fetching fresh 4-source feed...');
             }
           } else {
             _log.info('Cache is missing new fields. Invalidating...');
