@@ -11,6 +11,8 @@ import '../widgets/search_results_view.dart';
 import '../widgets/voice_search_sheet.dart';
 import '../../core/theme/theme_provider.dart';
 import 'home_screen.dart';
+import '../../domain/entities/home_data.dart';
+import '../../domain/entities/artist.dart';
 import '../providers/player_notifier.dart';
 
 @RoutePage()
@@ -373,56 +375,9 @@ class _SearchHomePage extends ConsumerWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
 
-        // ── Trending Now (Real Artists from Feed) ─────────────────────────
-        feedAsync.when<Widget>(
-          loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-          error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-          data: (feed) {
-            final artists = feed.recommendedArtists;
-            if (artists.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-
-            const List<Color> glowColors = [
-              Color(0x59FF4500), // Orange-red shadow
-              Color(0x3D00FFFF), // Cyan shadow
-              Color(0x3DFF69B4), // Pink shadow
-              Color(0x3D32CD32), // Lime green shadow
-              Color(0x3D8A2BE2), // Violet shadow
-              Color(0x3DFFD700), // Gold shadow
-            ];
-
-            return SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SectionTitle(
-                    title: 'Trending Now',
-                    icon: Icons.local_fire_department_rounded,
-                    iconColor: Color(0xFFFF4500),
-                  ),
-                  SizedBox(
-                    height: 124,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: artists.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 16),
-                      itemBuilder: (_, i) {
-                        final artist = artists[i];
-                        final glowColor = glowColors[artist.name.hashCode.abs() % glowColors.length];
-                        return _TrendingArtistTile(
-                          name: artist.name,
-                          artworkUrl: artist.artworkUrl,
-                          glowColor: glowColor,
-                          onTap: () => onTap(artist.name),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            );
-          },
+        // ── Trending Now (Real Artists — live feed or curated fallback) ──────
+        SliverToBoxAdapter(
+          child: _TrendingNowSection(onTap: onTap, feedAsync: feedAsync),
         ),
 
         // ── Browse All (Bento Grid) ──────────────────────────────────────
@@ -492,6 +447,119 @@ class _SearchHomePage extends ConsumerWidget {
 }
 
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Trending Now Section — always visible (live feed or curated fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Curated fallback: real globally trending artists with stable image URLs
+const List<Map<String, dynamic>> _kFallbackArtists = [
+  {
+    'name': 'Arijit Singh',
+    'image': 'https://c.saavncdn.com/artists/Arijit_Singh_004_20230808082952_500x500.jpg',
+    'glow': Color(0x59FF4500),
+  },
+  {
+    'name': 'Taylor Swift',
+    'image': 'https://i.scdn.co/image/ab6761610000e5eb5a00969a4698c3132a15fbb0',
+    'glow': Color(0x3DFF69B4),
+  },
+  {
+    'name': 'The Weeknd',
+    'image': 'https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26ffbb',
+    'glow': Color(0x3D8A2BE2),
+  },
+  {
+    'name': 'Dua Lipa',
+    'image': 'https://i.scdn.co/image/ab6761610000e5eb3f2cca81f1fa3b2a0d3c38b3',
+    'glow': Color(0x3D00FFFF),
+  },
+  {
+    'name': 'A.R. Rahman',
+    'image': 'https://c.saavncdn.com/artists/A_R_Rahman_001_20230808082754_500x500.jpg',
+    'glow': Color(0x3DFFD700),
+  },
+  {
+    'name': 'Bad Bunny',
+    'image': 'https://i.scdn.co/image/ab6761610000e5eb5be01f90a5571c9b5ca5ad6d',
+    'glow': Color(0x3D32CD32),
+  },
+  {
+    'name': 'Shreya Ghoshal',
+    'image': 'https://c.saavncdn.com/artists/Shreya_Ghoshal_002_20230808082952_500x500.jpg',
+    'glow': Color(0x3DFF69B4),
+  },
+  {
+    'name': 'Ed Sheeran',
+    'image': 'https://i.scdn.co/image/ab6761610000e5eb3bcef85e105dfc42399ef0ba',
+    'glow': Color(0x59FF4500),
+  },
+];
+
+const List<Color> _kGlowColors = [
+  Color(0x59FF4500),
+  Color(0x3D00FFFF),
+  Color(0x3DFF69B4),
+  Color(0x3D32CD32),
+  Color(0x3D8A2BE2),
+  Color(0x3DFFD700),
+];
+
+class _TrendingNowSection extends ConsumerWidget {
+  final ValueChanged<String> onTap;
+  final AsyncValue<HomeData> feedAsync;
+
+  const _TrendingNowSection({required this.onTap, required this.feedAsync});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Use live artists from feed if available, else show curated fallback
+    final liveArtists = feedAsync.valueOrNull?.recommendedArtists;
+    final bool useLive = liveArtists != null && liveArtists.isNotEmpty;
+    final artists = liveArtists ?? <Artist>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title: 'Trending Now',
+          icon: Icons.local_fire_department_rounded,
+          iconColor: Color(0xFFFF4500),
+        ),
+        SizedBox(
+          height: 124,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: useLive ? artists.length : _kFallbackArtists.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (_, i) {
+              if (useLive) {
+                final artist = artists[i];
+                final glowColor = _kGlowColors[artist.name.hashCode.abs() % _kGlowColors.length];
+                return _TrendingArtistTile(
+                  name: artist.name,
+                  artworkUrl: artist.artworkUrl,
+                  glowColor: glowColor,
+                  onTap: () => onTap(artist.name),
+                );
+              } else {
+                final entry = _kFallbackArtists[i];
+                return _TrendingArtistTile(
+                  name: entry['name'] as String,
+                  artworkUrl: entry['image'] as String,
+                  glowColor: entry['glow'] as Color,
+                  onTap: () => onTap(entry['name'] as String),
+                );
+              }
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section title
@@ -762,7 +830,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
   }
 
   // Fallbacks
-  final List<List<Color>> fallbackGradients = const [
+  const List<List<Color>> fallbackGradients = [
     [Color(0x59330E62), Colors.black],
     [Color(0x591B5E20), Colors.black],
     [Color(0x5901579B), Colors.black],
@@ -770,7 +838,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
     [Color(0x59311B92), Colors.black],
     [Color(0x59004D40), Colors.black],
   ];
-  final List<Color> fallbackGlows = const [
+  const List<Color> fallbackGlows = [
     Color(0xFF9C27B0),
     Color(0xFF4CAF50),
     Color(0xFF03A9F4),
@@ -778,7 +846,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
     Color(0xFF673AB7),
     Color(0xFF009688),
   ];
-  final List<String> fallbackImages = const [
+  const List<String> fallbackImages = [
     'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
     'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80',
