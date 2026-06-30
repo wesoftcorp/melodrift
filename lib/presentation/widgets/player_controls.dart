@@ -6,9 +6,8 @@ import '../providers/player_providers.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../../data/repositories/download_repository_impl.dart';
-import '../../data/services/share_service_impl.dart';
 import '../../domain/entities/song.dart';
-import 'player_dialogs.dart';
+import '../../core/theme/tokens.dart';
 
 class PlayerControls extends ConsumerStatefulWidget {
   const PlayerControls({super.key});
@@ -18,8 +17,6 @@ class PlayerControls extends ConsumerStatefulWidget {
 }
 
 class _PlayerControlsState extends ConsumerState<PlayerControls> {
-  bool _isLiked = false;
-
   @override
   Widget build(BuildContext context) {
     // Fine-grained: controls only rebuild when playback state or controls change,
@@ -27,217 +24,143 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
     final (:isPlaying, :isLoading) = ref.watch(playbackStateProvider);
     final controls = ref.watch(playbackControlsProvider);
     final currentSong = ref.watch(currentSongProvider);
-    final sleepTimeRemaining = ref.watch(
-      playerStateProvider.select((s) => s.sleepTimeRemaining),
-    );
     final notifier = ref.read(playerStateProvider.notifier);
-    final theme = Theme.of(context);
 
     return Column(
 
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Volume, Share, Speed & Sleep Timer Row
+        // Main Playback Buttons
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               IconButton(
                 icon: Icon(
-                  controls.volume == 0.0 ? Icons.volume_mute : Icons.volume_up,
-                  color: Colors.white70,
+                  Icons.shuffle,
+                  color: controls.isShuffle ? AppColors.onSurface : AppColors.onSurfaceVariant,
                 ),
-                onPressed: () => PlayerDialogs.showVolumeSlider(context),
+                iconSize: 24,
+                onPressed: notifier.toggleShuffle,
               ),
-              if (currentSong != null)
-                IconButton(
-                  icon: const Icon(Icons.share, color: Colors.white70),
-                  onPressed: () {
-                    ref.read(shareServiceProvider).shareSong(
-                          title: currentSong.title,
-                          artist: currentSong.artist,
-                          youtubeId: currentSong.videoId,
-                        );
-                  },
-                ),
-              TextButton.icon(
-                icon: const Icon(Icons.speed, color: Colors.white70, size: 18),
-                label: Text(
-                  '${controls.speed}x',
-                  style: theme.textTheme.labelMedium?.copyWith(color: Colors.white70),
-                ),
-                onPressed: () => PlayerDialogs.showSpeedSelection(
-                  context,
-                  ref.read(playerStateProvider),
-                  notifier,
-                ),
+              IconButton(
+                icon: const Icon(Icons.skip_previous, color: AppColors.onSurface),
+                iconSize: 32,
+                onPressed: notifier.previous,
               ),
-              TextButton.icon(
-                icon: Icon(
-                  sleepTimeRemaining != null ? Icons.snooze : Icons.access_time,
-                  color: sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
-                  size: 18,
-                ),
-                label: Text(
-                  sleepTimeRemaining != null
-                      ? _formatTimerDuration(sleepTimeRemaining)
-                      : 'Timer',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: sleepTimeRemaining != null ? theme.colorScheme.primary : Colors.white70,
+              // Play/Pause Morphing Button — 72 px
+              GestureDetector(
+                onTap: notifier.togglePlay,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle, // In a real app with custom shapes, this could be a polygon when playing
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isLoading)
+                        const SizedBox(
+                          width: 72,
+                          height: 72,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.onPrimary),
+                          ),
+                        ),
+                      Icon(
+                        isPlaying ? Icons.pause : Icons.play_arrow,
+                        size: 36,
+                        color: AppColors.onPrimary,
+                      ),
+                    ],
                   ),
                 ),
-                onPressed: () => PlayerDialogs.showSleepTimerDialog(
-                  context,
-                  ref.read(playerStateProvider),
-                  notifier,
+              ),
+              IconButton(
+                icon: const Icon(Icons.skip_next, color: AppColors.onSurface),
+                iconSize: 32,
+                onPressed: notifier.next,
+              ),
+              IconButton(
+                icon: Icon(
+                  controls.repeatMode == AudioServiceRepeatMode.one
+                      ? Icons.repeat_one
+                      : Icons.repeat,
+                  color: controls.repeatMode != AudioServiceRepeatMode.none
+                      ? AppColors.onSurface
+                      : AppColors.onSurfaceVariant,
                 ),
+                iconSize: 24,
+                onPressed: notifier.toggleRepeat,
+              ),
+              // Keep the more options menu for functionality
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppColors.onSurfaceVariant),
+                iconSize: 24,
+                enabled: currentSong != null,
+                onSelected: (value) {
+                  if (value == 'playlist' && currentSong != null) {
+                    _showAddToPlaylistDialog(context, currentSong);
+                  } else if (value == 'queue') {
+                    _showSearchAndAddToQueueDialog(context);
+                  } else if (value == 'download' && currentSong != null) {
+                    ref.read(downloadRepositoryProvider).downloadSong(currentSong);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Downloading ${currentSong.title}...'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem<String>(
+                    value: 'playlist',
+                    child: Row(
+                      children: [
+                        Icon(Icons.playlist_add, size: 20),
+                        SizedBox(width: 12),
+                        Text('Add to playlist'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'queue',
+                    child: Row(
+                      children: [
+                        Icon(Icons.queue_music, size: 20),
+                        SizedBox(width: 12),
+                        Text('Add to queue'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'download',
+                    child: Row(
+                      children: [
+                        Icon(Icons.download, size: 20),
+                        SizedBox(width: 12),
+                        Text('Download'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        // Main Playback Buttons
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.shuffle,
-                color: controls.isShuffle ? theme.colorScheme.primary : Colors.white54,
-              ),
-              iconSize: 28,
-              onPressed: notifier.toggleShuffle,
-            ),
-            // Like button
-            GestureDetector(
-              onTap: () => setState(() => _isLiked = !_isLiked),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                child: Icon(
-                  _isLiked ? Icons.favorite : Icons.favorite_border,
-                  key: ValueKey(_isLiked),
-                  color: _isLiked ? Colors.redAccent : Colors.white54,
-                  size: 28,
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.skip_previous, color: Colors.white),
-              iconSize: 36,
-              onPressed: notifier.previous,
-            ),
-            // Play/Pause FAB — 80 px
-            IconButton(
-              iconSize: 80,
-              padding: EdgeInsets.zero,
-              icon: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withAlpha(25),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: theme.colorScheme.primary.withAlpha(100)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withAlpha(50),
-                      blurRadius: 16,
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (isLoading)
-                      SizedBox(
-                        width: 64,
-                        height: 64,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
-                        ),
-                      ),
-                    Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      size: 46,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ],
-                ),
-              ),
-              onPressed: notifier.togglePlay,
-            ),
-            IconButton(
-              icon: const Icon(Icons.skip_next, color: Colors.white),
-              iconSize: 36,
-              onPressed: notifier.next,
-            ),
-            IconButton(
-              icon: Icon(
-                controls.repeatMode == AudioServiceRepeatMode.one
-                    ? Icons.repeat_one
-                    : Icons.repeat,
-                color: controls.repeatMode != AudioServiceRepeatMode.none
-                    ? theme.colorScheme.primary
-                    : Colors.white54,
-              ),
-              iconSize: 28,
-              onPressed: notifier.toggleRepeat,
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white54),
-              iconSize: 28,
-              enabled: currentSong != null,
-              onSelected: (value) {
-                if (value == 'playlist' && currentSong != null) {
-                  _showAddToPlaylistDialog(context, currentSong);
-                } else if (value == 'queue') {
-                  _showSearchAndAddToQueueDialog(context);
-                } else if (value == 'download' && currentSong != null) {
-                  ref.read(downloadRepositoryProvider).downloadSong(currentSong);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Downloading ${currentSong.title}...'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem<String>(
-                  value: 'playlist',
-                  child: Row(
-                    children: [
-                      Icon(Icons.playlist_add, size: 20),
-                      SizedBox(width: 12),
-                      Text('Add to playlist'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'queue',
-                  child: Row(
-                    children: [
-                      Icon(Icons.queue_music, size: 20),
-                      SizedBox(width: 12),
-                      Text('Add to queue'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'download',
-                  child: Row(
-                    children: [
-                      Icon(Icons.download, size: 20),
-                      SizedBox(width: 12),
-                      Text('Download'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ],
     );
@@ -399,11 +322,5 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
         ),
       ),
     );
-  }
-
-  String _formatTimerDuration(Duration d) {
-    final minutes = d.inMinutes.toString().padLeft(2, '0');
-    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
   }
 }

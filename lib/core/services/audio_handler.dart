@@ -368,8 +368,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
             _log.debug('Replacing source at index $i in append mode: "$oldUrl" -> "$newUrl"');
             final newSource = _createAudioSource(newQueue[i]);
             if (i < _playlist.length) {
+              await _playlist.insert(i + 1, newSource);
               await _playlist.removeAt(i);
-              await _playlist.insert(i, newSource);
             }
           }
         }
@@ -380,6 +380,10 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
           _log.debug('Appending ${toAdd.length} items to playlist');
           final newSources = toAdd.map(_createAudioSource).toList();
           await _playlist.addAll(newSources);
+        }
+        if (_player.audioSource == null) {
+          _log.debug('Setting playlist audio source for the first time');
+          await _player.setAudioSource(_playlist);
         }
       } else {
         // Overwrite

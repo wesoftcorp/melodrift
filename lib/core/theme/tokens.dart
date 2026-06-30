@@ -23,6 +23,7 @@ class AppColors {
 
   static const Color onSurface = Color(0xFFE2E2E2);
   static const Color onSurfaceVariant = Color(0xFFE0BEBF);
+  static const Color surfaceVariant = Color(0xFF353535);
   static const Color outline = Color(0xFFA8898A);
   static const Color outlineVariant = Color(0xFF594141);
 
@@ -110,7 +111,7 @@ class AppTextStyles {
 
   static TextStyle get labelLarge => GoogleFonts.beVietnamPro(
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         letterSpacing: 0.1,
       );
       
@@ -118,6 +119,12 @@ class AppTextStyles {
         fontSize: 12,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.1,
+      );
+      
+  static TextStyle get labelSmall => GoogleFonts.beVietnamPro(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
       );
 
   // Mono style for section headers

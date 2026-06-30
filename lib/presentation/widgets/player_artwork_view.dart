@@ -60,7 +60,6 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
     final progress = ref.watch(progressRatioProvider);
     final position = ref.watch(currentPositionProvider);
     final duration = ref.watch(currentDurationProvider);
-    final remaining = duration > position ? duration - position : Duration.zero;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -103,30 +102,51 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
         const SizedBox(height: 36),
         // ── Song Info ──────────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
+          padding: const EdgeInsets.symmetric(horizontal: 32), // player-padding
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                song.title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w700, // headline-lg
+                        fontSize: 28, // headline-lg-mobile
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis, // Or Marquee if added later
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      song.artist,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant.withOpacity(0.8),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              Text(
-                song.artist,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white70,
-                  fontSize: 16,
+              const SizedBox(width: 16),
+              // Favorite button (placeholder for state, currently static UI)
+              IconButton(
+                icon: const Icon(Icons.favorite_border),
+                color: AppColors.onSurfaceVariant,
+                iconSize: 28,
+                onPressed: () {},
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                style: IconButton.styleFrom(
+                  hoverColor: AppColors.surfaceVariant.withOpacity(0.2),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -134,44 +154,48 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
         const SizedBox(height: 24),
         // ── Seek Bar ───────────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             children: [
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 4,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                  activeTrackColor: theme.colorScheme.primary,
-                  inactiveTrackColor: theme.colorScheme.outlineVariant,
-                  thumbColor: theme.colorScheme.primary,
-                  overlayColor: theme.colorScheme.primary.withAlpha(50),
-                ),
-                child: Slider(
-                  value: progress.clamp(0.0, 1.0),
-                  onChanged: (val) {
-                    final targetMs = (val * duration.inMilliseconds).toInt();
-                    ref.read(playerStateProvider.notifier).seek(
-                          Duration(milliseconds: targetMs),
-                        );
-                  },
+              SizedBox(
+                height: 32, // Container to give slider breathing room
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    activeTrackColor: AppColors.primary,
+                    inactiveTrackColor: AppColors.surfaceVariant,
+                    thumbColor: AppColors.primary,
+                    overlayColor: AppColors.primary.withAlpha(40),
+                  ),
+                  child: Slider(
+                    value: progress.clamp(0.0, 1.0),
+                    onChanged: (val) {
+                      final targetMs = (val * duration.inMilliseconds).toInt();
+                      ref.read(playerStateProvider.notifier).seek(
+                            Duration(milliseconds: targetMs),
+                          );
+                    },
+                  ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(position),
-                      style: AppTextStyles.monoCaption.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _formatDuration(position),
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.onSurfaceVariant.withOpacity(0.7),
                     ),
-                    Text(
-                      _formatDuration(remaining, isNegative: remaining.inSeconds > 0),
-                      style: AppTextStyles.monoCaption.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  Text(
+                    _formatDuration(duration, isNegative: false), // Show total duration
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.onSurfaceVariant.withOpacity(0.7),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),

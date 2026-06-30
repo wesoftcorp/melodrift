@@ -35,24 +35,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.darkBackground,
       body: Stack(
         children: [
-          // 1. Dynamic blurred background
+          // 1. Mesh Background Simulation
           Positioned.fill(
-            child: song.artworkUrl.isNotEmpty
-                ? ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-                    child: CachedNetworkImage(
-                      imageUrl: song.artworkUrl,
-                      fit: BoxFit.cover,
-                      color: Colors.black.withOpacity(0.6),
-                      colorBlendMode: BlendMode.darken,
-                    ),
-                  )
-                : Container(color: Colors.grey[900]),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(-0.6, -0.4),
+                  radius: 1.5,
+                  colors: [
+                    Color(0x33141E32),
+                    Colors.transparent,
+                  ],
+                  stops: [0.0, 0.5],
+                ),
+              ),
+            ),
           ),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.3))),
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0.6, 0.4),
+                  radius: 1.5,
+                  colors: [
+                    Color(0x2232143C),
+                    Colors.transparent,
+                  ],
+                  stops: [0.0, 0.5],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, 0),
+                  radius: 1.0,
+                  colors: [
+                    Color(0xCC0A0F1E),
+                    AppColors.darkBackground,
+                  ],
+                ),
+              ),
+            ),
+          ),
 
           // 2. Main content UI
           SafeArea(
@@ -79,86 +109,110 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
 
-          // 3. Sliding tab panel (UP NEXT, LYRICS, RELATED)
-          DefaultTabController(
-            length: 3,
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.12,
-              minChildSize: 0.12,
-              maxChildSize: 0.85,
-              builder: (context, scrollController) {
-                final theme = Theme.of(context);
-                return Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface.withAlpha(200),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(128),
-                        blurRadius: 15,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Column(
-                    children: [
-                      // Grab handle & tabs inside SingleChildScrollView to align scroll action
-                      SingleChildScrollView(
-                        physics: const ClampingScrollPhysics(),
-                        controller: scrollController,
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 10),
-                            Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white30,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            TabBar(
-                              labelColor: theme.colorScheme.primary,
-                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                              indicatorColor: theme.colorScheme.primary,
-                              indicatorSize: TabBarIndicatorSize.tab,
-                              dividerColor: Colors.transparent,
-                              labelStyle: AppTextStyles.monoSectionHeader,
-                              tabs: const [
-                                Tab(text: 'UP NEXT'),
-                                Tab(text: 'LYRICS'),
-                                Tab(text: 'RELATED'),
+          // 3. Sliding tab panel (LYRICS & QUEUE)
+          DraggableScrollableSheet(
+            initialChildSize: 0.1,
+            minChildSize: 0.1,
+            maxChildSize: 0.85,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerHigh.withAlpha(150),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(128),
+                      blurRadius: 40,
+                      offset: const Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                    child: Column(
+                      children: [
+                        // Handle & Header
+                        GestureDetector(
+                          onTap: () {
+                            // Can animate sheet programmatically if needed
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            color: Colors.transparent,
+                            padding: const EdgeInsets.only(top: 16, bottom: 24, left: 24, right: 24),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Lyrics & Queue',
+                                      style: AppTextStyles.titleSmall.copyWith(
+                                        color: AppColors.onSurface.withOpacity(0.8),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.keyboard_arrow_up,
+                                      color: AppColors.onSurfaceVariant,
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: TabBarView(
-                          children: [
-                            _buildQueueTab(scrollController),
-                            LyricsView(
-                              song: song,
-                              position: playerState.position,
-                              scrollController: scrollController,
+                        // Content area
+                        Expanded(
+                          child: DefaultTabController(
+                            length: 2,
+                            child: Column(
+                              children: [
+                                TabBar(
+                                  labelColor: AppColors.primary,
+                                  unselectedLabelColor: AppColors.onSurfaceVariant,
+                                  indicatorColor: AppColors.primary,
+                                  indicatorSize: TabBarIndicatorSize.tab,
+                                  dividerColor: Colors.transparent,
+                                  labelStyle: AppTextStyles.monoSectionHeader,
+                                  tabs: const [
+                                    Tab(text: 'QUEUE'),
+                                    Tab(text: 'LYRICS'),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Expanded(
+                                  child: TabBarView(
+                                    children: [
+                                      _buildQueueTab(scrollController),
+                                      LyricsView(
+                                        song: song,
+                                        position: playerState.position,
+                                        scrollController: scrollController,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            _buildRelatedTab(song.videoId, scrollController),
-                          ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
           ),
         ],
       ),
@@ -167,19 +221,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildTopAppBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 32),
+            icon: const Icon(Icons.expand_more, color: AppColors.onSurfaceVariant),
             onPressed: () => context.router.maybePop(),
           ),
           Text(
             'NOW PLAYING',
-            style: AppTextStyles.monoSectionHeader.copyWith(color: Colors.white70),
+            style: AppTextStyles.labelLarge.copyWith(
+              color: AppColors.onSurfaceVariant,
+              letterSpacing: 2.0,
+            ),
           ),
-          const SizedBox(width: 48), // Spacer to balance back button
+          IconButton(
+            icon: const Icon(Icons.dark_mode, color: AppColors.onSurfaceVariant),
+            onPressed: () {}, // Not fully functional right now
+          ),
         ],
       ),
     );
@@ -292,60 +352,4 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildRelatedTab(String videoId, ScrollController scrollController) {
-    return Consumer(
-      builder: (context, ref, child) {
-        final relatedAsync = ref.watch(relatedSongsProvider(videoId));
-        return relatedAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-          error: (err, _) => Center(child: Text('Error loading recommendations: $err', style: const TextStyle(color: Colors.white70))),
-          data: (songs) {
-            if (songs.isEmpty) {
-              return const Center(child: Text('No recommendations found', style: TextStyle(color: Colors.white70)));
-            }
-            return ListView.builder(
-              controller: scrollController,
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return ListTile(
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: CachedNetworkImage(
-                      imageUrl: song.artworkUrl,
-                      width: 44,
-                      height: 44,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
-                        width: 44,
-                        height: 44,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.music_note, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  subtitle: Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white38),
-                  ),
-                  onTap: () {
-                    // Play the selected song and set the rest of related list as queue
-                    ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
-                  },
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
 }

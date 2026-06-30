@@ -12,7 +12,7 @@ import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
 import '../widgets/mood_card.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
-import 'main_layout.dart';
+import '../widgets/layout/mini_player.dart';
 
 @RoutePage()
 class DetailsScreen extends ConsumerWidget {
