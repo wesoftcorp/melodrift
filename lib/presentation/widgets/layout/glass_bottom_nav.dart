@@ -7,9 +7,9 @@ class GlassBottomNav extends StatelessWidget {
   final bool isDark;
 
   const GlassBottomNav({
-    super.key,
     required this.tabsRouter,
     required this.isDark,
+    super.key,
   });
 
   @override

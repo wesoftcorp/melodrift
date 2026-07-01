@@ -7,7 +7,7 @@ class HomeTrendingCascade extends StatefulWidget {
   final List<Song> songs;
   final ValueChanged<Song> onSongTap;
 
-  const HomeTrendingCascade({required this.songs, required this.onSongTap});
+  const HomeTrendingCascade({required this.songs, required this.onSongTap, super.key});
 
   @override
   State<HomeTrendingCascade> createState() => HomeTrendingCascadeState();
@@ -292,10 +292,11 @@ class HomeTrendingCascadeTile extends StatelessWidget {
                                 ),
                               ),
                               child: Text(
-                                _getSourceEmoji(song.source),
+                                _getSourceText(song.source),
                                 style: TextStyle(
                                   color: _getSourceColor(song.source),
-                                  fontSize: 13,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -331,29 +332,30 @@ class HomeTrendingCascadeTile extends StatelessWidget {
     );
   }
 
-  String _getSourceEmoji(String source) {
-    switch (source) {
-      case 'Spotify':
-        return '💚'; // Green heart for Spotify
-      case 'SoundCloud':
-        return '💜'; // Purple heart for SoundCloud
-      case 'JioSaavn':
-        return '💛'; // Yellow heart for JioSaavn
+  String _getSourceText(String source) {
+    switch (source.toLowerCase()) {
+      case 'jiosaavn':
+        return 'JioSaavn';
+      case 'spotify':
+        return 'Spotify';
+      case 'soundcloud':
+        return 'SoundCloud';
       default:
-        return '❤️'; // Red heart for YouTube Music
+        return 'YT Music';
     }
   }
 
   Color _getSourceColor(String source) {
-    switch (source) {
-      case 'Spotify':
-        return const Color(0xFF1DB954); // Spotify green
-      case 'SoundCloud':
-        return const Color(0xFFAA00FF); // SoundCloud purple
-      case 'JioSaavn':
-        return Colors.amberAccent; // JioSaavn yellow
+    switch (source.toLowerCase()) {
+      case 'jiosaavn':
+        return Colors.amberAccent; // Amber Gold Accent
+      case 'spotify':
+        return const Color(0xFF1DB954); // Spotify Green
+      case 'soundcloud':
+        return const Color(0xFF9B5DE5); // SoundCloud Purple
       default:
-        return Colors.redAccent;
+        return Colors.redAccent; // YouTube Music Red
     }
   }
 }
+

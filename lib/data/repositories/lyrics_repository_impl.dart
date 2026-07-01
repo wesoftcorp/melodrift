@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../../domain/entities/lyrics.dart';
 import '../../domain/repositories/lyrics_repository.dart';
+import '../../core/services/service_locator.dart';
+import '../../core/services/lyrics_registry.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   return Dio(
@@ -15,14 +17,11 @@ final dioProvider = Provider<Dio>((ref) {
 });
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
-  final dio = ref.watch(dioProvider);
-  return LyricsRepositoryImpl(dio);
+  return LyricsRepositoryImpl();
 });
 
 class LyricsRepositoryImpl implements LyricsRepository {
-  final Dio _dio;
-
-  LyricsRepositoryImpl(this._dio);
+  LyricsRepositoryImpl();
 
   @override
   Future<List<LyricLine>> getLyrics(
@@ -31,74 +30,18 @@ class LyricsRepositoryImpl implements LyricsRepository {
     String artist,
     Duration duration,
   ) async {
-    // 1. Try fetching from LRCLIB
+    // Try the LyricsRegistry first (LRCLib -> YouLyPlus -> KuGou)
     try {
-      final response = await _dio.get<dynamic>(
-        'https://lrclib.net/api/search',
-        queryParameters: {
-          'track_name': title,
-          'artist_name': artist,
-          'duration': duration.inSeconds,
-        },
-        options: Options(
-          receiveTimeout: const Duration(seconds: 5),
-          sendTimeout: const Duration(seconds: 5),
-        ),
-      );
-
-      if (response.statusCode == 200 && response.data is List && (response.data as List).isNotEmpty) {
-        final bestMatch = (response.data as List).first;
-        final syncedLyrics = bestMatch['syncedLyrics'] as String?;
-        final plainLyrics = bestMatch['plainLyrics'] as String?;
-
-        if (syncedLyrics != null && syncedLyrics.isNotEmpty) {
-          return _parseLrc(syncedLyrics);
-        } else if (plainLyrics != null && plainLyrics.isNotEmpty) {
-          return _parsePlain(plainLyrics);
-        }
+      final lyrics = await getIt<LyricsRegistry>().getLyrics(title, artist, duration);
+      if (lyrics.isNotEmpty) {
+        return lyrics;
       }
     } catch (_) {
-      // Fail silently to try fallback
+      // Fallback if registry failed entirely
     }
 
-    // 2. Fallback to YouTube transcripts
+    // Fallback to YouTube transcripts
     return await _fetchYouTubeTranscripts(songId);
-  }
-
-  List<LyricLine> _parseLrc(String lrcText) {
-    final lines = lrcText.split('\n');
-    final lyricLines = <LyricLine>[];
-    final lrcRegex = RegExp(r'^\[(\d+):(\d+)(?:\.(\d+))?\](.*)$');
-
-    for (var line in lines) {
-      line = line.trim();
-      final match = lrcRegex.firstMatch(line);
-      if (match != null) {
-        final min = int.parse(match.group(1)!);
-        final sec = int.parse(match.group(2)!);
-        final msStr = match.group(3) ?? '0';
-        final ms = int.parse(msStr.padRight(3, '0').substring(0, 3));
-        final timeMs = (min * 60 + sec) * 1000 + ms;
-        final text = match.group(4)!.trim();
-        lyricLines.add(LyricLine(timeMs: timeMs, text: text));
-      }
-    }
-    return lyricLines;
-  }
-
-  List<LyricLine> _parsePlain(String plainText) {
-    final lines = plainText.split('\n');
-    final lyricLines = <LyricLine>[];
-    int timeMs = 0;
-
-    for (final line in lines) {
-      final text = line.trim();
-      if (text.isNotEmpty) {
-        lyricLines.add(LyricLine(timeMs: timeMs, text: text));
-        timeMs += 3000; // Mock timing for sequential scroll
-      }
-    }
-    return lyricLines;
   }
 
   Future<List<LyricLine>> _fetchYouTubeTranscripts(String videoId) async {

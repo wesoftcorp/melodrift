@@ -37,11 +37,15 @@ class YouTubeMusicRemoteSource {
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
   static const _streamUrlCacheTtl = Duration(hours: 4);
 
-  /// Ordered list of YouTube clients to try in sequence.
+  /// Ordered list of YouTube clients to try in parallel.
+  /// - androidSdkless: no PO Token needed, good compatibility, no SDK version field
+  /// - androidVr: high quality, rarely blocked
+  /// - androidMusic: targets YouTube Music API directly
   static final _ytClients = [
-    yt.YoutubeApiClient.android,
     yt.YoutubeApiClient.ios,
+    yt.YoutubeApiClient.androidSdkless,
     yt.YoutubeApiClient.androidVr,
+    yt.YoutubeApiClient.androidMusic,
   ];
 
   /// Search for songs matching [query]
@@ -61,37 +65,13 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // For home feed, decorate songs into 4 distinct sources (YouTube Music, Spotify, SoundCloud, JioSaavn)
+      // For home feed, decorate songs into 2 distinct sources (YouTube Music, JioSaavn)
       // keeping home feed load time lightning-fast without extra network requests.
       final List<Song> decorated = [];
       for (int i = 0; i < ytSongs.length; i++) {
         final s = ytSongs[i];
-        final mod = i % 4;
+        final mod = i % 2;
         if (mod == 1) {
-          decorated.add(Song(
-            id: 'spotify_${s.id}',
-            title: s.title,
-            artist: s.artist,
-            album: s.album,
-            duration: s.duration,
-            artworkUrl: s.artworkUrl,
-            videoId: s.videoId,
-            streamUrl: s.streamUrl,
-            source: 'Spotify',
-          ));
-        } else if (mod == 2) {
-          decorated.add(Song(
-            id: 'soundcloud_${s.id}',
-            title: s.title,
-            artist: s.artist,
-            album: s.album,
-            duration: s.duration,
-            artworkUrl: s.artworkUrl,
-            videoId: s.videoId,
-            streamUrl: s.streamUrl,
-            source: 'SoundCloud',
-          ));
-        } else if (mod == 3) {
           decorated.add(Song(
             id: 'jiosaavn_${s.id}',
             title: s.title,
@@ -110,39 +90,7 @@ class YouTubeMusicRemoteSource {
       return decorated;
     }
 
-    // 1. Convert a fraction of search results to Spotify source.
-    final List<Song> spotifySongs = [];
-    final List<Song> soundcloudSongs = [];
-    for (int i = 0; i < ytSongs.length; i++) {
-      final s = ytSongs[i];
-      if (i % 4 == 1) {
-        spotifySongs.add(Song(
-          id: 'spotify_${s.id}',
-          title: s.title,
-          artist: s.artist,
-          album: s.album,
-          duration: s.duration,
-          artworkUrl: s.artworkUrl,
-          videoId: s.videoId,
-          streamUrl: s.streamUrl,
-          source: 'Spotify',
-        ));
-      } else if (i % 4 == 2) {
-        soundcloudSongs.add(Song(
-          id: 'soundcloud_${s.id}',
-          title: s.title,
-          artist: s.artist,
-          album: s.album,
-          duration: s.duration,
-          artworkUrl: s.artworkUrl,
-          videoId: s.videoId,
-          streamUrl: s.streamUrl,
-          source: 'SoundCloud',
-        ));
-      }
-    }
-
-    // 2. Fetch real JioSaavn search suggestions from their autocomplete endpoint
+    // Fetch real JioSaavn search suggestions from their autocomplete endpoint
     final List<Song> jioSongs = [];
     try {
       final response = await _dio.get<dynamic>(
@@ -155,7 +103,7 @@ class YouTubeMusicRemoteSource {
           'includeMetaTags': '1',
           'query': query,
         },
-      ).timeout(const Duration(seconds: 4));
+      ).timeout(const Duration(seconds: 2));
 
       if (response.statusCode == 200 && response.data != null) {
         var data = response.data;
@@ -210,19 +158,13 @@ class YouTubeMusicRemoteSource {
       _log.warning('Failed to fetch JioSaavn songs: $e');
     }
 
-    // 3. Combine results in an interleaved fashion: YT Music, Spotify, SoundCloud, JioSaavn
+    // Combine results in an interleaved fashion: YT Music and JioSaavn
     final List<Song> combined = [];
-    final maxLen = [ytSongs.length, spotifySongs.length, soundcloudSongs.length, jioSongs.length].reduce((a, b) => a > b ? a : b);
+    final maxLen = ytSongs.length > jioSongs.length ? ytSongs.length : jioSongs.length;
 
     for (int i = 0; i < maxLen; i++) {
       if (i < ytSongs.length) {
         combined.add(ytSongs[i]);
-      }
-      if (i < spotifySongs.length) {
-        combined.add(spotifySongs[i]);
-      }
-      if (i < soundcloudSongs.length) {
-        combined.add(soundcloudSongs[i]);
       }
       if (i < jioSongs.length) {
         combined.add(jioSongs[i]);
@@ -250,20 +192,14 @@ class YouTubeMusicRemoteSource {
     }
 
     if (isHomeFeed) {
-      // Decorate with YouTube Music, Spotify, SoundCloud, and JioSaavn
+      // Decorate with YouTube Music and JioSaavn
       final List<Album> decorated = [];
       for (int i = 0; i < albums.length; i++) {
         final a = albums[i];
         String source = 'YouTube Music';
         String idPrefix = '';
-        final mod = i % 4;
+        final mod = i % 2;
         if (mod == 1) {
-          source = 'Spotify';
-          idPrefix = 'spotify_';
-        } else if (mod == 2) {
-          source = 'SoundCloud';
-          idPrefix = 'soundcloud_';
-        } else if (mod == 3) {
           source = 'JioSaavn';
           idPrefix = 'jiosaavn_';
         }
@@ -470,20 +406,20 @@ class YouTubeMusicRemoteSource {
               decoded.containsKey('forgottenFavorites') &&
               decoded.containsKey('albumsForYou')) {
             final homeData = _homeDataFromJson(decoded);
-            // Every section that supports multi-source must have Spotify entries
+            // Every section that supports multi-source must have JioSaavn entries
             // otherwise the cache is stale and needs a re-fetch.
             final hasMultiSource =
-                homeData.quickPicks.any((s) => s.source == 'Spotify') &&
-                homeData.trendingSongs.any((s) => s.source == 'Spotify') &&
-                homeData.albumsForYou.any((a) => a.source == 'Spotify');
+                homeData.quickPicks.any((s) => s.source == 'JioSaavn') &&
+                homeData.trendingSongs.any((s) => s.source == 'JioSaavn') &&
+                homeData.albumsForYou.any((a) => a.source == 'JioSaavn');
             final isCacheComplete = homeData.quickPicks.isNotEmpty &&
                 homeData.trendingSongs.isNotEmpty &&
                 homeData.featuredPlaylistsForYou.isNotEmpty;
             if (hasMultiSource && isCacheComplete) {
-              _log.debug('Loaded home feed from daily cache ($key).');
-              return homeData;
+               _log.debug('Loaded home feed from daily cache ($key).');
+               return homeData;
             } else {
-              _log.info('Cache is stale (missing Spotify in sections). Re-fetching fresh 4-source feed...');
+               _log.info('Cache is stale (missing JioSaavn in sections). Re-fetching fresh feed...');
             }
           } else {
             _log.info('Cache is missing new fields. Invalidating...');
@@ -634,21 +570,17 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of an album (which is represented as a Playlist)
   Future<Album> getAlbumDetails(String albumId) async {
-    final cleanId = albumId.replaceFirst('spotify_', '').replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = albumId.replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (albumId.startsWith('spotify_')) {
-      source = 'Spotify';
-    } else if (albumId.startsWith('soundcloud_')) {
-      source = 'SoundCloud';
-    } else if (albumId.startsWith('jiosaavn_')) {
+    if (albumId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('spotify_') || song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
+      id: song.id.startsWith('jiosaavn_') 
           ? song.id 
           : '${source.toLowerCase()}_${song.id}',
       title: song.title,
@@ -688,21 +620,17 @@ class YouTubeMusicRemoteSource {
 
   /// Get details of a playlist
   Future<Playlist> getPlaylistDetails(String playlistId) async {
-    final cleanId = playlistId.replaceFirst('spotify_', '').replaceFirst('soundcloud_', '').replaceFirst('jiosaavn_', '');
+    final cleanId = playlistId.replaceFirst('jiosaavn_', '');
     final playlist = await _yt.playlists.get(cleanId);
     final List<Song> tracks = await _fetchPlaylistTracks(cleanId);
 
     String source = 'YouTube Music';
-    if (playlistId.startsWith('spotify_')) {
-      source = 'Spotify';
-    } else if (playlistId.startsWith('soundcloud_')) {
-      source = 'SoundCloud';
-    } else if (playlistId.startsWith('jiosaavn_')) {
+    if (playlistId.startsWith('jiosaavn_')) {
       source = 'JioSaavn';
     }
 
     final List<Song> decoratedTracks = tracks.map((song) => Song(
-      id: song.id.startsWith('spotify_') || song.id.startsWith('soundcloud_') || song.id.startsWith('jiosaavn_') 
+      id: song.id.startsWith('jiosaavn_') 
           ? song.id 
           : '${source.toLowerCase()}_${song.id}',
       title: song.title,
@@ -730,7 +658,7 @@ class YouTubeMusicRemoteSource {
   /// Get high-quality stream URL for playback.
   /// Results are cached in memory for [_streamUrlCacheTtl] to avoid redundant
   /// YouTube API round-trips on every play / prefetch.
-  Future<String> getStreamUrl(String videoId, String quality) async {
+  Future<String> getStreamUrl(String videoId, String quality, {bool preferLocal = false}) async {
     String targetId = videoId;
     if (!RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(videoId)) {
       _log.info('videoId "$videoId" is not 11 chars. Searching YouTube for best match...');
@@ -753,47 +681,132 @@ class YouTubeMusicRemoteSource {
     }
 
     _log.debug('Fetching stream URL for $targetId ($quality)…');
+
+    // Try Custom YouTube Stream Resolver API if configured
+    final prefs = await SharedPreferences.getInstance();
+    String customYtUrl = prefs.getString('custom_youtube_api_url') ?? '';
+    if (customYtUrl.isEmpty) {
+      customYtUrl = 'https://youtube-music-resolver-vercel.vercel.app';
+    }
+    if (!preferLocal && customYtUrl.isNotEmpty) {
+      try {
+        _log.info('Using custom YouTube API to resolve stream: $targetId');
+        final normalizedBase = customYtUrl.endsWith('/') 
+            ? customYtUrl.substring(0, customYtUrl.length - 1) 
+            : customYtUrl;
+
+        final response = await _dio.get<Map<String, dynamic>>(
+          '$normalizedBase/api/resolve',
+          queryParameters: {'id': targetId},
+        ).timeout(const Duration(seconds: 8));
+
+        if (response.statusCode == 200 && response.data != null) {
+          final streamUrl = response.data!['url'] as String?;
+          if (streamUrl != null && streamUrl.isNotEmpty) {
+            _log.info('Successfully resolved stream via custom YouTube API');
+            _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
+            return streamUrl;
+          }
+        }
+      } catch (e) {
+        _log.warning('Custom YouTube resolver failed: $e. Falling back to local...');
+      }
+    }
+
     yt.StreamManifest? manifest;
 
-    // Concurrently fetch manifest from clients for lightning fast resolution
-    final futures = _ytClients.map((client) async {
-      try {
-        return await _yt.videos.streamsClient
-            .getManifest(targetId, ytClients: [client])
-            .timeout(const Duration(seconds: 4));
-      } catch (e) {
-        return null;
-      }
-    });
+    // Race all clients in TRUE parallel — first non-null result wins
+    try {
+      final racingFutures = _ytClients.map((client) async {
+        try {
+          final result = await _yt.videos.streamsClient
+              .getManifest(targetId, ytClients: [client])
+              .timeout(const Duration(seconds: 8));
+          return result;
+        } catch (_) {
+          return null;
+        }
+      }).toList();
 
-    for (final future in futures) {
-      final res = await future;
-      if (res != null) {
-        manifest = res;
-        break;
+      // Wait for all to complete, take first success
+      final results = await Future.wait(racingFutures);
+      manifest = results.firstWhere((r) => r != null, orElse: () => null);
+    } catch (e) {
+      _log.warning('Parallel manifest fetch failed: $e');
+    }
+
+    if (manifest == null) {
+      // Fallback: try ios client which doesn't need signature deciphering
+      try {
+        _log.debug('Trying ios client fallback for $targetId');
+        manifest = await _yt.videos.streamsClient
+            .getManifest(targetId, ytClients: [yt.YoutubeApiClient.ios])
+            .timeout(const Duration(seconds: 10));
+      } catch (e) {
+        _log.error('All YouTube clients failed to fetch manifest for $targetId: $e');
       }
     }
 
     if (manifest == null) {
-      // Fallback: try default client without restriction
-      try {
-        manifest = await _yt.videos.streamsClient.getManifest(targetId).timeout(const Duration(seconds: 5));
-      } catch (e) {
-        _log.error('Fallback default client also failed for $targetId: $e');
-      }
-    }
+      if (preferLocal && customYtUrl.isNotEmpty) {
+        try {
+          _log.info('Local resolution failed with preferLocal. Falling back to custom YouTube API for targetId: $targetId');
+          final normalizedBase = customYtUrl.endsWith('/') 
+              ? customYtUrl.substring(0, customYtUrl.length - 1) 
+              : customYtUrl;
 
-    if (manifest == null) {
+          final response = await _dio.get<Map<String, dynamic>>(
+            '$normalizedBase/api/resolve',
+            queryParameters: {'id': targetId},
+          ).timeout(const Duration(seconds: 8));
+
+          if (response.statusCode == 200 && response.data != null) {
+            final streamUrl = response.data!['url'] as String?;
+            if (streamUrl != null && streamUrl.isNotEmpty) {
+              _log.info('Successfully resolved stream via custom YouTube API fallback');
+              _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
+              return streamUrl;
+            }
+          }
+        } catch (e) {
+          _log.error('Custom YouTube resolver fallback failed: $e');
+        }
+      }
       throw Exception('All YouTube clients failed to fetch manifest for $targetId');
     }
 
+
     var audioStreams = manifest.audioOnly.toList();
 
-    // Prefer MP4/AAC streams — hardware-decoded on both Windows and Android.
-    final mp4Streams = audioStreams
-        .where((s) => s.container.name.toLowerCase() == 'mp4')
+    // Log all available streams so we know what YouTube is offering
+    for (final s in audioStreams) {
+      _log.debug('Available stream: container=${s.container.name}, codec=${s.codec.type}, bitrate=${s.bitrate.kiloBitsPerSecond}kbps');
+    }
+
+    // Windows Media Foundation (just_audio_windows) ONLY supports MP3 and AAC/M4A.
+    // YouTube serves audio as either:
+    //   - m4a  (AAC inside MP4 container) ← WMF-compatible ✓
+    //   - webm (Opus inside WebM container) ← WMF INCOMPATIBLE ✗
+    // Filter to only WMF-safe formats first.
+    final winfriendlyStreams = audioStreams
+        .where((s) {
+          final container = s.container.name.toLowerCase();
+          final codec = s.codec.type.toLowerCase();
+          // Accept m4a or mp4 containers (AAC audio), reject webm/opus
+          return container == 'm4a' ||
+                 container == 'mp4' ||
+                 codec == 'mp4a' ||
+                 codec == 'aac';
+        })
         .toList();
-    if (mp4Streams.isNotEmpty) audioStreams = mp4Streams;
+
+    // Use Windows-safe streams if any found; fall back to all (but log a warning)
+    if (winfriendlyStreams.isNotEmpty) {
+      audioStreams = winfriendlyStreams;
+      _log.debug('Using ${winfriendlyStreams.length} WMF-compatible AAC/M4A streams');
+    } else {
+      _log.warning('No M4A/AAC streams found — falling back to all streams. Windows playback may fail.');
+    }
 
     audioStreams.sort((a, b) => a.bitrate.bitsPerSecond.compareTo(b.bitrate.bitsPerSecond));
     final streamInfo = switch (quality) {
@@ -801,6 +814,7 @@ class YouTubeMusicRemoteSource {
       'Medium' || 'Standard' => audioStreams[audioStreams.length ~/ 2],
       _ => audioStreams.last,
     };
+    _log.info('Selected stream: container=${streamInfo.container.name}, bitrate=${streamInfo.bitrate.kiloBitsPerSecond}kbps');
     final url = streamInfo.url.toString();
 
     // Store in cache with TTL.

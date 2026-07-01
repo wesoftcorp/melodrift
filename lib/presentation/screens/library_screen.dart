@@ -142,16 +142,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _openSubPage(String title, Widget body, {List<Widget>? actions}) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _SubPageScaffold(
-          title: title,
-          body: body,
-          actions: actions,
-        ),
+    context.router.pushWidget(
+      _SubPageScaffold(
+        title: title,
+        body: body,
+        actions: actions,
       ),
     );
   }
+
 
   void _showCreatePlaylistDialog() {
     final titleController = TextEditingController();

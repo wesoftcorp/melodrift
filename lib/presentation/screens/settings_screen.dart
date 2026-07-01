@@ -33,7 +33,40 @@ class DownloadOnlyWifiNotifier extends StateNotifier<bool> {
   }
 }
 
+// ── Primary Music Source Provider ─────────────────────────────────────────────
+final primaryMusicSourceProvider = StateNotifierProvider<PrimaryMusicSourceNotifier, String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return PrimaryMusicSourceNotifier(prefs);
+});
+
+class PrimaryMusicSourceNotifier extends StateNotifier<String> {
+  final SharedPreferences _prefs;
+  PrimaryMusicSourceNotifier(this._prefs) : super(_prefs.getString('primary_music_source') ?? 'YouTube Music');
+
+  Future<void> setSource(String value) async {
+    await _prefs.setString('primary_music_source', value);
+    state = value;
+  }
+}
+
+// ── Custom YouTube API URL Provider ─────────────────────────────────────────────
+final customYoutubeApiUrlProvider = StateNotifierProvider<CustomYoutubeApiUrlNotifier, String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return CustomYoutubeApiUrlNotifier(prefs);
+});
+
+class CustomYoutubeApiUrlNotifier extends StateNotifier<String> {
+  final SharedPreferences _prefs;
+  CustomYoutubeApiUrlNotifier(this._prefs) : super(_prefs.getString('custom_youtube_api_url') ?? '');
+
+  Future<void> setUrl(String value) async {
+    await _prefs.setString('custom_youtube_api_url', value);
+    state = value;
+  }
+}
+
 // ── Playback & Content Providers ─────────────────────────────────────────────
+
 final crossfadeEnabledProvider = StateNotifierProvider<CrossfadeEnabledNotifier, bool>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return CrossfadeEnabledNotifier(prefs);
@@ -139,8 +172,13 @@ class SettingsScreen extends ConsumerWidget {
           const _SettingsSectionHeader(title: 'Playback'),
           _SettingsCard(
             children: [
+              _buildPrimarySourceItem(context, ref, theme),
+              _buildDivider(theme),
               _buildAudioQualityItem(context, ref, theme),
               _buildDivider(theme),
+              _buildCustomYoutubeApiUrlItem(context, ref, theme),
+              _buildDivider(theme),
+
               _buildSwitchItem(
                 title: 'Crossfade',
                 icon: Icons.shuffle_rounded,
@@ -222,6 +260,38 @@ class SettingsScreen extends ConsumerWidget {
           const _SettingsSectionHeader(title: 'About'),
           _SettingsCard(
             children: [
+              ListTile(
+                title: const Text('Developer'),
+                trailing: Text(
+                  'Rajeev Upadhyay',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              _buildDivider(theme),
+              ListTile(
+                title: const Text('Website'),
+                trailing: const Icon(Icons.open_in_new_rounded, size: 16),
+                onTap: () async {
+                  final url = Uri.parse('https://rajeevupadhyay.com');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
+              _buildDivider(theme),
+              ListTile(
+                title: const Text('Email'),
+                trailing: const Icon(Icons.mail_outline_rounded, size: 16),
+                onTap: () async {
+                  final url = Uri.parse('mailto:rajeev.upadhyay@live.in');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  }
+                },
+              ),
+              _buildDivider(theme),
               ListTile(
                 title: const Text('Version'),
                 trailing: Text(
@@ -801,11 +871,123 @@ class SettingsScreen extends ConsumerWidget {
         );
       },
     );
+  }
 
+  Widget _buildPrimarySourceItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final source = ref.watch(primaryMusicSourceProvider);
+    return ListTile(
+      leading: const Icon(Icons.music_note_rounded),
+      title: const Text('Primary Music Source'),
+      subtitle: Text('Current: $source'),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () => _showPrimarySourceSelector(context, ref, source),
+    );
+  }
+
+  void _showPrimarySourceSelector(BuildContext context, WidgetRef ref, String currentSource) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const Text(
+                'Select Primary Music Source',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                title: const Text('YouTube Music'),
+                subtitle: const Text('Primary YouTube Music indexer (Default)'),
+                trailing: currentSource == 'YouTube Music' ? const Icon(Icons.check, color: Colors.green) : null,
+                onTap: () {
+                  ref.read(primaryMusicSourceProvider.notifier).setSource('YouTube Music');
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text('JioSaavn'),
+                subtitle: const Text('Swaps search/playback to JioSaavn API for testing'),
+                trailing: currentSource == 'JioSaavn' ? const Icon(Icons.check, color: Colors.green) : null,
+                onTap: () {
+                  ref.read(primaryMusicSourceProvider.notifier).setSource('JioSaavn');
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomYoutubeApiUrlItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final customUrl = ref.watch(customYoutubeApiUrlProvider);
+    final displayUrl = customUrl.isEmpty ? 'Not Configured (Using local)' : customUrl;
+
+    return ListTile(
+      leading: const Icon(Icons.api_rounded),
+      title: const Text('Custom YouTube Stream Resolver'),
+      subtitle: Text(displayUrl),
+      trailing: const Icon(Icons.edit_rounded, size: 16),
+      onTap: () => _showCustomYoutubeApiUrlDialog(context, ref, customUrl),
+    );
+  }
+
+  void _showCustomYoutubeApiUrlDialog(BuildContext context, WidgetRef ref, String currentUrl) {
+    final controller = TextEditingController(text: currentUrl);
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('YouTube API Resolver URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Input your custom youtubei.js / innertube API worker URL. Leave empty to use local fallback.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'https://youtube.yourdomain.workers.dev',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final val = controller.text.trim();
+              await ref.read(customYoutubeApiUrlProvider.notifier).setUrl(val);
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+
 // Styled section components
 // ─────────────────────────────────────────────────────────────────────────────
 

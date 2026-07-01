@@ -17,11 +17,13 @@ import 'data/models/local_models.dart';
 import 'data/datasources/local_music_source.dart';
 import 'core/services/audio_handler.dart';
 import 'core/utils/logger.dart';
+import 'core/services/service_locator.dart';
 
 final _log = AppLogger('main');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  setupServiceLocator();
 
   final flavorName = appFlavor?.toLowerCase() ?? 'prodfull';
   F.appFlavor = Flavor.values.firstWhere(

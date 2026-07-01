@@ -14,11 +14,10 @@ class QueueSheet extends ConsumerWidget {
     final queue = ref.watch(queueProvider);
     final currentSong = ref.watch(currentSongProvider);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           const SizedBox(height: 12),

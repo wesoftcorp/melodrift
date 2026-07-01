@@ -54,11 +54,10 @@ class ItemDetailsSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final repo = ref.watch(musicRepositoryProvider);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      clipBehavior: Clip.antiAlias,
       child: FutureBuilder<Map<String, dynamic>>(
         future: _fetchData(repo),
         builder: (context, snapshot) {

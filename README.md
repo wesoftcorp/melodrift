@@ -36,6 +36,18 @@ Melodrift is a premium cross-platform YouTube Music client built with Flutter fo
 - Firebase packages for optional Full flavor services
 - Flex Color Scheme, Google Fonts, cached network images, BlurHash, Lottie, and Rive for UI
 
+## Integrated Service Providers
+
+| Service Provider | Role in Melodrift | Status | Module |
+| --- | --- | --- | --- |
+| **YouTube Music (InnerTube)** | Core metadata, search, and default streaming. | **Core/Active** | `:innertube` |
+| **JioSaavn** | High-quality audio streaming (up to 320kbps). | **Active** | `:jiosaavn` |
+| **Apple Music** | Motion Artwork (animated album covers/canvases). | **Active** | `:applecanvas` |
+| **YouLyPlus** | Synced lyrics (via community-hosted KPoe API). | **Active** | `:youlyplus` |
+| **LRCLib** | Open-source synced lyrics database. | **Active** | `:lrclib` |
+| **KuGou** | Lyrics provider (popular for Chinese/regional songs). | **Active** | `:kugou` |
+| **ShazamKit** | Song recognition (Music ID). | **Active** | `:shazamkit` |
+
 ## Project Structure
 
 ```text

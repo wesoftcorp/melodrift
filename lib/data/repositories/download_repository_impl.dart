@@ -7,11 +7,16 @@ import 'package:path/path.dart' as p;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/utils/logger.dart';
 import '../../domain/entities/download_task.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
 import '../../core/services/download_manager.dart';
 import '../../core/services/audio_quality_preferences.dart';
+import '../../core/services/service_locator.dart';
+import '../../core/services/jiosaavn_service.dart';
+import '../../core/services/music_track.dart';
+import '../../core/utils/matching_engine.dart';
 import '../datasources/local_music_source.dart';
 import '../datasources/youtube_music_remote_source.dart';
 import '../models/local_models.dart';
@@ -36,6 +41,7 @@ final downloadTasksProvider = StreamProvider<List<DownloadTask>>((ref) {
 });
 
 class DownloadRepositoryImpl implements DownloadRepository {
+  final _log = AppLogger('DownloadRepository');
   final LocalMusicSource _localSource;
   final YouTubeMusicRemoteSource _remoteSource;
   final Dio _dio;
@@ -125,17 +131,81 @@ class DownloadRepositoryImpl implements DownloadRepository {
         record.status = LocalDownloadStatus.downloading;
         await _localSource.saveDownloadRecord(record);
 
-        // Resolve Audio Stream URL — enforce timeout so a hung YouTube API call
-        // doesn't silently stall the download task forever.
-        final streamUrl = await _remoteSource
-            .getStreamUrl(song.videoId, quality)
-            .timeout(const Duration(seconds: 20));
+        // Resolve Audio Stream URL
+        String? resolvedUrl;
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
+          if (song.source.toLowerCase() == 'jiosaavn') {
+            resolvedUrl = await jioSaavn.getStreamUrl(song.id);
+          } else {
+            String cleanTitle = song.title;
+            final colonIdx = cleanTitle.indexOf(':');
+            if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
+            final pipeIdx = cleanTitle.indexOf('|');
+            if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
+
+            final cleanArtist = song.artist.split(',').first.trim();
+            final searchQuery = '$cleanTitle $cleanArtist'.trim();
+
+            final candidates = await jioSaavn.search(searchQuery);
+            if (candidates.isNotEmpty) {
+              final ytTrack = MusicTrack(
+                id: song.videoId,
+                title: cleanTitle,
+                artist: cleanArtist,
+                album: song.album,
+                duration: song.duration,
+                artworkUrl: song.artworkUrl,
+                source: 'youtube',
+              );
+              final match = findMatchingSaavnTrack(ytTrack, candidates);
+              if (match != null) {
+                resolvedUrl = await jioSaavn.getStreamUrl(match.id);
+              }
+            }
+          }
+        } catch (err) {
+          _log.warning('JioSaavn resolver lookup threw exception: $err');
+        }
+
+        if (resolvedUrl == null || resolvedUrl.isEmpty) {
+          final isYouTube = song.source.toLowerCase().contains('youtube');
+          final String ytSearchId = !isYouTube ? '${song.title} ${song.artist}' : song.videoId;
+          try {
+            resolvedUrl = await _remoteSource
+                .getStreamUrl(ytSearchId, quality, preferLocal: true)
+                .timeout(const Duration(seconds: 20));
+          } catch (e) {
+            if (isYouTube) {
+              String cleanTitle = song.title;
+              final colonIdx = cleanTitle.indexOf(':');
+              if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
+              final pipeIdx = cleanTitle.indexOf('|');
+              if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
+
+              final cleanArtist = song.artist.split(',').first.trim();
+              final queryId = '$cleanTitle $cleanArtist'.trim();
+
+              resolvedUrl = await _remoteSource
+                  .getStreamUrl(queryId, quality, preferLocal: true)
+                  .timeout(const Duration(seconds: 20));
+            } else {
+              rethrow;
+            }
+          }
+        }
+
+
+
+
+        final String streamUrl = resolvedUrl;
 
         final tempDir = await getTemporaryDirectory();
         final cleanTitle = song.title.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
         final tempFile = File(p.join(tempDir.path, '${song.id}_$cleanTitle.download'));
 
         // Perform download to a temporary file before app-only storage.
+        bool isWritingProgress = false;
         await _dio.download(
           streamUrl,
           tempFile.path,
@@ -145,9 +215,18 @@ class DownloadRepositoryImpl implements DownloadRepository {
               final progress = received / total;
               // Throttle database writes
               final currentProgressPercent = (progress * 100).round() / 100;
-              if (currentProgressPercent - record.progress >= 0.02 || progress == 1.0) {
+              if (currentProgressPercent - record.progress >= 0.02) {
                 record.progress = currentProgressPercent;
-                await _localSource.saveDownloadRecord(record);
+                if (!isWritingProgress) {
+                  isWritingProgress = true;
+                  try {
+                    await _localSource.saveDownloadRecord(record);
+                  } catch (dbError) {
+                    _log.warning('Throttled progress write skipped due to DB error: $dbError');
+                  } finally {
+                    isWritingProgress = false;
+                  }
+                }
               }
             }
           },
@@ -180,7 +259,8 @@ class DownloadRepositoryImpl implements DownloadRepository {
         _activeDownloads.remove(song.id);
         return;
 
-      } catch (e) {
+      } catch (e, stackTrace) {
+        _log.error('Download attempt $attempt failed for ${song.title} (${song.id}): $e', e, stackTrace);
         _activeDownloads.remove(song.id);
 
         if (e is DioException && CancelToken.isCancel(e)) {

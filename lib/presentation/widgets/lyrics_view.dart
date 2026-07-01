@@ -118,8 +118,12 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               blendMode: BlendMode.dstIn,
               child: ListView.builder(
                 controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
                 itemCount: lines.length,
                 padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
+
                 itemBuilder: (context, index) {
                   final line = lines[index];
                   final isActive = index == activeIndex;
