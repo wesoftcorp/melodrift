@@ -632,8 +632,8 @@ class _TrendingArtistTile extends StatefulWidget {
   const _TrendingArtistTile({
     required this.name,
     required this.artworkUrl,
-    this.glowColor,
     required this.onTap,
+    this.glowColor,
   });
 
   @override
