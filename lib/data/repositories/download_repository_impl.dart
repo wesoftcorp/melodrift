@@ -145,7 +145,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
             if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
 
             final cleanArtist = song.artist.split(',').first.trim();
-            final searchQuery = '$cleanTitle $cleanArtist'.trim();
+            final searchQuery = cleanTitle.trim();
 
             final candidates = await jioSaavn.search(searchQuery);
             if (candidates.isNotEmpty) {

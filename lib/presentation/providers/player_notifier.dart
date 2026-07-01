@@ -285,17 +285,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       _log.debug('Resolving stream for videoId: $videoId');
       
-      String targetVideoId = videoId;
-      final isYouTube = song != null && song.source.toLowerCase().contains('youtube');
-      if (song != null && !isYouTube) {
-        final resolvedSong = await _ensureYouTubeVideoId(song);
-        targetVideoId = resolvedSong.videoId;
-      }
-
-
-      
-      // Check if downloaded locally first
-      final localSong = await _localSource.getSong(targetVideoId);
+      // Check if downloaded locally first using the original song.id to prevent query-matching failures
+      final lookupId = song?.id ?? videoId;
+      final localSong = await _localSource.getSong(lookupId);
       if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
@@ -304,8 +296,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      // Try JioSaavn matching first for 320kbps audio stream
-      if (song != null) {
+      // Direct JioSaavn stream resolution if song is from JioSaavn
+      if (song != null && song.source.toLowerCase().contains('jiosaavn')) {
+        _log.info('Resolving JioSaavn stream directly using ID: ${song.id}');
+        final url = await _repository.getStreamUrl(song.id);
+        if (url.isNotEmpty) {
+          return url;
+        }
+      }
+
+      String targetVideoId = videoId;
+      final isYouTube = song != null && song.source.toLowerCase().contains('youtube');
+      if (song != null && !isYouTube) {
+        final resolvedSong = await _ensureYouTubeVideoId(song);
+        targetVideoId = resolvedSong.videoId;
+      }
+
+      // Try JioSaavn matching first for 320kbps audio stream (only for YouTube songs)
+      if (song != null && isYouTube) {
         try {
           // YouTube song titles often contain full descriptions like:
           // "Vaaste Song: Dhvani Bhanushali, Tanishk Bagchi | T-Series"
@@ -319,8 +327,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           // Also clean artist — use only first artist if multiple separated by ,
           final cleanArtist = song.artist.split(',').first.trim();
 
-          final searchQuery = '$cleanTitle $cleanArtist'.trim();
-          _log.debug('Attempting JioSaavn stream resolution. Query: "$searchQuery"');
+          final searchQuery = cleanTitle.trim();
+          _log.debug('Attempting JioSaavn stream resolution for YouTube song. Query: "$searchQuery"');
           final jioSaavn = getIt<JioSaavnService>();
           final candidates = await jioSaavn.search(searchQuery);
           if (candidates.isNotEmpty) {

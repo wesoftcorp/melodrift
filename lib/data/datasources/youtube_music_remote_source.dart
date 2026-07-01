@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -663,7 +664,7 @@ class YouTubeMusicRemoteSource {
     if (!RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(videoId)) {
       _log.info('videoId "$videoId" is not 11 chars. Searching YouTube for best match...');
       try {
-        final searchList = await _yt.search.search('$videoId song').timeout(const Duration(seconds: 4));
+        final searchList = await _yt.search.search('$videoId song').timeout(const Duration(seconds: 8));
         if (searchList.isNotEmpty) {
           targetId = searchList.first.id.value;
           _log.info('Resolved "$videoId" to YouTube videoId "$targetId"');
@@ -671,6 +672,11 @@ class YouTubeMusicRemoteSource {
       } catch (e) {
         _log.warning('Failed to resolve search for "$videoId": $e');
       }
+    }
+
+    if (!RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(targetId)) {
+      _log.error('Could not resolve "$videoId" to a valid 11-char YouTube video ID.');
+      throw Exception('Could not resolve "$videoId" to a valid 11-char YouTube video ID.');
     }
 
     final cacheKey = '$targetId:$quality';
@@ -684,10 +690,8 @@ class YouTubeMusicRemoteSource {
 
     // Try Custom YouTube Stream Resolver API if configured
     final prefs = await SharedPreferences.getInstance();
-    String customYtUrl = prefs.getString('custom_youtube_api_url') ?? '';
-    if (customYtUrl.isEmpty) {
-      customYtUrl = 'https://youtube-music-resolver-vercel.vercel.app';
-    }
+    final customYtUrl = prefs.getString('custom_youtube_api_url') ?? '';
+    
     if (!preferLocal && customYtUrl.isNotEmpty) {
       try {
         _log.info('Using custom YouTube API to resolve stream: $targetId');
@@ -702,10 +706,18 @@ class YouTubeMusicRemoteSource {
 
         if (response.statusCode == 200 && response.data != null) {
           final streamUrl = response.data!['url'] as String?;
+          final mimeType = response.data!['mimeType'] as String? ?? '';
           if (streamUrl != null && streamUrl.isNotEmpty) {
-            _log.info('Successfully resolved stream via custom YouTube API');
-            _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
-            return streamUrl;
+            // Reject WebM/Opus stream URLs on Windows to prevent playback/download stalling
+            final isWebM = mimeType.contains('webm') || mimeType.contains('opus') || 
+                           streamUrl.contains('mime=audio/webm') || streamUrl.contains('codecs=opus');
+            if (Platform.isWindows && isWebM) {
+              _log.warning('Custom YouTube resolver returned WebM/Opus stream on Windows. Rejecting and falling back to local racing...');
+            } else {
+              _log.info('Successfully resolved stream via custom YouTube API');
+              _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
+              return streamUrl;
+            }
           }
         }
       } catch (e) {
@@ -762,10 +774,17 @@ class YouTubeMusicRemoteSource {
 
           if (response.statusCode == 200 && response.data != null) {
             final streamUrl = response.data!['url'] as String?;
+            final mimeType = response.data!['mimeType'] as String? ?? '';
             if (streamUrl != null && streamUrl.isNotEmpty) {
-              _log.info('Successfully resolved stream via custom YouTube API fallback');
-              _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
-              return streamUrl;
+              final isWebM = mimeType.contains('webm') || mimeType.contains('opus') || 
+                             streamUrl.contains('mime=audio/webm') || streamUrl.contains('codecs=opus');
+              if (Platform.isWindows && isWebM) {
+                _log.warning('Custom YouTube resolver fallback returned WebM/Opus stream on Windows. Rejecting...');
+              } else {
+                _log.info('Successfully resolved stream via custom YouTube API fallback');
+                _streamUrlCache[cacheKey] = _StreamUrlCacheEntry(streamUrl, DateTime.now().add(_streamUrlCacheTtl));
+                return streamUrl;
+              }
             }
           }
         } catch (e) {
