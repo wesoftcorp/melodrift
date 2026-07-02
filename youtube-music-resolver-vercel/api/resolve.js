@@ -17,9 +17,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    const yt = await Innertube.create({
+    const options = {
       cache: new UniversalCache(false)
-    });
+    };
+
+    if (process.env.YOUTUBE_COOKIE) {
+      options.cookie = process.env.YOUTUBE_COOKIE;
+    }
+
+    if (process.env.YOUTUBE_PROXY) {
+      const { ProxyAgent } = await import('undici');
+      const { Platform } = await import('youtubei.js');
+      const proxyAgent = new ProxyAgent(process.env.YOUTUBE_PROXY);
+      options.fetch = async (input, init) => {
+        return Platform.shim.fetch(input, {
+          ...init,
+          dispatcher: proxyAgent
+        });
+      };
+    }
+
+    const yt = await Innertube.create(options);
     const info = await yt.getInfo(videoId, 'MWEB');
     
     // Choose best audio stream
