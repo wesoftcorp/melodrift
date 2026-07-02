@@ -40,8 +40,16 @@ export default async function handler(req, res) {
     const yt = await Innertube.create(options);
     const info = await yt.getInfo(videoId, 'MWEB');
     
-    // Choose best audio stream
-    const format = info.chooseFormat({ type: 'audio', quality: 'best' });
+      // Prioritize mp4 audio for Windows compatibility
+      const formats = info.streaming_data?.adaptive_formats || [];
+      let format = formats
+          .filter(f => f.mime_type && f.mime_type.includes('audio/mp4'))
+          .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+          
+      if (!format) {
+        // Fallback to best available if no mp4
+        format = info.chooseFormat({ type: 'audio', quality: 'best' });
+      }
     
     if (!format) {
       return res.status(404).json({ success: false, error: 'No audio format found' });
