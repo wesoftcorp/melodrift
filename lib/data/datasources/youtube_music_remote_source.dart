@@ -690,7 +690,10 @@ class YouTubeMusicRemoteSource {
 
     // Try Custom YouTube Stream Resolver API if configured
     final prefs = await SharedPreferences.getInstance();
-    final customYtUrl = prefs.getString('custom_youtube_api_url') ?? '';
+    String customYtUrl = prefs.getString('custom_youtube_api_url') ?? '';
+    if (customYtUrl.isEmpty) {
+      customYtUrl = 'https://youtube-music-resolver-vercel.vercel.app';
+    }
     
     if (!preferLocal && customYtUrl.isNotEmpty) {
       try {
