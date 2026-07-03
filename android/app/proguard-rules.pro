@@ -17,9 +17,19 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
-# ── just_audio / ExoPlayer ───────────────────────────────────────────────────
+# ── just_audio / ExoPlayer / Media3 ─────────────────────────────────────────
+# just_audio uses Media3 (androidx.media3) on modern Android versions
 -keep class com.google.android.exoplayer2.** { *; }
 -keep class androidx.media3.** { *; }
+-keep class androidx.media3.common.** { *; }
+-keep class androidx.media3.exoplayer.** { *; }
+-keep class androidx.media3.exoplayer.hls.** { *; }
+-keep class androidx.media3.exoplayer.dash.** { *; }
+-keep class androidx.media3.datasource.** { *; }
+-keep class androidx.media3.datasource.okhttp.** { *; }
+-keep class androidx.media3.extractor.** { *; }
+-keep class androidx.media3.session.** { *; }
+-keep class androidx.media3.ui.** { *; }
 -dontwarn com.google.android.exoplayer2.**
 -dontwarn androidx.media3.**
 

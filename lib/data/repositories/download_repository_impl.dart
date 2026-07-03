@@ -129,13 +129,9 @@ class DownloadRepositoryImpl implements DownloadRepository {
         await _localSource.saveDownloadRecord(record);
 
         // Resolve Audio Stream URL
+        // IMPORTANT: Always resolve fresh — pre-cached song.streamUrl may be expired.
+        // JioSaavn CDN URLs are time-limited signed links (expire in minutes).
         String? resolvedUrl;
-
-        // Fast path: use pre-cached stream URL if available (e.g. from search results)
-        if (song.streamUrl != null && song.streamUrl!.isNotEmpty) {
-          resolvedUrl = song.streamUrl;
-          _log.info('Using pre-cached stream URL for ${song.title}');
-        }
 
         if (resolvedUrl == null || resolvedUrl.isEmpty) {
           try {
@@ -204,7 +200,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
 
 
-        if (resolvedUrl.isEmpty) {
+        if (resolvedUrl == null || resolvedUrl.isEmpty) {
           throw StateError('Unable to resolve a playable stream URL for downloading "${song.title}"');
         }
         final String streamUrl = resolvedUrl;
@@ -259,8 +255,14 @@ class DownloadRepositoryImpl implements DownloadRepository {
             tempFile.path,
             cancelToken: cancelToken,
             options: Options(
-              headers: const {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              followRedirects: true,
+              maxRedirects: 5,
+              receiveTimeout: const Duration(minutes: 5),
+              headers: {
+                // Use Android User-Agent for JioSaavn CDN
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                'Accept': 'audio/*, */*',
+                'Accept-Encoding': 'identity',
               },
             ),
             onReceiveProgress: updateProgress,

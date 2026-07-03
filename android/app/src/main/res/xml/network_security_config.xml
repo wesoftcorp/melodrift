@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config for Melodrift Android
+    
+    JioSaavn CDN serves audio streams over plain HTTP (http://aac.saavncdn.com/...).
+    Android 9+ (API 28+) blocks all cleartext (http://) traffic by default.
+    This config explicitly permits cleartext for JioSaavn CDN domains and localhost
+    (used by the local AudioProxy server for YouTube stream routing).
+    
+    All other traffic (HTTPS) remains unaffected and stays secure.
+-->
+<network-security-config>
+    <!-- Allow cleartext for JioSaavn audio CDN domains -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">saavncdn.com</domain>
+        <domain includeSubdomains="true">aac.saavncdn.com</domain>
+        <domain includeSubdomains="true">c.saavncdn.com</domain>
+        <!-- Localhost: used by local AudioProxy server (http://127.0.0.1:PORT) -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+
+    <!-- Enforce HTTPS everywhere else -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
