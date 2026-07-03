@@ -7,6 +7,7 @@ import 'youlyplus_provider.dart';
 import 'kugou_provider.dart';
 import 'lyrics_registry.dart';
 import 'apple_music_service.dart';
+import 'audio_proxy.dart';
 
 final getIt = GetIt.instance;
 
@@ -35,4 +36,7 @@ void setupServiceLocator() {
     YouLyPlusProvider(getIt<Dio>()),
     KuGouProvider(getIt<Dio>()),
   ]));
+
+  // Register AudioProxy
+  getIt.registerSingleton<AudioProxy>(AudioProxy());
 }

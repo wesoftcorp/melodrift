@@ -58,6 +58,7 @@ class SearchResultsView extends ConsumerWidget {
         final songs = snapshot.data ?? [];
         if (songs.isEmpty) return const Center(child: Text('No songs found'));
         return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 180),
           itemCount: songs.length,
           itemBuilder: (context, index) => SongCard(song: songs[index]),
         );
@@ -76,7 +77,7 @@ class SearchResultsView extends ConsumerWidget {
         final albums = snapshot.data ?? [];
         if (albums.isEmpty) return const Center(child: Text('No albums found'));
         return GridView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             childAspectRatio: 0.8,
@@ -104,6 +105,7 @@ class SearchResultsView extends ConsumerWidget {
         final artists = snapshot.data ?? [];
         if (artists.isEmpty) return const Center(child: Text('No artists found'));
         return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 180),
           itemCount: artists.length,
           itemBuilder: (context, index) {
             final artist = artists[index];

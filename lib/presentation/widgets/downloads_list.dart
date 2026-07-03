@@ -58,66 +58,71 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
               ),
               title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.info_outline, size: 18),
-                    label: const Text('Info'),
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                    onPressed: () => _showSongDetailsDialog(context, song),
+              trailing: PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'info') {
+                    _showSongDetailsDialog(context, song);
+                  } else if (value == 'delete') {
+                    await ref.read(downloadRepositoryProvider).deleteDownload(song.id);
+                    setState(() {});
+                  } else if (value == 'addToPlaylist') {
+                    _showAddToPlaylistDialog(context, ref, song);
+                  } else if (value == 'share') {
+                    // Share functionality can be added here
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Share feature coming soon')),
+                    );
+                  }
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem(
+                    value: 'info',
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Info'),
+                      ],
+                    ),
                   ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'delete') {
-                        await ref.read(downloadRepositoryProvider).deleteDownload(song.id);
-                        setState(() {});
-                      } else if (value == 'addToPlaylist') {
-                        _showAddToPlaylistDialog(context, ref, song);
-                      } else if (value == 'share') {
-                        // Share functionality can be added here
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Share feature coming soon')),
-                        );
-                      }
-                    },
-                    itemBuilder: (BuildContext context) => [
-                       const PopupMenuItem(
-                        value: 'addToPlaylist',
-                        child: Row(
-                          children: [
-                            Icon(Icons.playlist_add, size: 20),
-                            SizedBox(width: 8),
-                            Text('Add to Playlist'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'share',
-                        child: Row(
-                          children: [
-                            Icon(Icons.share, size: 20),
-                            SizedBox(width: 8),
-                            Text('Share'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline, size: 20),
-                            SizedBox(width: 8),
-                            Text('Delete'),
-                          ],
-                        ),
-                      ),
-                    ],
+                  const PopupMenuItem(
+                    value: 'addToPlaylist',
+                    child: Row(
+                      children: [
+                        Icon(Icons.playlist_add, size: 20),
+                        SizedBox(width: 8),
+                        Text('Add to Playlist'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'share',
+                    child: Row(
+                      children: [
+                        Icon(Icons.share, size: 20),
+                        SizedBox(width: 8),
+                        Text('Share'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Delete'),
+                      ],
+                    ),
                   ),
                 ],
               ),
               onTap: () {
-                ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
+                final initialIndex = songs.indexWhere((s) => s.id == song.id);
+                ref.read(playerStateProvider.notifier).playQueue(
+                  songs,
+                  initialIndex: initialIndex != -1 ? initialIndex : 0,
+                );
               },
             );
           },
@@ -137,7 +142,6 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
           _getFileSize(song.streamUrl),
         ]),
         builder: (context, snapshot) {
-          final record = snapshot.data?[0];
           final fileSize = snapshot.data?[1] as int?;
 
           return AlertDialog(
@@ -152,7 +156,6 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
                   _detailRow('Album', song.album.isEmpty ? 'Unknown' : song.album),
                   _detailRow('Duration', song.duration.toString().split('.').first),
                   _detailRow('Downloaded Size', _formatSize(fileSize)),
-                  _detailRow('Download Quality', record != null ? ((record as dynamic).quality ?? 'Unknown').toString() : 'Unknown'),
                   _detailRow('Video ID', song.videoId),
                   _detailRow('Local Path', song.streamUrl ?? 'Unavailable'),
                   _detailRow('Artwork URL', song.artworkUrl.isEmpty ? 'Unavailable' : song.artworkUrl),

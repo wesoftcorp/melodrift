@@ -6,9 +6,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../data/repositories/music_repository_impl.dart';
-import '../../data/repositories/history_repository_impl.dart';
 import '../../domain/entities/song.dart';
-import '../../domain/entities/artist.dart';
 import '../../domain/entities/home_data.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/song_card.dart';
@@ -56,48 +54,15 @@ const kLanguageOptions = ['All', 'English', 'Hindi', 'Nepali'];
 final homeFeedProvider = FutureProvider<HomeData>((ref) async {
   final repository = ref.watch(musicRepositoryProvider);
   final languages = ref.watch(homeLanguageProvider);
-  final historySongsAsync = ref.watch(listeningHistoryProvider);
-  final historySongs = historySongsAsync.value ?? [];
 
   // Pass null when "All" is selected — API returns everything
   final lang = (languages.contains('All') || languages.isEmpty)
       ? null
       : languages.join(' ');
 
-  final feed = await repository.getHomeFeed(language: lang);
-
-  // Merge history/previously played songs into feed.listenAgain.
-  // Deduplicate and prioritize history.
-  final List<Song> combinedListenAgain = [];
-  final seenIds = <String>{};
-
-  for (final song in historySongs) {
-    if (seenIds.add(song.id)) {
-      combinedListenAgain.add(song);
-    }
-  }
-
-  for (final song in feed.listenAgain) {
-    if (seenIds.add(song.id)) {
-      combinedListenAgain.add(song);
-    }
-  }
-
-  return HomeData(
-    quickPicks: feed.quickPicks,
-    newReleases: feed.newReleases,
-    charts: feed.charts,
-    moods: feed.moods,
-    listenAgain: combinedListenAgain.take(15).toList(),
-    recommendedArtists: feed.recommendedArtists,
-    featuredPlaylist: feed.featuredPlaylist,
-    trendingSongs: feed.trendingSongs,
-    featuredPlaylistsForYou: feed.featuredPlaylistsForYou,
-    indianMusic: feed.indianMusic,
-    forgottenFavorites: feed.forgottenFavorites,
-    albumsForYou: feed.albumsForYou,
-  );
+  return repository.getHomeFeed(language: lang);
 });
+
 
 
 // ---------------------------------------------------------------------------
@@ -105,11 +70,24 @@ final homeFeedProvider = FutureProvider<HomeData>((ref) async {
 // ---------------------------------------------------------------------------
 
 @RoutePage()
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final feedAsync = ref.watch(homeFeedProvider);
     final isDark = theme.brightness == Brightness.dark;
@@ -121,6 +99,7 @@ class HomeScreen extends ConsumerWidget {
             final prefs = await SharedPreferences.getInstance();
             // Clear all home feed cache keys so a fresh decorated feed is fetched
             await prefs.remove('home_feed_cache_date_v5');
+            await prefs.remove('home_feed_cache_date_v7');
             await prefs.remove('home_feed_cache_data_all');
             await prefs.remove('home_feed_cache_data_English');
             await prefs.remove('home_feed_cache_data_Hindi');
@@ -184,6 +163,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 CustomScrollView(
+                  controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                 // ── Glassmorphism App Bar ────────────────────────────────
@@ -407,32 +387,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ],
 
-                // ── Recommended Artists ──────────────────────────────────
-                if (feed.recommendedArtists.isNotEmpty) ...[  
-                  _buildSectionHeader(
-                    'Recommended Artists',
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'recommended_artists',
-                        title: 'Recommended Artists',
-                        type: 'songList',
-                        preloadedSongs: feed.recommendedArtists
-                            .map((artist) => Song(
-                                  id: artist.id,
-                                  title: artist.name,
-                                  artist: artist.subscribers ?? 'Artist',
-                                  album: 'Artist',
-                                  duration: Duration.zero,
-                                  artworkUrl: artist.artworkUrl,
-                                  videoId: artist.id,
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  ),
-                  _buildArtistRow(context, feed.recommendedArtists),
-                ],
+
 
                 // ── Moods & Genres ───────────────────────────────────────
                 _buildSectionHeader(
@@ -455,7 +410,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                const SliverToBoxAdapter(child: SizedBox(height: 180)),
               ],
             ),
               ],
@@ -494,11 +449,13 @@ class HomeScreen extends ConsumerWidget {
                 child: Row(
                   children: [
                     // Logo Image
-                    Image.asset(
-                      'assets/images/melodrift.png',
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.contain,
+                    ClipOval(
+                      child: Image.asset(
+                        'assets/images/melodrift.png',
+                        width: 36,
+                        height: 36,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     const Spacer(),
                     // Center title "Melodrift"
@@ -631,52 +588,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  // ── Recommended Artists Row ────────────────────────────────────────────────
-  Widget _buildArtistRow(BuildContext context, List<Artist> artists) {
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 110,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: artists.length,
-          itemBuilder: (context, index) {
-            final artist = artists[index];
-            return Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: SizedBox(
-                width: 80,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      backgroundImage: artist.artworkUrl.isNotEmpty
-                          ? CachedNetworkImageProvider(artist.artworkUrl)
-                          : null,
-                      child: artist.artworkUrl.isEmpty
-                          ? const Icon(Icons.person, size: 32)
-                          : null,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      artist.name,
-                      style: Theme.of(context).textTheme.labelSmall,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+
 
   /// Groups songs into columns of 4 and renders a horizontal scrollable list.
   Widget _buildMultiRowSongList(BuildContext context, WidgetRef ref, List<Song> songs) {

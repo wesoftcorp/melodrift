@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
+import 'service_locator.dart';
+import 'audio_proxy.dart';
 
 final audioHandlerProvider = Provider<MelodriftAudioHandler>((ref) {
   throw UnimplementedError('MelodriftAudioHandler is not initialized yet. Override audioHandlerProvider in ProviderScope.');
@@ -77,9 +80,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     _player.processingStateStream.listen((state) async {
       _log.debug('processingStateStream: $state');
       _updatePlaybackState();
-      if (state == ProcessingState.completed) {
-        await _handleTrackCompleted();
-      }
+      // We delegate track completion handling entirely to PlayerNotifier's custom queue manager.
     });
 
     _player.speedStream.listen((speed) {
@@ -100,6 +101,10 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     // 2. Listen to index changes to update mediaItem
     _player.currentIndexStream.listen((index) async {
       _log.debug('Current index changed to: $index');
+      if (_player.processingState == ProcessingState.idle) {
+        _log.debug('Player is idle, ignoring index change to prevent song selection reset.');
+        return;
+      }
       final queueIndex = _queueIndexForPlayerIndex(index);
       if (queueIndex != null && queue.value.isNotEmpty && queueIndex < queue.value.length) {
         mediaItem.add(queue.value[queueIndex]);
@@ -253,29 +258,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     }
   }
 
-  Future<void> _handleTrackCompleted() async {
-    if (_player.loopMode == LoopMode.one) {
-      await _player.seek(Duration.zero);
-      await _player.play();
-      return;
-    }
 
-    final prefs = await SharedPreferences.getInstance();
-    final gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
-    if (!gaplessEnabled) {
-      await _player.pause();
-      await Future<void>.delayed(const Duration(milliseconds: 1500));
-    }
-
-    if (_player.hasNext || _player.loopMode == LoopMode.all) {
-      await skipToNext();
-      return;
-    }
-
-    await _player.pause();
-    await _player.seek(Duration.zero);
-    _updatePlaybackState();
-  }
 
   @override
   Future<void> skipToQueueItem(int index) async {
@@ -293,15 +276,34 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   @override
   Future<void> addQueueItem(MediaItem mediaItem) async {
     final currentQueue = queue.value;
-    queue.add([...currentQueue, mediaItem]);
-    await _syncPlaylist(queue.value);
+    final updatedQueue = [...currentQueue, mediaItem];
+    queue.add(updatedQueue);
+    
+    _currentQueue.add(mediaItem);
+    _queueHash = _generateQueueHash(updatedQueue);
+    
+    final streamUrl = mediaItem.extras?['streamUrl'] as String?;
+    if (streamUrl != null && streamUrl.isNotEmpty) {
+      await _playlist.add(_createAudioSource(mediaItem));
+      _playableQueueIndices.add(_currentQueue.length - 1);
+    }
   }
 
   @override
   Future<void> addQueueItems(List<MediaItem> mediaItems) async {
     final currentQueue = queue.value;
-    queue.add([...currentQueue, ...mediaItems]);
-    await _syncPlaylist(queue.value);
+    final updatedQueue = [...currentQueue, ...mediaItems];
+    queue.add(updatedQueue);
+    
+    for (final item in mediaItems) {
+      _currentQueue.add(item);
+      final streamUrl = item.extras?['streamUrl'] as String?;
+      if (streamUrl != null && streamUrl.isNotEmpty) {
+        await _playlist.add(_createAudioSource(item));
+        _playableQueueIndices.add(_currentQueue.length - 1);
+      }
+    }
+    _queueHash = _generateQueueHash(updatedQueue);
   }
 
   @override
@@ -311,7 +313,19 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     if (index != -1) {
       final updatedQueue = List<MediaItem>.from(currentQueue)..removeAt(index);
       queue.add(updatedQueue);
-      await _syncPlaylist(queue.value);
+      
+      final playableNativeIndex = _playableQueueIndices.indexOf(index);
+      if (playableNativeIndex != -1) {
+        await _playlist.removeAt(playableNativeIndex);
+        _playableQueueIndices.removeAt(playableNativeIndex);
+      }
+      
+      for (int i = 0; i < _playableQueueIndices.length; i++) {
+        if (_playableQueueIndices[i] > index) _playableQueueIndices[i]--;
+      }
+      
+      _currentQueue.removeAt(index);
+      _queueHash = _generateQueueHash(updatedQueue);
     }
   }
 
@@ -337,9 +351,29 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
             lowerUrl.contains('codecs=opus')) {
           _log.warning('⚠️ WebM/Opus URL detected for "${item.title}" — WMF (Windows) cannot decode this. Stream filter may need updating.');
         }
+        final isYouTube = streamUrl.contains('googlevideo.com') || streamUrl.contains('youtube.com');
+
+        // On Windows, WMF makes its own HTTP request. YouTube's User-Agent check blocks it.
+        // Route ONLY YouTube streams through the local proxy.
+        // JioSaavn CDN links can be played natively by WMF when given a desktop User-Agent.
+        if (isYouTube && Platform.isWindows) {
+          final proxy = getIt<AudioProxy>();
+          if (proxy.port > 0) {
+            final encodedUrl = Uri.encodeComponent(streamUrl);
+            final proxyUrl = 'http://127.0.0.1:${proxy.port}/stream/$encodedUrl';
+            _log.info('Routing YouTube stream through local proxy (port ${proxy.port})');
+            return AudioSource.uri(Uri.parse(proxyUrl), tag: item);
+          }
+        }
+
         return AudioSource.uri(
           Uri.parse(streamUrl),
-          tag: item,   // tag enables item-level error correlation
+          tag: item,
+          headers: {
+            'User-Agent': isYouTube
+                ? 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; US)'
+                : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
         );
       } else {
         // Local file path
@@ -385,7 +419,11 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     // Check if queue has actually changed using hash
     final newHash = _generateQueueHash(newQueue);
     if (newHash == _queueHash && newQueue.length == _currentQueue.length) {
-      _log.debug('Queue unchanged (hash match), skipping sync');
+      _log.debug('Queue unchanged (hash match), skipping sync, seeking to initialIndex: $initialIndex');
+      final playerIndex = _playerIndexForQueueIndex(initialIndex);
+      if (playerIndex != null) {
+        await _player.seek(Duration.zero, index: playerIndex);
+      }
       return;
     }
     
@@ -414,6 +452,74 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
     final currentLength = _playlist.length;
     _log.debug('Current playlist length: $currentLength');
+
+    // Smart Diff: If the queue is identical (just stream URLs updated) and playlist is active, dynamically update it.
+    bool canSmartDiff = _player.audioSource == _playlist && 
+                        _playableQueueIndices.isNotEmpty &&
+                        _currentQueue.length == newQueue.length;
+    
+    if (canSmartDiff) {
+      for (int i = 0; i < newQueue.length; i++) {
+        if (_currentQueue[i].id != newQueue[i].id) {
+          canSmartDiff = false;
+          break;
+        }
+      }
+    }
+
+    if (canSmartDiff) {
+      _log.debug('Performing smart diff update on playlist to prevent stutter');
+      try {
+        // 1. Remove items that are no longer playable
+        for (int i = _playableQueueIndices.length - 1; i >= 0; i--) {
+          final oldQueueIndex = _playableQueueIndices[i];
+          if (!playable.queueIndices.contains(oldQueueIndex)) {
+            await _playlist.removeAt(i);
+            _playableQueueIndices.removeAt(i);
+          }
+        }
+
+        // 2. Insert new playable items or update changed URLs
+        int nativeIndex = 0;
+        for (int i = 0; i < playable.items.length; i++) {
+          final queueIndex = playable.queueIndices[i];
+          final oldNativeIndex = _playableQueueIndices.indexOf(queueIndex);
+          
+          if (oldNativeIndex == -1) {
+            final source = _createAudioSource(playable.items[i]);
+            await _playlist.insert(nativeIndex, source);
+            _playableQueueIndices.insert(nativeIndex, queueIndex);
+          } else {
+            final oldItem = _currentQueue[queueIndex];
+            final newItem = playable.items[i];
+            if (oldItem.extras?['streamUrl'] != newItem.extras?['streamUrl']) {
+              final source = _createAudioSource(newItem);
+              await _playlist.removeAt(nativeIndex);
+              await _playlist.insert(nativeIndex, source);
+            }
+          }
+          nativeIndex++;
+        }
+
+        _currentQueue.clear();
+        _currentQueue.addAll(newQueue);
+        _queueHash = newHash;
+
+        // Force UI update
+        final index = _queueIndexForPlayerIndex(_player.currentIndex);
+        if (index != null && index < newQueue.length) {
+          mediaItem.add(newQueue[index]);
+        } else if (newQueue.isNotEmpty) {
+          mediaItem.add(newQueue.first);
+        }
+        
+        _log.debug('Smart diff update completed. Current playlist length: ${_playlist.length}');
+        return;
+      } catch (e, stack) {
+        _log.error('ERROR during smart diff: $e, falling back to full rebuild', e, stack);
+      }
+    }
+
     try {
       _log.debug('Overwriting playlist with ${playable.items.length} playable items from ${newQueue.length} queued items, initialIndex: $initialIndex');
       final prefs = await SharedPreferences.getInstance();
@@ -428,17 +534,16 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       _playableQueueIndices
         ..clear()
         ..addAll(playable.queueIndices);
+      await _player.stop();
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
         initialPosition: Duration.zero,
+        preload: false,
       );
       
       _currentQueue.clear();
       _currentQueue.addAll(newQueue);
-      _playableQueueIndices
-        ..clear()
-        ..addAll(playable.queueIndices);
       _queueHash = newHash; // Cache the new hash
 
       // Force update mediaItem to ensure UI gets the new track metadata in real-time
@@ -499,6 +604,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     await _player.setLoopMode(loopMode);
   }
 
+
+
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
     final enable = shuffleMode != AudioServiceShuffleMode.none;
@@ -515,10 +622,35 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     updatedQueue.insert(toIndex, item);
     queue.add(updatedQueue);
 
+    final playableNativeFromIndex = _playableQueueIndices.indexOf(fromIndex);
+    if (playableNativeFromIndex != -1) {
+      // Find native toIndex based on playable entries
+      int playableNativeToIndex = _playableQueueIndices.length - 1; // Default to end
+      for (int i = 0; i < _playableQueueIndices.length; i++) {
+        if (_playableQueueIndices[i] >= toIndex) {
+          playableNativeToIndex = i;
+          break;
+        }
+      }
+      // If the from index was before the to index, and we are placing before someone, 
+      // the index needs to adjust since we just removed the item.
+      // just_audio's move works by moving from one index to another.
+      await _playlist.move(playableNativeFromIndex, playableNativeToIndex);
+    }
+
     _currentQueue.clear();
     _currentQueue.addAll(updatedQueue);
-
-    await _syncPlaylist(updatedQueue);
+    
+    // Recompute playable queue indices based on the new queue
+    _playableQueueIndices.clear();
+    for (int i = 0; i < updatedQueue.length; i++) {
+      final streamUrl = updatedQueue[i].extras?['streamUrl'] as String?;
+      if (streamUrl != null && streamUrl.isNotEmpty) {
+        _playableQueueIndices.add(i);
+      }
+    }
+    
+    _queueHash = _generateQueueHash(updatedQueue);
   }
 }
 

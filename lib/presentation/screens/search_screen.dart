@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -33,6 +34,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   Timer? _debounce;
   bool _isFocused = false;
 
+  int _highlightedIndex = -1;
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +53,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   void _onFocusChanged() {
-    setState(() => _isFocused = _focusNode.hasFocus);
+    setState(() {
+      _isFocused = _focusNode.hasFocus;
+      if (_focusNode.hasFocus) {
+        _highlightedIndex = -1;
+      }
+    });
     if (_focusNode.hasFocus && _submittedQuery.isNotEmpty) {
       setState(() => _submittedQuery = '');
     }
@@ -61,12 +69,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _debounce = Timer(const Duration(milliseconds: 300), () async {
       final query = _controller.text.trim();
       if (query.isEmpty) {
-        setState(() => _suggestions = []);
+        setState(() {
+          _suggestions = [];
+          _highlightedIndex = -1;
+        });
         return;
       }
       final repo = ref.read(musicRepositoryProvider);
       final suggestions = await repo.getSearchSuggestions(query);
-      if (mounted) setState(() => _suggestions = suggestions);
+      if (mounted) {
+        setState(() {
+          _suggestions = suggestions;
+          _highlightedIndex = -1;
+        });
+      }
     });
   }
 
@@ -81,7 +97,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     if (cleanQuery.isEmpty) return;
     _controller.text = cleanQuery;
     _focusNode.unfocus();
-    setState(() => _submittedQuery = cleanQuery);
+    setState(() {
+      _submittedQuery = cleanQuery;
+      _isFocused = false;
+      _highlightedIndex = -1;
+    });
     final historyRepo = ref.read(historyRepositoryProvider);
     await historyRepo.addSearchQuery(cleanQuery);
     await _loadHistory();
@@ -92,8 +112,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     setState(() {
       _submittedQuery = '';
       _suggestions = [];
+      _highlightedIndex = -1;
     });
     _focusNode.unfocus();
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+    final items = _suggestions.isNotEmpty ? _suggestions : _history;
+    if (items.isEmpty) return;
+
+    final logicalKey = event.logicalKey;
+    if (logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _highlightedIndex = (_highlightedIndex + 1) % items.length;
+      });
+    } else if (logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _highlightedIndex = _highlightedIndex <= 0 ? items.length - 1 : _highlightedIndex - 1;
+      });
+    } else if (logicalKey == LogicalKeyboardKey.enter && _highlightedIndex >= 0) {
+      _runSearch(items[_highlightedIndex]);
+    }
   }
 
   @override
@@ -104,28 +144,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ────────────────────────────────────────────────────
-            _SearchHeader(onClear: _clearSearch),
+        child: KeyboardListener(
+          focusNode: FocusNode(skipTraversal: true),
+          onKeyEvent: _handleKeyEvent,
+          child: Column(
+            children: [
+              // ── Header ────────────────────────────────────────────────────
+              _SearchHeader(onClear: _clearSearch),
 
-             // ── Search bar ────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: _SearchBar(
-                controller: _controller,
-                focusNode: _focusNode,
-                onSubmitted: _runSearch,
-                onVoiceResult: _runSearch,
-                onBack: (_submittedQuery.isNotEmpty || _isFocused) ? _clearSearch : null,
+               // ── Search bar ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: _SearchBar(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  onSubmitted: (val) {
+                    final items = _suggestions.isNotEmpty ? _suggestions : _history;
+                    if (_highlightedIndex >= 0 && _highlightedIndex < items.length) {
+                      _runSearch(items[_highlightedIndex]);
+                    } else {
+                      _runSearch(val);
+                    }
+                  },
+                  onVoiceResult: _runSearch,
+                  onBack: (_submittedQuery.isNotEmpty || _isFocused) ? _clearSearch : null,
+                ),
               ),
-            ),
 
-            // ── Body ──────────────────────────────────────────────────────
-            Expanded(
-              child: _buildBody(theme, isDark),
-            ),
-          ],
+              // ── Body ──────────────────────────────────────────────────────
+              Expanded(
+                child: _buildBody(theme, isDark),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -142,6 +193,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       return _SuggestionsList(
         suggestions: _suggestions,
         history: _history,
+        highlightedIndex: _highlightedIndex,
         onTap: _runSearch,
         onDeleteHistory: (item) async {
           await ref.read(historyRepositoryProvider).deleteSearchQuery(item);
@@ -179,11 +231,13 @@ class _SearchHeader extends ConsumerWidget {
       child: Row(
         children: [
           // Logo Image
-          Image.asset(
-            'assets/images/melodrift.png',
-            width: 36,
-            height: 36,
-            fit: BoxFit.contain,
+          ClipOval(
+            child: Image.asset(
+              'assets/images/melodrift.png',
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+            ),
           ),
           const Spacer(),
           // Center title "Melodrift"
@@ -425,16 +479,16 @@ class _SearchHomePage extends ConsumerWidget {
                   child: Builder(
                     builder: (context) {
                       final width = MediaQuery.of(context).size.width;
-                      final crossAxisCount = width > 900 ? 4 : (width > 600 ? 3 : 2);
-                      final childAspectRatio = width > 600 ? 1.6 : 1.8;
+                      final crossAxisCount = width > 900 ? 5 : (width > 600 ? 4 : 3);
+                      final childAspectRatio = width > 600 ? 1.4 : 1.3;
 
                       return GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
                         shrinkWrap: true,
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
                           childAspectRatio: childAspectRatio,
                         ),
                         itemCount: moods.length,
@@ -450,7 +504,7 @@ class _SearchHomePage extends ConsumerWidget {
                     },
                   ),
                 ),
-                const SizedBox(height: 120),
+                const SizedBox(height: 180),
               ]),
             );
           },
@@ -981,13 +1035,13 @@ class _BrowseCardState extends State<_BrowseCard> {
               ),
               // Text label
               Positioned(
-                left: 14,
-                bottom: 14,
+                left: 10,
+                bottom: 10,
                 child: Text(
                   widget.mood.title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                     shadows: [
@@ -1014,12 +1068,14 @@ class _BrowseCardState extends State<_BrowseCard> {
 class _SuggestionsList extends StatelessWidget {
   final List<String> suggestions;
   final List<String> history;
+  final int highlightedIndex;
   final ValueChanged<String> onTap;
   final ValueChanged<String> onDeleteHistory;
 
   const _SuggestionsList({
     required this.suggestions,
     required this.history,
+    required this.highlightedIndex,
     required this.onTap,
     required this.onDeleteHistory,
   });
@@ -1038,29 +1094,46 @@ class _SuggestionsList extends StatelessWidget {
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 180),
       physics: const BouncingScrollPhysics(),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: items.length,
-      itemBuilder: (_, i) {
+      itemBuilder: (context, i) {
         final item = items[i];
-        return ListTile(
-          leading: Icon(
-            isHistory ? Icons.history : Icons.search,
-            size: 20,
-            color: theme.colorScheme.onSurfaceVariant,
+        final isHighlighted = i == highlightedIndex;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            FocusScope.of(context).unfocus();
+            onTap(item);
+          },
+          child: Container(
+            color: isHighlighted ? theme.colorScheme.primary.withOpacity(0.12) : null,
+            child: ListTile(
+              leading: Icon(
+                isHistory ? Icons.history : Icons.search,
+                size: 20,
+                color: isHighlighted ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+              ),
+              title: Text(
+                item,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isHighlighted ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                  fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              trailing: isHistory
+                  ? IconButton(
+                      icon: Icon(Icons.close,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant),
+                      onPressed: () => onDeleteHistory(item),
+                      splashRadius: 16,
+                    )
+                  : null,
+            ),
           ),
-          title: Text(item,
-              style:
-                  TextStyle(fontSize: 14, color: theme.colorScheme.onSurface)),
-          trailing: isHistory
-              ? IconButton(
-                  icon: Icon(Icons.close,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant),
-                  onPressed: () => onDeleteHistory(item),
-                  splashRadius: 16,
-                )
-              : null,
-          onTap: () => onTap(item),
         );
       },
     );

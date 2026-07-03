@@ -113,7 +113,7 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                     Text(
                       song.title,
                       style: theme.textTheme.headlineSmall?.copyWith(
-                        color: AppColors.onSurface,
+                        color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.w700, // headline-lg
                         fontSize: 28, // headline-lg-mobile
                       ),
@@ -124,7 +124,7 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                     Text(
                       song.artist,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: AppColors.onSurfaceVariant.withOpacity(0.8),
+                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                       ),
@@ -160,14 +160,15 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                 children: [
                   Text(
                     _formatDuration(position),
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.onSurfaceVariant.withOpacity(0.7),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                   Text(
                     _formatDuration(duration, isNegative: false),
                     style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.onSurfaceVariant.withOpacity(0.7),
+                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -291,16 +292,15 @@ class _AppleMotionArtworkPlayerState extends State<AppleMotionArtworkPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final staticImage = CachedNetworkImage(
       imageUrl: widget.staticArtworkUrl,
       width: 280,
       height: 280,
       fit: BoxFit.cover,
-      errorWidget: (_, __, ___) => Container(
-        width: 280,
-        height: 280,
-        color: Colors.grey[800],
-        child: const Icon(Icons.music_note, size: 100, color: Colors.white),
+      errorWidget: (context, url, error) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(Icons.music_note, size: 100, color: theme.colorScheme.onSurface),
       ),
     );
 
@@ -309,7 +309,9 @@ class _AppleMotionArtworkPlayerState extends State<AppleMotionArtworkPlayer> {
         alignment: Alignment.center,
         children: [
           staticImage,
-          const CircularProgressIndicator(color: Colors.white),
+          Center(
+            child: CircularProgressIndicator(color: theme.colorScheme.onSurface),
+          ),
         ],
       );
     }

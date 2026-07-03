@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -10,13 +11,12 @@ import '../../data/repositories/history_repository_impl.dart';
 import '../../data/datasources/local_music_source.dart';
 import '../../data/models/local_models.dart';
 import '../../core/services/audio_handler.dart';
-import '../../core/services/audio_quality_preferences.dart';
 import '../../core/utils/logger.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/jiosaavn_service.dart';
 import '../../core/services/music_track.dart';
 import '../../core/utils/matching_engine.dart';
-import '../screens/settings_screen.dart' show allowExplicitContentProvider, gaplessPlaybackProvider;
+import '../screens/settings_screen.dart' show allowExplicitContentProvider;
 import '../../app.dart' show scaffoldMessengerKey;
 
 class PlayerState {
@@ -119,8 +119,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   StreamSubscription<Duration>? _bufferedPositionSubscription;
 
   String? _resolvingVideoId;
+  int _playGeneration = 0; // incremented on every new play request to cancel stale resolutions
   Timer? _playbackStateDebounceTimer;
   String? _lastSavedSongId;
+  DateTime? _lastSkipTime;
 
   PlayerNotifier(
     this._handler,
@@ -165,10 +167,22 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     // 2. Playback State
     _playbackStateSubscription = _handler.playbackState.listen((pState) {
+      if (pState.processingState == AudioProcessingState.completed) {
+        final now = DateTime.now();
+        final hasSkippedRecently = _lastSkipTime != null && now.difference(_lastSkipTime!) < const Duration(milliseconds: 1000);
+        if (state.isLoading || _resolvingVideoId != null || hasSkippedRecently) {
+          _log.info('Playback state completed event ignored (already loading/resolving or skipped recently).');
+          return;
+        }
+        _lastSkipTime = now;
+        _log.info('Playback state is completed. Auto-advancing to next song.');
+        next();
+        return;
+      }
       final isBufferingOrLoading = pState.processingState == AudioProcessingState.buffering ||
                                    pState.processingState == AudioProcessingState.loading;
-      final showLoading = _resolvingVideoId != null || isBufferingOrLoading;
-      final targetPlaying = showLoading ? state.isPlaying : pState.playing;
+      final targetPlaying = (_resolvingVideoId != null || isBufferingOrLoading) ? state.isPlaying : pState.playing;
+      final showLoading = targetPlaying && (_resolvingVideoId != null || isBufferingOrLoading);
 
       // If the player says it is NOT playing, but we currently think it is playing,
       // we debounce the update to false by 200ms to filter out transient stutters.
@@ -182,8 +196,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               position: pState.updatePosition,
               bufferedPosition: pState.bufferedPosition,
               speed: pState.speed,
-              isShuffle: pState.shuffleMode != AudioServiceShuffleMode.none,
-              repeatMode: pState.repeatMode,
             );
             _updatePlaybackQueue();
           }
@@ -196,8 +208,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           position: pState.updatePosition,
           bufferedPosition: pState.bufferedPosition,
           speed: pState.speed,
-          isShuffle: pState.shuffleMode != AudioServiceShuffleMode.none,
-          repeatMode: pState.repeatMode,
         );
         _updatePlaybackQueue();
       }
@@ -296,14 +306,58 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
+
       // Direct JioSaavn stream resolution if song is from JioSaavn
       if (song != null && song.source.toLowerCase().contains('jiosaavn')) {
         _log.info('Resolving JioSaavn stream directly using ID: ${song.id}');
-        final url = await _repository.getStreamUrl(song.id);
-        if (url.isNotEmpty) {
-          return url;
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
+          final url = await jioSaavn.getStreamUrl(song.id);
+          if (url != null && url.isNotEmpty) {
+            _log.info('JioSaavn stream resolved successfully for ${song.title}');
+            return url;
+          }
+          _log.warning('JioSaavn.getStreamUrl returned null/empty for ${song.id}');
+        } catch (e) {
+          _log.warning('JioSaavn direct stream fetch failed: $e');
         }
+
+        // If the song has a valid YouTube videoId, resolve it directly via YouTube
+        final isValidYouTubeId = RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(song.videoId);
+        if (isValidYouTubeId) {
+          _log.info('JioSaavn failed — falling back to YouTube with known videoId: ${song.videoId}');
+          return await _repository.getStreamUrl(song.videoId, quality: 'High')
+              .timeout(const Duration(seconds: 15));
+        }
+
+        // videoId is not a YouTube ID — try JioSaavn search by clean title as last resort
+        try {
+          String cleanTitle = song.title;
+          final colonIdx = cleanTitle.indexOf(':');
+          if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
+          final pipeIdx = cleanTitle.indexOf('|');
+          if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
+          final cleanArtist = song.artist.split(',').first.trim();
+          final query = '$cleanTitle $cleanArtist'.trim();
+          _log.info('JioSaavn title-search fallback for: "$query"');
+          final jioSaavn = getIt<JioSaavnService>();
+          final candidates = await jioSaavn.search(query).timeout(const Duration(seconds: 6));
+          if (candidates.isNotEmpty) {
+            final url = await jioSaavn.getStreamUrl(candidates.first.id)
+                .timeout(const Duration(seconds: 8));
+            if (url != null && url.isNotEmpty) {
+              _log.info('JioSaavn title-search resolved stream for "${song.title}"');
+              return url;
+            }
+          }
+        } catch (e) {
+          _log.warning('JioSaavn title-search fallback failed: $e');
+        }
+        // No JioSaavn resolution possible — log and fall through to YouTube text search
+        _log.warning('All JioSaavn resolution paths failed for "${song.title}"');
       }
+
+
 
       String targetVideoId = videoId;
       final isYouTube = song != null && song.source.toLowerCase().contains('youtube');
@@ -327,10 +381,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           // Also clean artist — use only first artist if multiple separated by ,
           final cleanArtist = song.artist.split(',').first.trim();
 
-          final searchQuery = cleanTitle.trim();
+          // Search with title + artist for a stronger match
+          final searchQuery = '$cleanTitle $cleanArtist'.trim();
           _log.debug('Attempting JioSaavn stream resolution for YouTube song. Query: "$searchQuery"');
           final jioSaavn = getIt<JioSaavnService>();
-          final candidates = await jioSaavn.search(searchQuery);
+          final candidates = await jioSaavn.search(searchQuery).timeout(const Duration(seconds: 6));
           if (candidates.isNotEmpty) {
             final ytTrack = MusicTrack(
               id: song.videoId,
@@ -344,7 +399,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             final match = findMatchingSaavnTrack(ytTrack, candidates);
             if (match != null) {
               _log.info('Matching JioSaavn track found: ${match.title} by ${match.artist}');
-              final saavnUrl = await jioSaavn.getStreamUrl(match.id);
+              final saavnUrl = await jioSaavn.getStreamUrl(match.id).timeout(const Duration(seconds: 8));
               if (saavnUrl != null && saavnUrl.isNotEmpty) {
                 _log.info('Successfully resolved JioSaavn 320kbps stream URL');
                 return saavnUrl;
@@ -360,7 +415,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       
       // Fallback to YouTube Music stream
-      final quality = (await AudioQualityPreferences.load()).streamingQuality;
+      const quality = 'High';
       String url = '';
       try {
         url = await _repository
@@ -414,7 +469,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return song;
     }
 
-
+    // If videoId is a valid 11-character YouTube video ID (e.g. decorated JioSaavn songs from home feed), preserve it
+    if (song.videoId.length == 11) {
+      return song;
+    }
     
     // If videoId is not 11 characters (e.g. search suggestions), use title and artist as search key for streamUrl
     _log.info('Non-YouTube videoId "${song.videoId}" detected for ${song.source}. Passing "${song.title} ${song.artist}" to stream resolver.');
@@ -431,13 +489,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
   }
 
-  // Pre-resolve next song in queue for gapless playback
+  // Pre-resolve next song in queue
   Future<void> _resolveNextInQueue() async {
-    final gapless = _ref.read(gaplessPlaybackProvider);
-    if (!gapless) {
-      _log.debug('Gapless playback is disabled. Skipping pre-resolution.');
-      return;
-    }
+    // Removed gapless early return to ensure stream URLs are always fetched
+
 
     final currentSong = state.currentSong;
     if (currentSong == null || state.queue.isEmpty) return;
@@ -520,6 +575,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // --- Playback Commands ---
 
   Future<void> playSong(Song song) async {
+    _lastSkipTime = DateTime.now();
     _log.debug('playSong requested for: ${song.title} (${song.videoId})');
 
     final allowExplicit = _ref.read(allowExplicitContentProvider);
@@ -534,7 +590,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     _resolvingVideoId = song.videoId;
-    
+    final generation = ++_playGeneration; // stamp this request
+
     // 1. Instantly update Riverpod state so UI (artwork, title, spinner) updates immediately
     state = state.copyWith(
       currentSong: song,
@@ -550,30 +607,39 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _handler.queue.add([tempItem]);
 
     try {
-      // 3. Resolve the stream URL asynchronously in the background
-      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId, song: song);
+      // 3. Resolve the stream URL asynchronously
+      final streamUrl = await _resolveStream(song.videoId, song: song);
+
+      // Stale check: user tapped another song while we were resolving
+      if (generation != _playGeneration) {
+        _log.info('playSong: stale resolution for "${song.title}" discarded (generation $generation < $_playGeneration)');
+        return;
+      }
+
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }
       _log.debug('streamUrl for playback resolved: "$streamUrl"');
-      
+
       final mediaItem = _mapSongToMediaItem(song, streamUrl: streamUrl);
       _log.debug('updating queue with final media item: ${mediaItem.title}');
       await _handler.updateQueue([mediaItem], initialIndex: 0);
-      
+
       _log.debug('invoking handler.play()');
       await _handler.play();
       _log.debug('handler.play() completed successfully');
     } catch (e) {
+      if (generation != _playGeneration) return; // stale, ignore
       _log.error('Error calling handler.play(): $e', e);
       state = state.copyWith(isLoading: false, isPlaying: false);
     } finally {
-      _resolvingVideoId = null;
+      if (generation == _playGeneration) _resolvingVideoId = null;
     }
   }
 
   Future<void> playQueue(List<Song> songs, {int initialIndex = 0}) async {
     if (songs.isEmpty) return;
+    _lastSkipTime = DateTime.now();
 
     final allowExplicit = _ref.read(allowExplicitContentProvider);
     List<Song> filteredSongs = songs;
@@ -600,6 +666,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     final selectedSong = filteredSongs[targetIndex];
     _resolvingVideoId = selectedSong.videoId;
+    final generation = ++_playGeneration; // stamp this request
 
     // 1. Instantly update Riverpod state so UI updates immediately
     state = state.copyWith(
@@ -616,8 +683,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _handler.queue.add(tempItems);
 
     try {
-      // 3. Resolve the stream URL asynchronously in the background
-      final resolvedFirstUrl = selectedSong.streamUrl ?? await _resolveStream(selectedSong.videoId, song: selectedSong);
+      // 3. Resolve the stream URL asynchronously
+      final resolvedFirstUrl = await _resolveStream(selectedSong.videoId, song: selectedSong);
+
+      if (generation != _playGeneration) {
+        _log.info('playQueue: stale resolution for "${selectedSong.title}" discarded');
+        return;
+      }
+
       if (resolvedFirstUrl.isEmpty) {
         _log.error('Unable to resolve stream for "${selectedSong.title}". Both JioSaavn and YouTube failed.');
         state = state.copyWith(
@@ -627,7 +700,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
         return;
       }
-      
+
       final mItems = <MediaItem>[];
       for (int i = 0; i < filteredSongs.length; i++) {
         if (i == targetIndex) {
@@ -640,6 +713,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _handler.updateQueue(mItems, initialIndex: targetIndex);
       await _handler.play();
     } catch (e) {
+      if (generation != _playGeneration) return;
       _log.error('Error in playQueue: $e', e);
       state = state.copyWith(
         isLoading: false,
@@ -647,7 +721,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         error: 'Playback error: $e',
       );
     } finally {
-      _resolvingVideoId = null;
+      if (generation == _playGeneration) _resolvingVideoId = null;
     }
   }
 
@@ -668,9 +742,67 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  Future<void> next() => _handler.skipToNext();
+  Future<void> next() async {
+    final currentSong = state.currentSong;
+    if (currentSong == null || state.queue.isEmpty) return;
 
-  Future<void> previous() => _handler.skipToPrevious();
+    final currentIndex = state.queue.indexWhere((s) => s.id == currentSong.id);
+    if (currentIndex == -1) return;
+
+    int targetIndex;
+    if (state.isShuffle) {
+      if (state.queue.length <= 1) return;
+      final random = math.Random();
+      int nextIdx = random.nextInt(state.queue.length);
+      if (nextIdx == currentIndex) {
+        nextIdx = (nextIdx + 1) % state.queue.length;
+      }
+      targetIndex = nextIdx;
+    } else {
+      final nextIdx = currentIndex + 1;
+      if (nextIdx < state.queue.length) {
+        targetIndex = nextIdx;
+      } else if (state.repeatMode == AudioServiceRepeatMode.all) {
+        targetIndex = 0;
+      } else {
+        return; // End of queue
+      }
+    }
+
+    await skipToQueueItem(targetIndex);
+  }
+
+  Future<void> previous() async {
+    final currentSong = state.currentSong;
+    if (currentSong == null || state.queue.isEmpty) return;
+
+    final currentIndex = state.queue.indexWhere((s) => s.id == currentSong.id);
+    if (currentIndex == -1) return;
+
+    int targetIndex;
+    if (state.isShuffle) {
+      if (state.queue.length <= 1) return;
+      final random = math.Random();
+      int prevIdx = random.nextInt(state.queue.length);
+      if (prevIdx == currentIndex) {
+        prevIdx = (prevIdx + 1) % state.queue.length;
+      }
+      targetIndex = prevIdx;
+    } else {
+      final prevIdx = currentIndex - 1;
+      if (prevIdx >= 0) {
+        targetIndex = prevIdx;
+      } else if (state.repeatMode == AudioServiceRepeatMode.all) {
+        targetIndex = state.queue.length - 1;
+      } else {
+        // Seek to beginning of current song
+        await seek(Duration.zero);
+        return;
+      }
+    }
+
+    await skipToQueueItem(targetIndex);
+  }
 
   Future<void> seek(Duration position) => _handler.seek(position);
 
@@ -711,6 +843,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> skipToQueueItem(int originalIndex) async {
     if (originalIndex < 0 || originalIndex >= state.queue.length) return;
+    _lastSkipTime = DateTime.now();
     final song = state.queue[originalIndex];
     _resolvingVideoId = song.videoId;
 
@@ -722,7 +855,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     try {
-      final streamUrl = song.streamUrl ?? await _resolveStream(song.videoId, song: song);
+      final streamUrl = await _resolveStream(song.videoId, song: song);
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }
@@ -732,7 +865,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final extras = Map<String, dynamic>.from(updatedQueue[originalIndex].extras ?? {});
           extras['streamUrl'] = streamUrl;
           updatedQueue[originalIndex] = updatedQueue[originalIndex].copyWith(extras: extras);
-          await _handler.updateQueue(updatedQueue);
+          await _handler.updateQueue(updatedQueue, initialIndex: originalIndex);
         }
       }
 

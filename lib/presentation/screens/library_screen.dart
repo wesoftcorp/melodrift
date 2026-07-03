@@ -11,6 +11,7 @@ import '../widgets/downloads_list.dart';
 import '../widgets/playlists_list.dart';
 import '../widgets/history_list.dart';
 import '../providers/player_notifier.dart';
+import '../widgets/layout/mini_player.dart';
 
 @RoutePage()
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -131,7 +132,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   // List of Recently Added (curated fallback or real)
                   const _RecentlyAddedList(),
 
-                  const SizedBox(height: 120),
+                  const SizedBox(height: 180),
                 ],
               ),
             ),
@@ -227,11 +228,13 @@ class _LibraryHeader extends ConsumerWidget {
       child: Row(
         children: [
           // Logo Image
-          Image.asset(
-            'assets/images/melodrift.png',
-            width: 36,
-            height: 36,
-            fit: BoxFit.contain,
+          ClipOval(
+            child: Image.asset(
+              'assets/images/melodrift.png',
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+            ),
           ),
           const Spacer(),
           // Center title "Melodrift"
@@ -670,7 +673,7 @@ class _CuratedHistoryItemState extends State<_CuratedHistoryItem> {
 // Sub-Page Wrapper Scaffold
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SubPageScaffold extends StatelessWidget {
+class _SubPageScaffold extends ConsumerWidget {
   final String title;
   final Widget body;
   final List<Widget>? actions;
@@ -682,8 +685,9 @@ class _SubPageScaffold extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final hasActiveSong = ref.watch(playerStateProvider.select((s) => s.currentSong != null));
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -709,6 +713,14 @@ class _SubPageScaffold extends StatelessWidget {
           child: body,
         ),
       ),
+      bottomNavigationBar: hasActiveSong
+          ? const SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: MiniPlayer(),
+              ),
+            )
+          : null,
     );
   }
 }

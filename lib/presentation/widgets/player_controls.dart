@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import '../providers/player_notifier.dart';
 import '../providers/player_providers.dart';
-import '../../core/theme/tokens.dart';
 
 import 'premium_player_components.dart';
 
@@ -22,6 +21,7 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
     final (:isPlaying, :isLoading) = ref.watch(playbackStateProvider);
     final controls = ref.watch(playbackControlsProvider);
     final notifier = ref.read(playerStateProvider.notifier);
+    final theme = Theme.of(context);
 
 
     return Column(
@@ -37,13 +37,13 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
               IconButton(
                 icon: Icon(
                   Icons.shuffle,
-                  color: controls.isShuffle ? AppColors.onSurface : AppColors.onSurfaceVariant,
+                  color: controls.isShuffle ? const Color(0xFFFF9F0A) : theme.colorScheme.onSurfaceVariant,
                 ),
                 iconSize: 24,
                 onPressed: notifier.toggleShuffle,
               ),
               IconButton(
-                icon: const Icon(Icons.skip_previous, color: AppColors.onSurface),
+                icon: Icon(Icons.skip_previous, color: theme.colorScheme.onSurface),
                 iconSize: 32,
                 onPressed: notifier.previous,
               ),
@@ -54,7 +54,7 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
                 onTap: notifier.togglePlay,
               ),
               IconButton(
-                icon: const Icon(Icons.skip_next, color: AppColors.onSurface),
+                icon: Icon(Icons.skip_next, color: theme.colorScheme.onSurface),
                 iconSize: 32,
                 onPressed: notifier.next,
               ),
@@ -64,8 +64,8 @@ class _PlayerControlsState extends ConsumerState<PlayerControls> {
                       ? Icons.repeat_one
                       : Icons.repeat,
                   color: controls.repeatMode != AudioServiceRepeatMode.none
-                      ? AppColors.onSurface
-                      : AppColors.onSurfaceVariant,
+                      ? const Color(0xFFFF9F0A)
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 iconSize: 24,
                 onPressed: notifier.toggleRepeat,

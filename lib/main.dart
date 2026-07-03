@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,12 +19,18 @@ import 'data/datasources/local_music_source.dart';
 import 'core/services/audio_handler.dart';
 import 'core/utils/logger.dart';
 import 'core/services/service_locator.dart';
+import 'core/services/audio_proxy.dart';
 
 final _log = AppLogger('main');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   setupServiceLocator();
+  
+  // Start local HTTP Audio Proxy in the background (non-blocking)
+  unawaited(getIt<AudioProxy>().start().catchError((Object e, StackTrace s) {
+    _log.error('Failed to start AudioProxy in background: $e', e, s);
+  }));
 
   final flavorName = appFlavor?.toLowerCase() ?? 'prodfull';
   F.appFlavor = Flavor.values.firstWhere(
@@ -32,6 +39,14 @@ void main() async {
   );
 
   final prefs = await SharedPreferences.getInstance();
+
+  // Reset home screen caches to force fresh API refetches for all sections
+  final keys = prefs.getKeys();
+  for (final key in keys) {
+    if (key.startsWith('home_feed_cache_')) {
+      await prefs.remove(key);
+    }
+  }
 
   // Initialize Firebase Core only if opted-in and on Full flavor
   final useFirebase = prefs.getBool('use_firebase') ?? false;
@@ -85,6 +100,18 @@ void main() async {
     ],
     directory: dir.path,
   );
+
+  // Clean up failed/pending download records on startup to clear download failed cache state
+  await isar.writeTxn(() async {
+    await isar.downloadRecords
+        .filter()
+        .statusEqualTo(LocalDownloadStatus.failed)
+        .or()
+        .statusEqualTo(LocalDownloadStatus.pending)
+        .or()
+        .statusEqualTo(LocalDownloadStatus.downloading)
+        .deleteAll();
+  });
 
   // Initialize the Background Audio Service
   final audioHandler = await AudioService.init(

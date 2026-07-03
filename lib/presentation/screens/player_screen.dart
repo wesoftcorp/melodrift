@@ -51,50 +51,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
 
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final scaffoldBg = isDark ? AppColors.darkBackground : theme.colorScheme.background;
+    final radial1Color = isDark ? const Color(0x33141E32) : theme.colorScheme.primary.withOpacity(0.08);
+    final radial2Color = isDark ? const Color(0x2232143C) : theme.colorScheme.secondary.withOpacity(0.06);
+    final centerGradColor = isDark ? const Color(0xCC0A0F1E) : theme.colorScheme.surface.withOpacity(0.85);
+
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: scaffoldBg,
       body: Stack(
         children: [
           // 1. Mesh Background Simulation
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: Alignment(-0.6, -0.4),
+                  center: const Alignment(-0.6, -0.4),
                   radius: 1.5,
                   colors: [
-                    Color(0x33141E32),
+                    radial1Color,
                     Colors.transparent,
                   ],
-                  stops: [0.0, 0.5],
+                  stops: const [0.0, 0.5],
                 ),
               ),
             ),
           ),
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: Alignment(0.6, 0.4),
+                  center: const Alignment(0.6, 0.4),
                   radius: 1.5,
                   colors: [
-                    Color(0x2232143C),
+                    radial2Color,
                     Colors.transparent,
                   ],
-                  stops: [0.0, 0.5],
+                  stops: const [0.0, 0.5],
                 ),
               ),
             ),
           ),
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: Alignment(0, 0),
+                  center: const Alignment(0, 0),
                   radius: 1.0,
                   colors: [
-                    Color(0xCC0A0F1E),
-                    AppColors.darkBackground,
+                    centerGradColor,
+                    scaffoldBg,
                   ],
                 ),
               ),
@@ -136,12 +144,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               snap: true,
               snapSizes: const [0.1, 0.85],
               builder: (context, sheetScrollController) {
+                final theme = Theme.of(context);
                 // IMPORTANT: sheetScrollController MUST be the controller of the
                 // outermost scrollable (CustomScrollView). This is what drives
                 // the sheet's drag behaviour.
                 return Container(
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceContainerHigh.withAlpha(220),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
                     boxShadow: [
                       BoxShadow(
@@ -155,104 +163,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                      child: ListenableBuilder(
-                        listenable: _sheetController,
-                        builder: (context, _) {
-                          final isExpanded = _sheetController.isAttached
-                              ? _sheetController.size > 0.2
-                              : false;
+                      child: Material(
+                        color: theme.colorScheme.surfaceContainerHigh.withAlpha(220),
+                        child: ListenableBuilder(
+                          listenable: _sheetController,
+                          builder: (context, _) {
+                            final isExpanded = _sheetController.isAttached
+                                ? _sheetController.size > 0.5
+                                : false;
 
-                          return CustomScrollView(
-                            controller: sheetScrollController,
-                            physics: const AlwaysScrollableScrollPhysics(
-                              parent: BouncingScrollPhysics(),
-                            ),
-                            slivers: [
-
-                              // ── Drag handle & title ──────────────────────
-                              SliverToBoxAdapter(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () {
-                                    if (_sheetController.isAttached) {
-                                      _sheetController.animateTo(
-                                        isExpanded ? 0.1 : 0.85,
-                                        duration: const Duration(milliseconds: 300),
-                                        curve: Curves.easeInOut,
-                                      );
-                                    }
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
-                                    child: Column(
-                                      children: [
-                                        // Pill handle
-                                        Container(
-                                          width: 48,
-                                          height: 6,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceContainerHighest,
-                                            borderRadius: BorderRadius.circular(3),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Lyrics & Queue',
-                                              style: AppTextStyles.titleSmall.copyWith(
-                                                color: AppColors.onSurface.withOpacity(0.8),
-                                              ),
-                                            ),
-                                            Icon(
-                                              isExpanded
-                                                  ? Icons.keyboard_arrow_down
-                                                  : Icons.keyboard_arrow_up,
-                                              color: AppColors.onSurfaceVariant,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            return CustomScrollView(
+                              controller: sheetScrollController,
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
                               ),
+                              slivers: [
 
-                              // ── Tab content (only when expanded) ─────────
-                              if (isExpanded)
+                                // ── Drag handle & title ──────────────────────
                                 SliverToBoxAdapter(
-                                  child: SizedBox(
-                                    height: (MediaQuery.of(context).size.height * 0.85) - 80,
-
-                                    child: DefaultTabController(
-                                      length: 2,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () async {
+                                      if (_sheetController.isAttached) {
+                                        if (isExpanded) {
+                                          if (sheetScrollController.hasClients) {
+                                            await sheetScrollController.animateTo(
+                                              0.0,
+                                              duration: const Duration(milliseconds: 150),
+                                              curve: Curves.easeOut,
+                                            );
+                                          }
+                                          await _sheetController.animateTo(
+                                            0.1,
+                                            duration: const Duration(milliseconds: 300),
+                                            curve: Curves.easeInOut,
+                                          );
+                                        } else {
+                                          await _sheetController.animateTo(
+                                            0.85,
+                                            duration: const Duration(milliseconds: 300),
+                                            curve: Curves.easeInOut,
+                                          );
+                                        }
+                                      }
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
                                       child: Column(
                                         children: [
-                                          TabBar(
-                                            labelColor: AppColors.primary,
-                                            unselectedLabelColor: AppColors.onSurfaceVariant,
-                                            indicatorColor: AppColors.primary,
-                                            indicatorSize: TabBarIndicatorSize.tab,
-                                            dividerColor: Colors.transparent,
-                                            labelStyle: AppTextStyles.monoSectionHeader,
-                                            tabs: const [
-                                              Tab(text: 'QUEUE'),
-                                              Tab(text: 'LYRICS'),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Expanded(
-                                            child: TabBarView(
-                                              children: [
-                                                _buildQueueTab(sheetScrollController),
-                                                LyricsView(
-                                                  song: song,
-                                                  position: playerState.position,
-                                                  scrollController: sheetScrollController,
-                                                ),
-                                              ],
+                                          // Pill handle
+                                          Container(
+                                            width: 48,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surfaceContainerHighest,
+                                              borderRadius: BorderRadius.circular(3),
                                             ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'Lyrics & Queue',
+                                                style: AppTextStyles.titleSmall.copyWith(
+                                                  color: theme.colorScheme.onSurface.withOpacity(0.8),
+                                                ),
+                                              ),
+                                              Icon(
+                                                isExpanded
+                                                    ? Icons.keyboard_arrow_down
+                                                    : Icons.keyboard_arrow_up,
+                                                color: theme.colorScheme.onSurfaceVariant,
+                                                size: 28,
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -260,10 +245,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ),
                                 ),
 
+                                // ── Tab content (only when expanded) ─────────
+                                if (isExpanded)
+                                  SliverToBoxAdapter(
+                                    child: SizedBox(
+                                      height: (MediaQuery.of(context).size.height * 0.85) - 80,
 
-                            ],
-                          );
-                        },
+                                      child: DefaultTabController(
+                                        length: 2,
+                                        child: Column(
+                                          children: [
+                                            TabBar(
+                                              labelColor: theme.colorScheme.primary,
+                                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                              indicatorColor: theme.colorScheme.primary,
+                                              indicatorSize: TabBarIndicatorSize.tab,
+                                              dividerColor: Colors.transparent,
+                                              labelStyle: AppTextStyles.monoSectionHeader,
+                                              tabs: const [
+                                                Tab(text: 'QUEUE'),
+                                                Tab(text: 'LYRICS'),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Expanded(
+                                              child: TabBarView(
+                                                children: [
+                                                  _buildQueueTab(null),
+                                                  LyricsView(
+                                                    song: song,
+                                                    position: playerState.position,
+                                                    scrollController: null,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -288,20 +315,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.expand_more, color: AppColors.onSurfaceVariant),
+            icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
             onPressed: () => context.router.maybePop(),
           ),
           Text(
             'NOW PLAYING',
             style: AppTextStyles.labelLarge.copyWith(
-              color: AppColors.onSurfaceVariant,
+              color: theme.colorScheme.onSurfaceVariant,
               letterSpacing: 2.0,
             ),
           ),
           IconButton(
             icon: Icon(
               isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round,
-              color: AppColors.onSurfaceVariant,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
             onPressed: () {
               ref.read(themeProvider.notifier).setThemeMode(
@@ -322,7 +349,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final currentSong = playerState.currentSong;
 
         if (displayedQueue.isEmpty) {
-          return const Center(child: Text('Queue is empty', style: TextStyle(color: Colors.white70)));
+          final theme = Theme.of(context);
+          return Center(child: Text('Queue is empty', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))));
         }
 
         if (playerState.isShuffle) {
@@ -370,6 +398,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     Song? currentSong,
     PlayerState playerState,
   ) {
+    final theme = Theme.of(context);
     final isCurrent = currentSong?.id == song.id;
 
     return ListTile(
@@ -384,8 +413,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           errorWidget: (_, __, ___) => Container(
             width: 44,
             height: 44,
-            color: Colors.grey[800],
-            child: const Icon(Icons.music_note, color: Colors.white),
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Icon(Icons.music_note, color: theme.colorScheme.onSurface),
           ),
         ),
       ),
@@ -395,7 +424,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-          color: isCurrent ? Colors.white : Colors.white70,
+          color: isCurrent ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.7),
         ),
       ),
       subtitle: Text(
@@ -403,13 +432,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: isCurrent ? Colors.white70 : Colors.white38,
+          color: isCurrent ? theme.colorScheme.onSurface.withOpacity(0.7) : theme.colorScheme.onSurface.withOpacity(0.38),
         ),
       ),
       trailing: isCurrent
-          ? const Icon(Icons.volume_up, color: Colors.white)
+          ? Icon(Icons.volume_up, color: theme.colorScheme.primary)
           : IconButton(
-              icon: const Icon(Icons.close, color: Colors.white30, size: 20),
+              icon: Icon(Icons.close, color: theme.colorScheme.onSurface.withOpacity(0.3), size: 20),
               tooltip: 'Remove from queue',
               onPressed: () {
                 ref.read(playerStateProvider.notifier).removeFromQueue(song);

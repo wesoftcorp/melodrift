@@ -12,15 +12,14 @@ import '../../domain/entities/download_task.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
 import '../../core/services/download_manager.dart';
-import '../../core/services/audio_quality_preferences.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/jiosaavn_service.dart';
 import '../../core/services/music_track.dart';
 import '../../core/utils/matching_engine.dart';
-import '../datasources/local_music_source.dart';
-import '../datasources/youtube_music_remote_source.dart';
-import '../models/local_models.dart';
-import 'lyrics_repository_impl.dart'; // import dioProvider
+import 'package:melodrift/data/datasources/local_music_source.dart';
+import 'package:melodrift/data/datasources/youtube_music_remote_source.dart';
+import 'package:melodrift/data/models/local_models.dart';
+import 'package:melodrift/data/repositories/lyrics_repository_impl.dart'; // import dioProvider
 
 final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
   final localSource = ref.watch(localMusicSourceProvider);
@@ -92,9 +91,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
       }
     }
 
-    final selectedQuality = quality == 'High'
-        ? (await AudioQualityPreferences.load()).downloadQuality
-        : quality;
+    const selectedQuality = 'High';
     final existing = await _localSource.getDownloadRecord(song.id);
     if (existing != null && existing.status == LocalDownloadStatus.completed) {
       return;
@@ -133,44 +130,53 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
         // Resolve Audio Stream URL
         String? resolvedUrl;
-        try {
-          final jioSaavn = getIt<JioSaavnService>();
-          if (song.source.toLowerCase() == 'jiosaavn') {
-            resolvedUrl = await jioSaavn.getStreamUrl(song.id);
-          } else {
-            String cleanTitle = song.title;
-            final colonIdx = cleanTitle.indexOf(':');
-            if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-            final pipeIdx = cleanTitle.indexOf('|');
-            if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
 
-            final cleanArtist = song.artist.split(',').first.trim();
-            final searchQuery = cleanTitle.trim();
+        // Fast path: use pre-cached stream URL if available (e.g. from search results)
+        if (song.streamUrl != null && song.streamUrl!.isNotEmpty) {
+          resolvedUrl = song.streamUrl;
+          _log.info('Using pre-cached stream URL for ${song.title}');
+        }
 
-            final candidates = await jioSaavn.search(searchQuery);
-            if (candidates.isNotEmpty) {
-              final ytTrack = MusicTrack(
-                id: song.videoId,
-                title: cleanTitle,
-                artist: cleanArtist,
-                album: song.album,
-                duration: song.duration,
-                artworkUrl: song.artworkUrl,
-                source: 'youtube',
-              );
-              final match = findMatchingSaavnTrack(ytTrack, candidates);
-              if (match != null) {
-                resolvedUrl = await jioSaavn.getStreamUrl(match.id);
+        if (resolvedUrl == null || resolvedUrl.isEmpty) {
+          try {
+            final jioSaavn = getIt<JioSaavnService>();
+            if (song.source.toLowerCase() == 'jiosaavn') {
+              resolvedUrl = await jioSaavn.getStreamUrl(song.id);
+            } else {
+              String cleanTitle = song.title;
+              final colonIdx = cleanTitle.indexOf(':');
+              if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
+              final pipeIdx = cleanTitle.indexOf('|');
+              if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
+
+              final cleanArtist = song.artist.split(',').first.trim();
+              final searchQuery = cleanTitle.trim();
+
+              final candidates = await jioSaavn.search(searchQuery);
+              if (candidates.isNotEmpty) {
+                final ytTrack = MusicTrack(
+                  id: song.videoId,
+                  title: cleanTitle,
+                  artist: cleanArtist,
+                  album: song.album,
+                  duration: song.duration,
+                  artworkUrl: song.artworkUrl,
+                  source: 'youtube',
+                );
+                final match = findMatchingSaavnTrack(ytTrack, candidates);
+                if (match != null) {
+                  resolvedUrl = await jioSaavn.getStreamUrl(match.id);
+                }
               }
             }
+          } catch (err) {
+            _log.warning('JioSaavn resolver lookup threw exception: $err');
           }
-        } catch (err) {
-          _log.warning('JioSaavn resolver lookup threw exception: $err');
         }
 
         if (resolvedUrl == null || resolvedUrl.isEmpty) {
           final isYouTube = song.source.toLowerCase().contains('youtube');
-          final String ytSearchId = !isYouTube ? '${song.title} ${song.artist}' : song.videoId;
+          final String ytSearchId = (isYouTube || song.videoId.length == 11) ? song.videoId : '${song.title} ${song.artist}';
           try {
             resolvedUrl = await _remoteSource
                 .getStreamUrl(ytSearchId, quality, preferLocal: true)
@@ -198,6 +204,9 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
 
 
+        if (resolvedUrl.isEmpty) {
+          throw StateError('Unable to resolve a playable stream URL for downloading "${song.title}"');
+        }
         final String streamUrl = resolvedUrl;
 
         final tempDir = await getTemporaryDirectory();
@@ -206,31 +215,57 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
         // Perform download to a temporary file before app-only storage.
         bool isWritingProgress = false;
-        await _dio.download(
-          streamUrl,
-          tempFile.path,
-          cancelToken: cancelToken,
-          onReceiveProgress: (received, total) async {
-            if (total != -1) {
-              final progress = received / total;
-              // Throttle database writes
-              final currentProgressPercent = (progress * 100).round() / 100;
-              if (currentProgressPercent - record.progress >= 0.02) {
-                record.progress = currentProgressPercent;
-                if (!isWritingProgress) {
-                  isWritingProgress = true;
-                  try {
-                    await _localSource.saveDownloadRecord(record);
-                  } catch (dbError) {
-                    _log.warning('Throttled progress write skipped due to DB error: $dbError');
-                  } finally {
-                    isWritingProgress = false;
-                  }
+
+        final isYouTube = song.source.toLowerCase().contains('youtube') || 
+                          streamUrl.contains('googlevideo.com') || 
+                          streamUrl.contains('youtube.com');
+
+        void updateProgress(int received, int total) async {
+          if (total != -1) {
+            final progress = received / total;
+            // Throttle database writes
+            final currentProgressPercent = (progress * 100).round() / 100;
+            if (currentProgressPercent - record.progress >= 0.02) {
+              record.progress = currentProgressPercent;
+              if (!isWritingProgress) {
+                isWritingProgress = true;
+                try {
+                  await _localSource.saveDownloadRecord(record);
+                } catch (dbError) {
+                  _log.warning('Throttled progress write skipped due to DB error: $dbError');
+                } finally {
+                  isWritingProgress = false;
                 }
               }
             }
-          },
-        );
+          }
+        }
+
+        if (isYouTube) {
+          final String ytSearchId = (song.source.toLowerCase().contains('youtube') || song.videoId.length == 11) 
+              ? song.videoId 
+              : '${song.title} ${song.artist}';
+          _log.info('Downloading YouTube track using native streamsClient: $ytSearchId');
+          await _remoteSource.downloadVideo(
+            ytSearchId,
+            quality,
+            tempFile.path,
+            onProgress: updateProgress,
+          );
+        } else {
+          _log.info('Downloading JioSaavn track using Dio: $streamUrl');
+          await _dio.download(
+            streamUrl,
+            tempFile.path,
+            cancelToken: cancelToken,
+            options: Options(
+              headers: const {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              },
+            ),
+            onReceiveProgress: updateProgress,
+          );
+        }
 
         final storedPath = await _downloadManager.storeDownloadedFile(
           songId: song.id,

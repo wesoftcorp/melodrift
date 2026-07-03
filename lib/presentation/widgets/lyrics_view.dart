@@ -63,8 +63,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
   /// O(n) scan but only runs when position crosses a line boundary.
   int _computeActiveIndex(List<LyricLine> lines, Duration position) {
+    if (lines.isEmpty) return -1;
+    
     // Fast path: same lines list, check if current cached index is still valid
-    if (_cachedLines == lines && _cachedActiveIndex >= 0) {
+    if (_cachedLines == lines && _cachedActiveIndex >= 0 && _cachedActiveIndex < lines.length) {
       final posMs = position.inMilliseconds;
       final current = _cachedActiveIndex;
       // Still valid if position is within the same line's range
@@ -94,11 +96,11 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     final transState = ref.watch(translationProvider);
 
     return lyricsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
-      error: (_, __) => const Center(child: Text('Lyrics not available', style: TextStyle(color: Colors.white70))),
-        data: (lines) {
+      loading: () => Center(child: CircularProgressIndicator(color: theme.colorScheme.onSurface)),
+      error: (_, __) => Center(child: Text('Lyrics not available', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)))),
+      data: (lines) {
         if (lines.isEmpty) {
-          return const Center(child: Text('No lyrics found', style: TextStyle(color: Colors.white70)));
+          return Center(child: Text('No lyrics found', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))));
         }
 
         final activeIndex = _computeActiveIndex(lines, widget.position);
@@ -109,12 +111,14 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         return Stack(
           children: [
             ShaderMask(
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
-                stops: [0.0, 0.15, 0.85, 1.0],
-              ).createShader(rect),
+              shaderCallback: (Rect bounds) {
+                return LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, theme.colorScheme.onSurface, theme.colorScheme.onSurface, Colors.transparent],
+                  stops: const [0.0, 0.1, 0.8, 1.0],
+                ).createShader(bounds);
+              },
               blendMode: BlendMode.dstIn,
               child: ListView.builder(
                 controller: _scrollController,
@@ -138,7 +142,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                           Text(
                             line.text,
                             style: theme.textTheme.titleMedium?.copyWith(
-                              color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                              color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.4),
                               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                               fontSize: isActive ? 21 : 17,
                             ),
@@ -149,7 +153,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                             Text(
                               translation ?? (transState.isModelDownloading ? '...' : ''),
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: isActive ? Colors.amberAccent : Colors.white.withValues(alpha: 0.25),
+                                color: isActive ? Colors.amberAccent : theme.colorScheme.onSurface.withOpacity(0.25),
                                 fontSize: isActive ? 16 : 14,
                               ),
                               textAlign: TextAlign.center,
@@ -168,7 +172,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               child: Row(
                 children: [
                   PopupMenuButton<String>(
-                    icon: const Icon(Icons.language, color: Colors.white70),
+                    icon: Icon(Icons.language, color: theme.colorScheme.onSurface.withOpacity(0.7)),
                     onSelected: (lang) => ref.read(translationProvider.notifier).setTargetLanguage(lang, lines),
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'es', child: Text('Spanish')),
@@ -180,7 +184,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   IconButton(
                     icon: Icon(
                       transState.isTranslating ? Icons.g_translate : Icons.translate,
-                      color: transState.isTranslating ? Colors.amberAccent : Colors.white70,
+                      color: transState.isTranslating ? Colors.amberAccent : theme.colorScheme.onSurface.withOpacity(0.7),
                     ),
                     onPressed: () {
                       ref.read(translationProvider.notifier).toggleTranslation(!transState.isTranslating, lines);

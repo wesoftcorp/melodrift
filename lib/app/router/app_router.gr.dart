@@ -9,8 +9,9 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:auto_route/auto_route.dart' as _i10;
-import 'package:flutter/material.dart' as _i13;
+import 'package:flutter/material.dart' as _i14;
 import 'package:melodrift/domain/entities/album.dart' as _i12;
+import 'package:melodrift/domain/entities/mood_category.dart' as _i13;
 import 'package:melodrift/domain/entities/song.dart' as _i11;
 import 'package:melodrift/presentation/screens/details_screen.dart' as _i1;
 import 'package:melodrift/presentation/screens/find_screen.dart' as _i2;
@@ -39,6 +40,7 @@ abstract class $AppRouter extends _i10.RootStackRouter {
           artworkUrl: args.artworkUrl,
           preloadedSongs: args.preloadedSongs,
           preloadedAlbums: args.preloadedAlbums,
+          preloadedMoods: args.preloadedMoods,
           key: args.key,
         ),
       );
@@ -104,7 +106,8 @@ class DetailsRoute extends _i10.PageRouteInfo<DetailsRouteArgs> {
     String artworkUrl = '',
     List<_i11.Song>? preloadedSongs,
     List<_i12.Album>? preloadedAlbums,
-    _i13.Key? key,
+    List<_i13.MoodCategory>? preloadedMoods,
+    _i14.Key? key,
     List<_i10.PageRouteInfo>? children,
   }) : super(
           DetailsRoute.name,
@@ -115,6 +118,7 @@ class DetailsRoute extends _i10.PageRouteInfo<DetailsRouteArgs> {
             artworkUrl: artworkUrl,
             preloadedSongs: preloadedSongs,
             preloadedAlbums: preloadedAlbums,
+            preloadedMoods: preloadedMoods,
             key: key,
           ),
           initialChildren: children,
@@ -134,6 +138,7 @@ class DetailsRouteArgs {
     this.artworkUrl = '',
     this.preloadedSongs,
     this.preloadedAlbums,
+    this.preloadedMoods,
     this.key,
   });
 
@@ -149,11 +154,13 @@ class DetailsRouteArgs {
 
   final List<_i12.Album>? preloadedAlbums;
 
-  final _i13.Key? key;
+  final List<_i13.MoodCategory>? preloadedMoods;
+
+  final _i14.Key? key;
 
   @override
   String toString() {
-    return 'DetailsRouteArgs{id: $id, title: $title, type: $type, artworkUrl: $artworkUrl, preloadedSongs: $preloadedSongs, preloadedAlbums: $preloadedAlbums, key: $key}';
+    return 'DetailsRouteArgs{id: $id, title: $title, type: $type, artworkUrl: $artworkUrl, preloadedSongs: $preloadedSongs, preloadedAlbums: $preloadedAlbums, preloadedMoods: $preloadedMoods, key: $key}';
   }
 }
 

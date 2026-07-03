@@ -12,8 +12,6 @@ import '../../flavors.dart';
 import '../../presentation/providers/duration_cache_provider.dart';
 import '../../core/services/image_caching_service.dart';
 import '../../core/utils/widget_rebuild_tracker.dart';
-import '../../core/services/audio_quality_preferences.dart';
-import '../providers/audio_quality_provider.dart';
 import '../screens/home_screen.dart' show homeLanguageProvider, kLanguageOptions;
 
 // ── WiFi Only Downloads Provider ─────────────────────────────────────────────
@@ -33,21 +31,7 @@ class DownloadOnlyWifiNotifier extends StateNotifier<bool> {
   }
 }
 
-// ── Primary Music Source Provider ─────────────────────────────────────────────
-final primaryMusicSourceProvider = StateNotifierProvider<PrimaryMusicSourceNotifier, String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return PrimaryMusicSourceNotifier(prefs);
-});
 
-class PrimaryMusicSourceNotifier extends StateNotifier<String> {
-  final SharedPreferences _prefs;
-  PrimaryMusicSourceNotifier(this._prefs) : super(_prefs.getString('primary_music_source') ?? 'YouTube Music');
-
-  Future<void> setSource(String value) async {
-    await _prefs.setString('primary_music_source', value);
-    state = value;
-  }
-}
 
 // ── Custom YouTube API URL Provider ─────────────────────────────────────────────
 final customYoutubeApiUrlProvider = StateNotifierProvider<CustomYoutubeApiUrlNotifier, String>((ref) {
@@ -65,37 +49,24 @@ class CustomYoutubeApiUrlNotifier extends StateNotifier<String> {
   }
 }
 
-// ── Playback & Content Providers ─────────────────────────────────────────────
-
-final crossfadeEnabledProvider = StateNotifierProvider<CrossfadeEnabledNotifier, bool>((ref) {
+// ── Custom JioSaavn API URL Provider ─────────────────────────────────────────────
+final customJioSaavnApiUrlProvider = StateNotifierProvider<CustomJioSaavnApiUrlNotifier, String>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return CrossfadeEnabledNotifier(prefs);
+  return CustomJioSaavnApiUrlNotifier(prefs);
 });
 
-class CrossfadeEnabledNotifier extends StateNotifier<bool> {
+class CustomJioSaavnApiUrlNotifier extends StateNotifier<String> {
   final SharedPreferences _prefs;
-  CrossfadeEnabledNotifier(this._prefs) : super(_prefs.getBool('crossfade_enabled') ?? false);
+  CustomJioSaavnApiUrlNotifier(this._prefs) : super(_prefs.getString('custom_jiosaavn_api_url') ?? '');
 
-  Future<void> toggle(bool value) async {
-    await _prefs.setBool('crossfade_enabled', value);
+  Future<void> setUrl(String value) async {
+    await _prefs.setString('custom_jiosaavn_api_url', value);
     state = value;
   }
 }
 
-final gaplessPlaybackProvider = StateNotifierProvider<GaplessPlaybackNotifier, bool>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return GaplessPlaybackNotifier(prefs);
-});
 
-class GaplessPlaybackNotifier extends StateNotifier<bool> {
-  final SharedPreferences _prefs;
-  GaplessPlaybackNotifier(this._prefs) : super(_prefs.getBool('gapless_playback') ?? true);
 
-  Future<void> toggle(bool value) async {
-    await _prefs.setBool('gapless_playback', value);
-    state = value;
-  }
-}
 
 final allowExplicitContentProvider = StateNotifierProvider<AllowExplicitContentNotifier, bool>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
@@ -168,44 +139,6 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
 
-          // ── Section: Playback ──────────────────────────────────────────────
-          const _SettingsSectionHeader(title: 'Playback'),
-          _SettingsCard(
-            children: [
-              _buildPrimarySourceItem(context, ref, theme),
-              _buildDivider(theme),
-              _buildAudioQualityItem(context, ref, theme),
-              _buildDivider(theme),
-              _buildCustomYoutubeApiUrlItem(context, ref, theme),
-              _buildDivider(theme),
-
-              _buildSwitchItem(
-                title: 'Crossfade',
-                icon: Icons.shuffle_rounded,
-                value: ref.watch(crossfadeEnabledProvider),
-                onChanged: (val) => ref.read(crossfadeEnabledProvider.notifier).toggle(val),
-                theme: theme,
-              ),
-              _buildDivider(theme),
-              _buildSwitchItem(
-                title: 'Gapless Playback',
-                icon: Icons.format_align_justify_rounded,
-                value: ref.watch(gaplessPlaybackProvider),
-                onChanged: (val) => ref.read(gaplessPlaybackProvider.notifier).toggle(val),
-                theme: theme,
-              ),
-              if (defaultTargetPlatform == TargetPlatform.android) ...[
-                _buildDivider(theme),
-                ListTile(
-                  leading: const Icon(Icons.battery_saver_rounded),
-                  title: const Text('Android Battery Optimization'),
-                  subtitle: const Text('Prevent background playback interruptions'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => _showBatteryWhitelistDialog(context),
-                ),
-              ],
-            ],
-          ),
 
           // ── Section: Content & Display ─────────────────────────────────────
           const _SettingsSectionHeader(title: 'Content & Display'),
@@ -413,73 +346,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAudioQualityItem(BuildContext context, WidgetRef ref, ThemeData theme) {
-    final settings = ref.watch(audioQualityProvider);
-    return ListTile(
-      leading: const Icon(Icons.high_quality_rounded),
-      title: const Text('Audio Quality'),
-      subtitle: Text('Streaming: ${settings.streamingQuality} • Download: ${settings.downloadQuality}'),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => _showAudioQualitySelector(context, ref, settings),
-    );
-  }
-
-  void _showAudioQualitySelector(BuildContext context, WidgetRef ref, AudioQualitySettings settings) {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              const Text(
-                'Audio Quality Settings',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                title: const Text('Streaming Quality'),
-                subtitle: Text(settings.streamingQuality),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showQualitySelector(
-                    context: context,
-                    title: 'Streaming Quality',
-                    currentValue: settings.streamingQuality,
-                    options: streamingQualityOptions,
-                    onSelected: (quality) => ref
-                        .read(audioQualityProvider.notifier)
-                        .setStreamingQuality(quality),
-                  );
-                },
-              ),
-              ListTile(
-                title: const Text('Download Quality'),
-                subtitle: Text(settings.downloadQuality),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showQualitySelector(
-                    context: context,
-                    title: 'Download Quality',
-                    currentValue: settings.downloadQuality,
-                    options: downloadQualityOptions,
-                    onSelected: (quality) => ref
-                        .read(audioQualityProvider.notifier)
-                        .setDownloadQuality(quality),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildSwitchItem({
     required String title,
@@ -615,36 +481,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showQualitySelector({
-    required BuildContext context,
-    required String title,
-    required String currentValue,
-    required List<String> options,
-    required Future<void> Function(String quality) onSelected,
-  }) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: options.map((quality) {
-            return RadioListTile<String>(
-              title: Text(quality),
-              value: quality,
-              groupValue: currentValue,
-              activeColor: const Color(0xFFFF4500),
-              onChanged: (value) async {
-                if (value == null) return;
-                await onSelected(value);
-                if (context.mounted) Navigator.pop(context);
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
+
 
   String _getThemeModeName(AppThemeMode mode) {
     switch (mode) {
@@ -738,30 +575,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showBatteryWhitelistDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Battery Whitelist Instructions'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'To prevent Android from killing Melodrift during background audio streaming:\n\n'
-            '1. Open system Settings.\n'
-            '2. Go to Apps > Melodrift.\n'
-            '3. Select Battery or Battery Usage.\n'
-            '4. Choose "Unrestricted" or disable Battery Optimization.\n\n'
-            'This ensures gapless background playback remains active.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   void _showOptimizationsDialog(BuildContext context) {
     showDialog<void>(
@@ -873,116 +687,8 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPrimarySourceItem(BuildContext context, WidgetRef ref, ThemeData theme) {
-    final source = ref.watch(primaryMusicSourceProvider);
-    return ListTile(
-      leading: const Icon(Icons.music_note_rounded),
-      title: const Text('Primary Music Source'),
-      subtitle: Text('Current: $source'),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => _showPrimarySourceSelector(context, ref, source),
-    );
-  }
 
-  void _showPrimarySourceSelector(BuildContext context, WidgetRef ref, String currentSource) {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 16),
-              const Text(
-                'Select Primary Music Source',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                title: const Text('YouTube Music'),
-                subtitle: const Text('Primary YouTube Music indexer (Default)'),
-                trailing: currentSource == 'YouTube Music' ? const Icon(Icons.check, color: Colors.green) : null,
-                onTap: () {
-                  ref.read(primaryMusicSourceProvider.notifier).setSource('YouTube Music');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('JioSaavn'),
-                subtitle: const Text('Swaps search/playback to JioSaavn API for testing'),
-                trailing: currentSource == 'JioSaavn' ? const Icon(Icons.check, color: Colors.green) : null,
-                onTap: () {
-                  ref.read(primaryMusicSourceProvider.notifier).setSource('JioSaavn');
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildCustomYoutubeApiUrlItem(BuildContext context, WidgetRef ref, ThemeData theme) {
-    final customUrl = ref.watch(customYoutubeApiUrlProvider);
-    final displayUrl = customUrl.isEmpty ? 'Not Configured (Using local)' : customUrl;
-
-    return ListTile(
-      leading: const Icon(Icons.api_rounded),
-      title: const Text('Custom YouTube Stream Resolver'),
-      subtitle: Text(displayUrl),
-      trailing: const Icon(Icons.edit_rounded, size: 16),
-      onTap: () => _showCustomYoutubeApiUrlDialog(context, ref, customUrl),
-    );
-  }
-
-  void _showCustomYoutubeApiUrlDialog(BuildContext context, WidgetRef ref, String currentUrl) {
-    final controller = TextEditingController(text: currentUrl);
-
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('YouTube API Resolver URL'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Input your custom youtubei.js / innertube API worker URL. Leave empty to use local fallback.',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'https://youtube.yourdomain.workers.dev',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final val = controller.text.trim();
-              await ref.read(customYoutubeApiUrlProvider.notifier).setUrl(val);
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1024,16 +730,17 @@ class _SettingsCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark
-            ? theme.colorScheme.surfaceContainerLow.withOpacity(0.5)
-            : theme.colorScheme.surfaceContainerLowest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: theme.colorScheme.outline.withOpacity(0.08),
         ),
       ),
-      child: ClipRRect(
+      child: Material(
+        color: isDark
+            ? theme.colorScheme.surfaceContainerLow.withOpacity(0.5)
+            : theme.colorScheme.surfaceContainerLowest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           children: children,
         ),
