@@ -135,9 +135,12 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               _buildGoogleAccountItem(context, ref, theme),
               _buildDivider(theme),
+              _buildYoutubeAccountItem(context, ref, theme),
+              _buildDivider(theme),
               _buildSubscriptionItem(theme),
             ],
           ),
+
 
 
           // ── Section: Content & Display ─────────────────────────────────────
@@ -327,6 +330,134 @@ class SettingsScreen extends ConsumerWidget {
       },
     );
   }
+
+  Widget _buildYoutubeAccountItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final ytAccount = ref.watch(youtubeAuthProvider);
+
+    if (ytAccount != null) {
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.red.withOpacity(0.15),
+          child: const Icon(Icons.play_arrow_rounded, color: Colors.red, size: 24),
+        ),
+        title: Text(ytAccount.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: const Text('YouTube Music Account Synced', style: TextStyle(color: Colors.green, fontSize: 12)),
+        trailing: TextButton(
+          onPressed: () => ref.read(youtubeAuthProvider.notifier).signOut(),
+          child: const Text('Disconnect', style: TextStyle(color: Color(0xFFFF4500))),
+        ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.music_note_rounded, color: Colors.red),
+      ),
+      title: const Text('Sync YouTube Music Account', style: TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: const Text('Sync Liked Songs & Playlists via InnerTube'),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () => _showYoutubeCookieDialog(context, ref),
+    );
+  }
+
+  void _showYoutubeCookieDialog(BuildContext context, WidgetRef ref) {
+    final controller = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+
+        final theme = Theme.of(context);
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.sync_rounded, color: Colors.red),
+              SizedBox(width: 10),
+              Text('Sync YouTube Music'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'To sync your YouTube Music Liked Songs & Playlists via InnerTube:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '1. Open music.youtube.com in Browser\n'
+                    '2. Press F12 -> Application -> Cookies\n'
+                    '3. Copy the Cookie header string\n'
+                    '4. Paste it below to authenticate',
+                    style: TextStyle(fontSize: 12, height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'Paste Cookie value here (e.g. SAPISID=...; SID=...)',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final cookie = controller.text.trim();
+                if (cookie.isNotEmpty) {
+                  final success = await ref.read(youtubeAuthProvider.notifier).loginWithCookie(cookie);
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(success ? 'YouTube Account Synced Successfully!' : 'Invalid cookie string'),
+                        backgroundColor: success ? Colors.green : Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Connect & Sync'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   Widget _buildSubscriptionItem(ThemeData theme) {
     return ListTile(

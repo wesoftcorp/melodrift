@@ -14,7 +14,9 @@ import '../../domain/entities/charts_data.dart';
 import '../../domain/entities/mood_category.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/jiosaavn_service.dart';
+import '../../core/services/innertube_service.dart';
 import '../../core/services/music_track.dart';
+
 
 final youtubeMusicRemoteSourceProvider = Provider<YouTubeMusicRemoteSource>((ref) {
   final source = YouTubeMusicRemoteSource();
@@ -248,7 +250,7 @@ class YouTubeMusicRemoteSource {
   // Daily Cache & JSON Serialization Helpers
   // ---------------------------------------------------------------------------
 
-  static const _kCacheDateKey = 'home_feed_cache_date_v7';
+  static const _kCacheDateKey = 'home_feed_cache_date_v8';
 
   /// Returns a cache-key string combining today's date and the language filter.
   static String _cacheKey(String? language) {
@@ -258,6 +260,7 @@ class YouTubeMusicRemoteSource {
     final langPart = language ?? 'all';
     return '${datePart}_$langPart';
   }
+
 
   // --- Serialization mappings for entities to keep them dependency-free ---
 
@@ -408,28 +411,27 @@ class YouTubeMusicRemoteSource {
               decoded.containsKey('forgottenFavorites') &&
               decoded.containsKey('albumsForYou')) {
             final homeData = _homeDataFromJson(decoded);
-            // Verify cache contains only JioSaavn songs
-            final onlyJioSaavn = homeData.quickPicks.every((s) => s.source == 'JioSaavn') &&
-                homeData.trendingSongs.every((s) => s.source == 'JioSaavn');
-            if (onlyJioSaavn && homeData.quickPicks.isNotEmpty) {
-               _log.debug('Loaded JioSaavn home feed from daily cache ($key).');
+            if (homeData.quickPicks.isNotEmpty) {
+               _log.debug('Loaded home feed from daily cache ($key).');
                return homeData;
             }
           }
+
         }
       }
     } catch (e, s) {
       _log.error('Failed to read home feed cache', e, s);
     }
 
-    _log.info('Fetching fresh JioSaavn home feed...');
+    _log.info('Fetching fresh YouTube Music & JioSaavn home feed...');
     final langSuffix = (language == null || language.toLowerCase() == 'all') ? '' : ' $language';
 
     final jioSaavn = getIt<JioSaavnService>();
+    final innerTube = getIt<InnerTubeService>();
 
     Future<List<Song>> fetchJioSongs(String query) async {
       try {
-        final tracks = await jioSaavn.search(query).timeout(const Duration(seconds: 8));
+        final tracks = await jioSaavn.search(query).timeout(const Duration(seconds: 6));
         return tracks.map((MusicTrack t) => Song(
           id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
           title: t.title,
@@ -446,11 +448,53 @@ class YouTubeMusicRemoteSource {
       }
     }
 
-    Future<List<Album>> fetchJioAlbums(String query) async {
+    Future<List<Song>> fetchYtSongs(String query) async {
       try {
-        final songs = await fetchJioSongs(query);
+        final tracks = await innerTube.search(query).timeout(const Duration(seconds: 6));
+        if (tracks.isNotEmpty) {
+          return tracks.map((t) => Song(
+            id: t.id,
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            duration: t.duration,
+            artworkUrl: t.artworkUrl,
+            videoId: t.id,
+            source: 'YouTube Music',
+          )).toList();
+        }
+      } catch (_) {}
+
+      try {
+        final searchList = await _yt.search.search('$query song').timeout(const Duration(seconds: 6));
+        final List<Song> ytSongs = [];
+        for (final item in searchList) {
+          ytSongs.add(_mapVideoToSong(item));
+        }
+        return filterOutShorts(ytSongs);
+      } catch (e) {
+        _log.warning('Failed to fetch YouTube songs for query "$query": $e');
+        return [];
+      }
+    }
+
+    List<Song> interleaveSongs(List<Song> listA, List<Song> listB) {
+      final List<Song> result = [];
+      final maxLen = listA.length > listB.length ? listA.length : listB.length;
+      for (int i = 0; i < maxLen; i++) {
+        if (i < listA.length) result.add(listA[i]);
+        if (i < listB.length) result.add(listB[i]);
+      }
+      return result;
+    }
+
+    Future<List<Album>> fetchAlbums(String query) async {
+      try {
+        final jioSongs = await fetchJioSongs(query);
+        final ytSongs = await fetchYtSongs(query);
+        final combined = interleaveSongs(ytSongs, jioSongs);
         final Map<String, Album> uniqueAlbums = {};
-        for (final song in songs) {
+        for (final song in combined) {
           final albumName = song.album.isNotEmpty ? song.album : 'Single';
           if (!uniqueAlbums.containsKey(albumName)) {
             uniqueAlbums[albumName] = Album(
@@ -460,24 +504,12 @@ class YouTubeMusicRemoteSource {
               artworkUrl: song.artworkUrl,
               tracks: [song],
               songCount: 1,
-              source: 'JioSaavn',
-            );
-          } else {
-            final existing = uniqueAlbums[albumName]!;
-            uniqueAlbums[albumName] = Album(
-              id: existing.id,
-              title: existing.title,
-              artist: existing.artist,
-              artworkUrl: existing.artworkUrl,
-              tracks: [...existing.tracks, song],
-              songCount: existing.songCount + 1,
-              source: 'JioSaavn',
+              source: song.source,
             );
           }
         }
         return uniqueAlbums.values.toList();
       } catch (e) {
-        _log.error('Failed to fetch JioSaavn albums for query "$query": $e');
         return [];
       }
     }
@@ -497,43 +529,44 @@ class YouTubeMusicRemoteSource {
 
     await Future.wait([
       Future.wait([
+        fetchYtSongs('trending songs$langSuffix'),
         fetchJioSongs('hindi hits$langSuffix'),
-        fetchJioSongs('english popular$langSuffix'),
-      ]).then((results) => quickPicks = results.expand((x) => x).toList()),
+      ]).then((results) => quickPicks = interleaveSongs(results[0], results[1])),
 
-      fetchJioAlbums('hits$langSuffix').then((v) => newReleases = v),
+      fetchAlbums('new songs$langSuffix').then((v) => newReleases = v),
 
       Future.wait([
+        fetchYtSongs('top music chart$langSuffix'),
         fetchJioSongs('trending$langSuffix'),
-        fetchJioSongs('top songs$langSuffix'),
-      ]).then((results) => charts = results.expand((x) => x).toList()),
+      ]).then((results) => charts = interleaveSongs(results[0], results[1])),
 
       Future.wait([
+        fetchYtSongs('romantic songs$langSuffix'),
         fetchJioSongs('romantic$langSuffix'),
-        fetchJioSongs('love$langSuffix'),
-      ]).then((results) => listenAgain = results.expand((x) => x).toList()),
+      ]).then((results) => listenAgain = interleaveSongs(results[0], results[1])),
 
       Future.wait([
+        fetchYtSongs('viral hits$langSuffix'),
         fetchJioSongs('hindi top$langSuffix'),
-        fetchJioSongs('trending songs$langSuffix'),
-      ]).then((results) => trendingSongs = results.expand((x) => x).toList()),
+      ]).then((results) => trendingSongs = interleaveSongs(results[0], results[1])),
 
-      fetchJioAlbums('popular$langSuffix').then((v) => featuredPlaylistsForYou = v),
+      fetchAlbums('popular playlists$langSuffix').then((v) => featuredPlaylistsForYou = v),
 
       Future.wait([
+        fetchYtSongs('bollywood hits$langSuffix'),
         fetchJioSongs('bollywood$langSuffix'),
-        fetchJioSongs('hindi$langSuffix'),
-      ]).then((results) => indianMusic = results.expand((x) => x).toList()),
+      ]).then((results) => indianMusic = interleaveSongs(results[0], results[1])),
 
       Future.wait([
+        fetchYtSongs('retro 90s songs$langSuffix'),
         fetchJioSongs('90s retro$langSuffix'),
-        fetchJioSongs('ghazal$langSuffix'),
-      ]).then((results) => forgottenFavorites = results.expand((x) => x).toList()),
+      ]).then((results) => forgottenFavorites = interleaveSongs(results[0], results[1])),
 
-      fetchJioAlbums('hits$langSuffix').then((v) => albumsForYou = v),
+      fetchAlbums('top albums$langSuffix').then((v) => albumsForYou = v),
     ]);
 
     // Fetch top artists with real profile and image data from JioSaavn CDN
+
     final topArtistNames = [
       'Arijit Singh',
       'Neha Kakkar',
@@ -924,7 +957,7 @@ class YouTubeMusicRemoteSource {
     return url;
   }
 
-  /// Download YouTube stream bytes directly using youtube_explode's internal HTTP client to bypass 403 blocks.
+  /// Download YouTube stream bytes directly using youtube_explode's internal HTTP client or fallback HTTP stream to bypass 403 blocks.
   Future<void> downloadVideo(
     String videoId,
     String quality,
@@ -941,43 +974,81 @@ class YouTubeMusicRemoteSource {
       } catch (_) {}
     }
 
-    final manifest = await _yt.videos.streamsClient.getManifest(targetId);
-    var audioStreams = manifest.audioOnly.toList();
-    final winfriendlyStreams = audioStreams.where((s) {
-      final container = s.container.name.toLowerCase();
-      final codec = s.codec.type.toLowerCase();
-      return container == 'm4a' || container == 'mp4' || codec == 'mp4a' || codec == 'aac';
-    }).toList();
+    yt.StreamManifest? manifest;
 
-    if (winfriendlyStreams.isNotEmpty) {
-      audioStreams = winfriendlyStreams;
+    // Try parallel client resolution matching getStreamUrl
+    for (final client in _ytClients) {
+      try {
+        manifest = await _yt.videos.streamsClient
+            .getManifest(targetId, ytClients: [client])
+            .timeout(const Duration(seconds: 10));
+        if (manifest != null && manifest.audioOnly.isNotEmpty) break;
+      } catch (_) {}
     }
 
-    audioStreams.sort((a, b) => a.bitrate.bitsPerSecond.compareTo(b.bitrate.bitsPerSecond));
-    final streamInfo = switch (quality) {
-      'Low' => audioStreams.first,
-      'Medium' || 'Standard' => audioStreams[audioStreams.length ~/ 2],
-      _ => audioStreams.last,
-    };
+    if (manifest == null) {
+      try {
+        manifest = await _yt.videos.streamsClient.getManifest(targetId).timeout(const Duration(seconds: 10));
+      } catch (_) {}
+    }
 
-    final stream = _yt.videos.streamsClient.get(streamInfo);
-    final file = File(savePath);
-    final fileStream = file.openWrite();
-    final total = streamInfo.size.totalBytes;
-    int received = 0;
+    if (manifest != null && manifest.audioOnly.isNotEmpty) {
+      var audioStreams = manifest.audioOnly.toList();
+      final winfriendlyStreams = audioStreams.where((s) {
+        final container = s.container.name.toLowerCase();
+        final codec = s.codec.type.toLowerCase();
+        return container == 'm4a' || container == 'mp4' || codec == 'mp4a' || codec == 'aac';
+      }).toList();
 
-    try {
-      await for (final chunk in stream) {
-        fileStream.add(chunk);
-        received += chunk.length;
-        if (onProgress != null) {
-          onProgress(received, total);
-        }
+      if (winfriendlyStreams.isNotEmpty) {
+        audioStreams = winfriendlyStreams;
       }
-    } finally {
-      await fileStream.close();
+
+      audioStreams.sort((a, b) => a.bitrate.bitsPerSecond.compareTo(b.bitrate.bitsPerSecond));
+      final streamInfo = switch (quality) {
+        'Low' => audioStreams.first,
+        'Medium' || 'Standard' => audioStreams[audioStreams.length ~/ 2],
+        _ => audioStreams.last,
+      };
+
+      try {
+        final stream = _yt.videos.streamsClient.get(streamInfo);
+        final file = File(savePath);
+        final fileStream = file.openWrite();
+        final total = streamInfo.size.totalBytes;
+        int received = 0;
+
+        await for (final chunk in stream) {
+          fileStream.add(chunk);
+          received += chunk.length;
+          if (onProgress != null) {
+            onProgress(received, total);
+          }
+        }
+        await fileStream.close();
+        return;
+      } catch (e) {
+        _log.warning('Direct streamsClient.get failed for $targetId: $e. Falling back to stream URL download.');
+      }
+    }
+
+    // Direct fallback using resolved HTTP stream URL via Dio
+    final streamUrl = await getStreamUrl(targetId, quality, preferLocal: true);
+    final response = await _dio.download(
+      streamUrl,
+      savePath,
+      onReceiveProgress: onProgress,
+      options: Options(
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download YouTube audio stream. Status: ${response.statusCode}');
     }
   }
+
 
   /// Get video + audio stream URL for video player
   Future<String> getVideoStreamUrl(String videoId) async {

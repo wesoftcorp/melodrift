@@ -10,11 +10,13 @@ allprojects {
     configurations.all {
         resolutionStrategy.eachDependency {
             if (requested.group == "org.jetbrains.kotlin") {
-                useVersion("2.3.20")
+                useVersion("2.1.20")
                 because("Force consistent Kotlin version across all sub-projects")
             }
         }
     }
+
+
 }
 
 val newBuildDir: Directory =

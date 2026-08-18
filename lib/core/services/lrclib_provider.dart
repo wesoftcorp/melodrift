@@ -6,6 +6,7 @@ import 'lyrics_provider.dart';
 class LrcLibProvider implements LyricsProvider {
   final Dio _dio;
   final _log = AppLogger('LrcLibProvider');
+  final Map<String, List<LyricLine>> _cache = {};
 
   LrcLibProvider(this._dio);
 
@@ -14,6 +15,12 @@ class LrcLibProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
+    final cacheKey = '${title.toLowerCase().trim()}_${artist.toLowerCase().trim()}';
+    if (_cache.containsKey(cacheKey)) {
+      _log.debug('Returning cached lyrics for: $title - $artist');
+      return _cache[cacheKey]!;
+    }
+
     const url = 'https://lrclib.net/api/search';
     try {
       _log.info('Fetching lyrics from LRCLIB for: $title - $artist');
@@ -30,6 +37,7 @@ class LrcLibProvider implements LyricsProvider {
         ),
       );
 
+      List<LyricLine> lyrics = [];
       if (response.statusCode == 200 && response.data is List && (response.data as List).isNotEmpty) {
         final results = response.data as List<dynamic>;
         final bestMatch = results.first as Map<String, dynamic>;
@@ -37,17 +45,23 @@ class LrcLibProvider implements LyricsProvider {
         final plainLyrics = bestMatch['plainLyrics'] as String?;
 
         if (syncedLyrics != null && syncedLyrics.isNotEmpty) {
-          return _parseLrc(syncedLyrics);
+          lyrics = _parseLrc(syncedLyrics);
         } else if (plainLyrics != null && plainLyrics.isNotEmpty) {
-          return _parsePlain(plainLyrics);
+          lyrics = _parsePlain(plainLyrics);
         }
       }
-      return [];
+
+      if (_cache.length > 100) {
+        _cache.remove(_cache.keys.first);
+      }
+      _cache[cacheKey] = lyrics;
+      return lyrics;
     } catch (e, s) {
       _log.error('LRCLIB failed to fetch lyrics: $e', e, s);
       return [];
     }
   }
+
 
   List<LyricLine> _parseLrc(String lrcText) {
     final lines = lrcText.split('\n');

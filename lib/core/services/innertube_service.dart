@@ -3,25 +3,24 @@ import 'package:dio/dio.dart';
 import '../utils/logger.dart';
 import 'music_provider.dart';
 import 'music_track.dart';
+import 'youtube_auth_service.dart';
 
 class InnerTubeService implements MusicProvider {
   final Dio _dio;
+  final YoutubeAuthService? _authService;
   final _log = AppLogger('InnerTubeService');
   static const _baseUrl = 'https://www.youtube.com';
 
   // Base64 encoded public YouTube Music client API key (prevents Git scanning flags)
   static final String _apiKey = utf8.decode(base64.decode('QUl6YVN5QW8xT0oyQ3IyYW5xMG0tMlF1MXMxbi0ySDNzRDRhNWE2'));
 
-  InnerTubeService(this._dio);
+  InnerTubeService(this._dio, [this._authService]);
 
-  @override
-  String get name => 'youtube';
-
-  @override
-  Future<List<MusicTrack>> search(String query) async {
-    final url = '$_baseUrl/youtubei/v1/search?key=$_apiKey';
-    
-    final headers = {
+  Map<String, String> _buildHeaders() {
+    if (_authService != null && _authService!.isLoggedIn) {
+      return _authService!.getInnerTubeHeaders();
+    }
+    return {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'X-Goog-Api-Format-Version': '2',
       'X-YouTube-Client-Name': '26',
@@ -30,6 +29,15 @@ class InnerTubeService implements MusicProvider {
       'Referer': 'https://music.youtube.com/',
       'Origin': 'https://music.youtube.com',
     };
+  }
+
+  @override
+  String get name => 'youtube';
+
+  @override
+  Future<List<MusicTrack>> search(String query) async {
+    final url = '$_baseUrl/youtubei/v1/search?key=$_apiKey';
+    final headers = _buildHeaders();
 
     final payload = {
       'context': {
@@ -104,15 +112,7 @@ class InnerTubeService implements MusicProvider {
   @override
   Future<List<MusicTrack>> browse(String browseId) async {
     final url = '$_baseUrl/youtubei/v1/browse?key=$_apiKey';
-    final headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'X-Goog-Api-Format-Version': '2',
-      'X-YouTube-Client-Name': '26',
-      'X-YouTube-Client-Version': '1.20240101.00.00',
-      'Content-Type': 'application/json',
-      'Referer': 'https://music.youtube.com/',
-      'Origin': 'https://music.youtube.com',
-    };
+    final headers = _buildHeaders();
 
     final payload = {
       'context': {
@@ -158,6 +158,70 @@ class InnerTubeService implements MusicProvider {
       return [];
     }
   }
+
+  /// Fetches the authenticated user's YouTube Liked Songs (`VLLM`).
+  Future<List<MusicTrack>> fetchLikedSongs() async {
+    _log.info('Fetching YouTube Liked Songs...');
+    return browse('VLLM');
+  }
+
+  /// Fetches the user's YouTube Music Library playlists (`FEmusic_liked_playlists`).
+  Future<List<Map<String, dynamic>>> fetchUserPlaylists() async {
+    final url = '$_baseUrl/youtubei/v1/browse?key=$_apiKey';
+    final headers = _buildHeaders();
+
+    final payload = {
+      'context': {
+        'client': {
+          'clientName': 'WEB_REMIX',
+          'clientVersion': '1.20240101.00.00',
+          'hl': 'en',
+          'gl': 'US',
+          'utcOffsetMinutes': 330,
+        },
+      },
+      'browseId': 'FEmusic_liked_playlists',
+    };
+
+    try {
+      _log.info('Fetching user YouTube playlists...');
+      final response = await _dio.post<Map<String, dynamic>>(
+        url,
+        data: payload,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode != 200 || response.data == null) return [];
+
+      final data = response.data!;
+      final List<Map<String, dynamic>> playlists = [];
+      final List<Map<String, dynamic>> renderers = [];
+      _findListItemRenderers(data, renderers);
+
+      for (final renderer in renderers) {
+        final flexColumns = renderer['flexColumns'] as List<dynamic>? ?? [];
+        if (flexColumns.isEmpty) continue;
+        final title = flexColumns[0]?['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']?[0]?['text'] as String?;
+        final playlistId = (renderer['navigationEndpoint']?['browseEndpoint']?['browseId']) as String?;
+        final thumbnails = renderer['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails'] as List<dynamic>? ?? [];
+        final artworkUrl = thumbnails.isNotEmpty ? (thumbnails.last as Map<String, dynamic>)['url'] as String? ?? '' : '';
+
+        if (title != null && playlistId != null) {
+          playlists.add({
+            'id': playlistId,
+            'title': title,
+            'artworkUrl': artworkUrl,
+          });
+        }
+      }
+
+      return playlists;
+    } catch (e) {
+      _log.error('Failed to fetch user YouTube playlists: $e');
+      return [];
+    }
+  }
+
 
   void _findListItemRenderers(dynamic node, List<Map<String, dynamic>> results) {
     if (node is Map) {

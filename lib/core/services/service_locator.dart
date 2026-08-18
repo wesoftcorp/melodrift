@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
+import 'youtube_auth_service.dart';
 import 'innertube_service.dart';
 import 'jiosaavn_service.dart';
 import 'lrclib_provider.dart';
@@ -21,8 +22,13 @@ void setupServiceLocator() {
   
   getIt.registerLazySingleton<Dio>(() => dio);
   
+  // Register YoutubeAuthService
+  final authService = YoutubeAuthService();
+  getIt.registerSingleton<YoutubeAuthService>(authService);
+  authService.init();
+
   // Register InnerTubeService
-  getIt.registerLazySingleton<InnerTubeService>(() => InnerTubeService(getIt<Dio>()));
+  getIt.registerLazySingleton<InnerTubeService>(() => InnerTubeService(getIt<Dio>(), getIt<YoutubeAuthService>()));
 
   // Register JioSaavnService
   getIt.registerLazySingleton<JioSaavnService>(() => JioSaavnService(getIt<Dio>()));
@@ -40,3 +46,4 @@ void setupServiceLocator() {
   // Register AudioProxy
   getIt.registerSingleton<AudioProxy>(AudioProxy());
 }
+

@@ -5,6 +5,8 @@ import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../core/theme/theme_provider.dart';
+import '../../core/services/service_locator.dart';
+import '../../core/services/youtube_auth_service.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, UserModel?>((ref) {
   final repository = ref.watch(authRepositoryProvider);
@@ -51,4 +53,32 @@ class FirebaseEnabledNotifier extends StateNotifier<bool> {
     state = value;
   }
 }
+
+// ── YouTube Music InnerTube Auth Provider ──────────────────────────────────
+final youtubeAuthProvider = StateNotifierProvider<YoutubeAuthNotifier, YoutubeAuthAccount?>((ref) {
+  return YoutubeAuthNotifier();
+});
+
+class YoutubeAuthNotifier extends StateNotifier<YoutubeAuthAccount?> {
+  YoutubeAuthNotifier() : super(getIt<YoutubeAuthService>().account);
+
+  Future<bool> loginWithCookie(String rawCookie, {String? name, String? email, String? photoUrl}) async {
+    final success = await getIt<YoutubeAuthService>().saveCookie(
+      rawCookie,
+      name: name,
+      email: email,
+      photoUrl: photoUrl,
+    );
+    if (success) {
+      state = getIt<YoutubeAuthService>().account;
+    }
+    return success;
+  }
+
+  Future<void> signOut() async {
+    await getIt<YoutubeAuthService>().signOut();
+    state = null;
+  }
+}
+
 

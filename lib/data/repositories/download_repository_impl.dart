@@ -242,12 +242,30 @@ class DownloadRepositoryImpl implements DownloadRepository {
               ? song.videoId 
               : '${song.title} ${song.artist}';
           _log.info('Downloading YouTube track using native streamsClient: $ytSearchId');
-          await _remoteSource.downloadVideo(
-            ytSearchId,
-            quality,
-            tempFile.path,
-            onProgress: updateProgress,
-          );
+          try {
+            await _remoteSource.downloadVideo(
+              ytSearchId,
+              quality,
+              tempFile.path,
+              onProgress: updateProgress,
+            );
+          } catch (ytError) {
+            _log.warning('Native downloadVideo failed for YouTube track ($ytSearchId): $ytError. Retrying via Dio stream URL...');
+            await _dio.download(
+              streamUrl,
+              tempFile.path,
+              cancelToken: cancelToken,
+              options: Options(
+                followRedirects: true,
+                maxRedirects: 5,
+                receiveTimeout: const Duration(minutes: 5),
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                },
+              ),
+              onReceiveProgress: updateProgress,
+            );
+          }
         } else {
           _log.info('Downloading JioSaavn track using Dio: $streamUrl');
           await _dio.download(
@@ -268,6 +286,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
             onReceiveProgress: updateProgress,
           );
         }
+
 
         final storedPath = await _downloadManager.storeDownloadedFile(
           songId: song.id,

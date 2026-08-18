@@ -12,8 +12,14 @@ import '../widgets/playlists_list.dart';
 import '../widgets/history_list.dart';
 import '../providers/player_notifier.dart';
 import '../widgets/layout/mini_player.dart';
+import '../providers/auth_provider.dart';
+import '../../core/services/service_locator.dart';
+import '../../core/services/innertube_service.dart';
+import '../../core/services/music_track.dart';
 
 @RoutePage()
+
+
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -105,7 +111,75 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ],
                   ),
 
+                  // ── YouTube Music Synced Section ─────────────────────────────
+                  if (ref.watch(youtubeAuthProvider) != null) ...[
+                    const SizedBox(height: 24),
+                    InkWell(
+                      onTap: () => _openYoutubeLikedSongs(context),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.red.shade900.withOpacity(0.4),
+                              Colors.red.shade600.withOpacity(0.2),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(0.4),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.favorite_rounded, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'YouTube Liked Songs',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Synced via InnerTube account',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 32),
+
 
                   // Recently Added header
                   Padding(
@@ -142,10 +216,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
+  void _openYoutubeLikedSongs(BuildContext context) {
+    _openSubPage(
+      'YouTube Liked Songs',
+      const _YoutubeLikedSongsView(),
+    );
+  }
+
   void _openSubPage(String title, Widget body, {List<Widget>? actions}) {
     context.router.pushWidget(
       _SubPageScaffold(
         title: title,
+
         body: body,
         actions: actions,
       ),
@@ -724,3 +806,135 @@ class _SubPageScaffold extends ConsumerWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YouTube Liked Songs View Widget
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _YoutubeLikedSongsView extends ConsumerStatefulWidget {
+  const _YoutubeLikedSongsView();
+
+  @override
+  ConsumerState<_YoutubeLikedSongsView> createState() => _YoutubeLikedSongsViewState();
+}
+
+class _YoutubeLikedSongsViewState extends ConsumerState<_YoutubeLikedSongsView> {
+  late Future<List<MusicTrack>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = getIt<InnerTubeService>().fetchLikedSongs();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return FutureBuilder<List<MusicTrack>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.red),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.music_off_rounded, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                Text(
+                  snapshot.hasError
+                      ? 'Error loading YouTube Liked Songs'
+                      : 'No Liked Songs found or session expired',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _future = getIt<InnerTubeService>().fetchLikedSongs();
+                    });
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final tracks = snapshot.data!;
+
+        return ListView.builder(
+          itemCount: tracks.length,
+          padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16),
+          itemBuilder: (context, index) {
+            final track = tracks[index];
+            final title = track.title;
+            final artist = track.artist;
+            final artworkUrl = track.artworkUrl;
+
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: artworkUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: artworkUrl,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 48,
+                          height: 48,
+                          color: Colors.grey.shade800,
+                          child: const Icon(Icons.music_note, color: Colors.white),
+                        ),
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey.shade800,
+                        child: const Icon(Icons.music_note, color: Colors.white),
+                      ),
+              ),
+              title: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+              ),
+              trailing: const Icon(Icons.play_circle_fill_rounded, color: Colors.red, size: 28),
+              onTap: () {
+                final song = Song(
+                  id: track.id,
+                  title: title,
+                  artist: artist,
+                  album: track.album,
+                  duration: track.duration,
+                  artworkUrl: artworkUrl,
+                  videoId: track.id,
+                  source: 'YouTube Music',
+                );
+                ref.read(playerStateProvider.notifier).playSong(song);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+
