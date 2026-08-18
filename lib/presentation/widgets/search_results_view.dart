@@ -160,8 +160,17 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        final artists = snapshot.data ?? [];
-        if (artists.isEmpty) return const Center(child: Text('No artists found'));
+        final rawArtists = snapshot.data ?? [];
+        final artists = rawArtists.where((artist) {
+          final url = artist.artworkUrl.trim().toLowerCase();
+          return url.isNotEmpty &&
+              !url.contains('default') &&
+              !url.contains('blank') &&
+              !url.contains('avatar') &&
+              !url.endsWith('.gif');
+        }).toList();
+
+        if (artists.isEmpty) return const Center(child: Text('No artists with images found'));
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 180),
           itemCount: artists.length,
@@ -169,14 +178,14 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
             final artist = artists[index];
             return ListTile(
               leading: CircleAvatar(
-                backgroundImage: artist.artworkUrl.isNotEmpty
-                    ? CachedNetworkImageProvider(artist.artworkUrl)
-                    : null,
-                child: artist.artworkUrl.isEmpty ? const Icon(Icons.person) : null,
+                backgroundImage: CachedNetworkImageProvider(artist.artworkUrl),
               ),
               title: Text(artist.name),
-              trailing: artist.isVerified ? const Icon(Icons.verified, color: Colors.blue) : null,
+              subtitle: const Text('Artist'),
+              trailing: artist.isVerified ? const Icon(Icons.verified, color: Colors.blue, size: 18) : null,
+
               onTap: () {
+
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => DetailsScreen(

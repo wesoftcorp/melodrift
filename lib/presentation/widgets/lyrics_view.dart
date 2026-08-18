@@ -56,14 +56,15 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     if (index == _lastActiveIndex || !mounted) return;
     if (!_scrollController.hasClients) return;
     _lastActiveIndex = index;
-    const itemHeight = 70.0;
-    final offset = (index * itemHeight) - 100.0;
+    const itemHeight = 64.0;
+    final targetOffset = (index * itemHeight) - 120.0;
     _scrollController.animateTo(
-      offset.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
     );
   }
+
 
   /// O(n) scan but only runs when position crosses a line boundary.
   int _computeActiveIndex(List<LyricLine> lines, Duration position) {

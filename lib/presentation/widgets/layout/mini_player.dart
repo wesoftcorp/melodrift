@@ -23,32 +23,32 @@ class MiniPlayer extends ConsumerWidget {
 
     if (song == null) return const SizedBox.shrink();
 
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(999),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-          child: Container(
-            height: 64,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withOpacity(0.3),
-                width: 0.5,
-              ),
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E2A) : const Color(0xFFFFFFFF),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: (isDark ? Colors.white : Colors.black).withOpacity(0.12),
+              width: 1.0,
             ),
+          ),
+
             child: Stack(
               children: [
                 // Capsule content
@@ -201,7 +201,8 @@ class MiniPlayer extends ConsumerWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
+
+
