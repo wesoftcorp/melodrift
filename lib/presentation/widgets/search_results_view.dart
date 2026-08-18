@@ -162,15 +162,12 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
         final rawArtists = snapshot.data ?? [];
         final artists = rawArtists.where((artist) {
-          final url = artist.artworkUrl.trim().toLowerCase();
-          return url.isNotEmpty &&
-              !url.contains('default') &&
-              !url.contains('blank') &&
-              !url.contains('avatar') &&
-              !url.endsWith('.gif');
+          final url = artist.artworkUrl.trim();
+          return url.isNotEmpty && !url.contains('blank');
         }).toList();
 
-        if (artists.isEmpty) return const Center(child: Text('No artists with images found'));
+        if (artists.isEmpty) return const Center(child: Text('No artists found'));
+
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 180),
           itemCount: artists.length,

@@ -62,24 +62,63 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Artist>> searchArtists(String query) async {
-    final jioSaavn = getIt<JioSaavnService>();
-    final tracks = await jioSaavn.search(query);
     final Map<String, Artist> uniqueArtists = {};
-    for (final t in tracks) {
-      final firstArtist = t.artist.split(',').first.trim();
-      final artistId = 'artist_${t.id.startsWith('jiosaavn_') ? t.id.substring(10) : t.id}';
-      if (firstArtist.isNotEmpty && !uniqueArtists.containsKey(firstArtist)) {
-        uniqueArtists[firstArtist] = Artist(
-          id: artistId,
-          name: firstArtist,
-          artworkUrl: t.artworkUrl,
-          subscribers: 'JioSaavn Artist',
-          isVerified: true,
-        );
+
+    // 1. Fetch directly from JioSaavn artist search endpoint
+    try {
+      final jioSaavn = getIt<JioSaavnService>();
+      final jioArtists = await jioSaavn.searchArtists(query);
+      for (final a in jioArtists) {
+        final name = a['name'] as String? ?? a['title'] as String? ?? '';
+        final imagesRaw = a['image'] as List<dynamic>? ?? [];
+        String img = '';
+        if (imagesRaw.isNotEmpty) {
+          final last = imagesRaw.last;
+          if (last is Map) {
+            img = last['url']?.toString() ?? last['link']?.toString() ?? '';
+          }
+        }
+        if (img.isEmpty && a['artworkUrl'] != null) {
+          img = a['artworkUrl'].toString();
+        }
+        final id = a['id']?.toString() ?? name;
+        if (name.isNotEmpty && img.isNotEmpty && !uniqueArtists.containsKey(name.toLowerCase())) {
+          uniqueArtists[name.toLowerCase()] = Artist(
+            id: 'jiosaavn_artist_$id',
+            name: name,
+            artworkUrl: img,
+            subscribers: 'JioSaavn Artist',
+            isVerified: true,
+          );
+        }
       }
-    }
+
+    } catch (_) {}
+
+    // 2. Extract artists from track search results as additional fallback
+    try {
+      final jioSaavn = getIt<JioSaavnService>();
+      final tracks = await jioSaavn.search(query);
+      for (final t in tracks) {
+        final firstArtist = t.artist.split(',').first.trim();
+        if (firstArtist.isNotEmpty &&
+            !uniqueArtists.containsKey(firstArtist.toLowerCase()) &&
+            t.artworkUrl.isNotEmpty &&
+            !t.artworkUrl.contains('default')) {
+          uniqueArtists[firstArtist.toLowerCase()] = Artist(
+            id: 'artist_${t.id}',
+            name: firstArtist,
+            artworkUrl: t.artworkUrl,
+            subscribers: 'Artist',
+            isVerified: true,
+          );
+        }
+      }
+    } catch (_) {}
+
     return uniqueArtists.values.toList();
   }
+
 
   @override
   Future<HomeData> getHomeFeed({String? language}) => _remoteSource.getHomeFeed(language: language);
