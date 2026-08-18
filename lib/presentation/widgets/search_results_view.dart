@@ -162,9 +162,14 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
         final rawArtists = snapshot.data ?? [];
         final artists = rawArtists.where((artist) {
+          final name = artist.name.trim().toLowerCase();
           final url = artist.artworkUrl.trim();
+          if (name.contains('muhammad atif aslam') && (url.isEmpty || url.contains('default') || url.contains('avatar') || url.contains('jiosaavn'))) {
+            return false;
+          }
           return url.isNotEmpty && !url.contains('blank');
         }).toList();
+
 
         if (artists.isEmpty) return const Center(child: Text('No artists found'));
 

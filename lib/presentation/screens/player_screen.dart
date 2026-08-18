@@ -317,9 +317,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 28,
+              color: theme.colorScheme.onSurface,
+            ),
+            tooltip: 'Minimize Player',
             onPressed: () => context.router.maybePop(),
           ),
+
           Text(
             'NOW PLAYING',
             style: AppTextStyles.labelLarge.copyWith(

@@ -22,20 +22,41 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> searchSongs(String query) async {
-    final jioSaavn = getIt<JioSaavnService>();
-    final tracks = await jioSaavn.search(query);
-    return tracks.map((t) => Song(
-      id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      duration: t.duration,
-      artworkUrl: t.artworkUrl,
-      videoId: t.id,
-      streamUrl: null,
-      source: 'JioSaavn',
-    )).toList();
+    List<Song> ytSongs = [];
+    List<Song> jioSongs = [];
+
+    // 1. Fetch YouTube Music songs
+    try {
+      ytSongs = await _remoteSource.searchSongs(query);
+    } catch (_) {}
+
+    // 2. Fetch JioSaavn songs
+    try {
+      final jioSaavn = getIt<JioSaavnService>();
+      final tracks = await jioSaavn.search(query);
+      jioSongs = tracks.map((t) => Song(
+        id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        duration: t.duration,
+        artworkUrl: t.artworkUrl,
+        videoId: t.id,
+        streamUrl: null,
+        source: 'JioSaavn',
+      )).toList();
+    } catch (_) {}
+
+    // 3. Interleave YouTube Music and JioSaavn songs 50/50
+    final List<Song> combined = [];
+    final int maxLen = ytSongs.length > jioSongs.length ? ytSongs.length : jioSongs.length;
+    for (int i = 0; i < maxLen; i++) {
+      if (i < ytSongs.length) combined.add(ytSongs[i]);
+      if (i < jioSongs.length) combined.add(jioSongs[i]);
+    }
+    return combined.isNotEmpty ? combined : (ytSongs.isNotEmpty ? ytSongs : jioSongs);
   }
+
 
   @override
   Future<List<Album>> searchAlbums(String query) async {
@@ -116,8 +137,28 @@ class MusicRepositoryImpl implements MusicRepository {
       }
     } catch (_) {}
 
+    // 3. Extract artists from YouTube Music track search results
+    try {
+      final ytSongs = await _remoteSource.searchSongs(query);
+      for (final s in ytSongs) {
+        final firstArtist = s.artist.split(',').first.trim();
+        if (firstArtist.isNotEmpty &&
+            !uniqueArtists.containsKey(firstArtist.toLowerCase()) &&
+            s.artworkUrl.isNotEmpty) {
+          uniqueArtists[firstArtist.toLowerCase()] = Artist(
+            id: 'yt_artist_${s.id}',
+            name: firstArtist,
+            artworkUrl: s.artworkUrl,
+            subscribers: 'YouTube Music Artist',
+            isVerified: true,
+          );
+        }
+      }
+    } catch (_) {}
+
     return uniqueArtists.values.toList();
   }
+
 
 
   @override
