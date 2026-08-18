@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+
 import '../../domain/entities/song.dart';
 import '../../domain/entities/lyrics.dart';
 import '../../data/repositories/lyrics_repository_impl.dart';
 import '../providers/player_notifier.dart';
 import '../providers/translation_notifier.dart';
+
 
 final lyricsProvider = FutureProvider.family<List<LyricLine>, Song>((ref, song) async {
   final repository = ref.watch(lyricsRepositoryProvider);
@@ -135,6 +139,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
                   return GestureDetector(
                     onTap: () => ref.read(playerStateProvider.notifier).seek(Duration(milliseconds: line.timeMs)),
+                    onLongPress: () => _showLyricActionsModal(context, line.text, widget.song),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
@@ -198,4 +203,67 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       },
     );
   }
+
+  void _showLyricActionsModal(BuildContext context, String lyricText, Song song) {
+    final theme = Theme.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '"$lyricText"',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.copy_rounded),
+                  title: const Text('Copy Lyric Text'),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: lyricText));
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Lyric line copied to clipboard!'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share_rounded),
+                  title: const Text('Share Lyric Quote Card'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    final quote = '"$lyricText"\n\n— ${song.title} by ${song.artist}\nShared from Melodrift 🎶';
+                    Share.share(quote, subject: '${song.title} Lyrics');
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
+

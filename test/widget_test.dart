@@ -36,6 +36,10 @@ class MockMelodriftAudioHandler extends BaseAudioHandler implements MelodriftAud
   BehaviorSubject<PlaybackState> get playbackState => _playbackState;
 
   @override
+  Future<void> setEqualizerPreset(String preset) async {}
+
+
+  @override
   BehaviorSubject<MediaItem?> get mediaItem => _mediaItem;
 
   @override

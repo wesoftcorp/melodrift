@@ -948,6 +948,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     });
   }
 
+  void cancelSleepTimer() {
+    setSleepTimer(null);
+  }
+
+
   @override
   void dispose() {
     _sleepTimer?.cancel();

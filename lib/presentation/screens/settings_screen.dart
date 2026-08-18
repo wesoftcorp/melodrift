@@ -7,7 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/theme_provider.dart';
+import '../../core/services/audio_handler.dart';
 import '../providers/auth_provider.dart';
+
 import '../../flavors.dart';
 import '../../presentation/providers/duration_cache_provider.dart';
 import '../../core/services/image_caching_service.dart';
@@ -108,8 +110,19 @@ class SettingsScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (context.router.canPop()) {
+              context.router.maybePop();
+            } else {
+              try {
+                AutoTabsRouter.of(context).setActiveIndex(0);
+              } catch (_) {
+                context.router.maybePop();
+              }
+            }
+          },
         ),
+
         actions: [
           IconButton(
             icon: Icon(
@@ -175,9 +188,18 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
 
+          // ── Section: Audio & Equalizer ──────────────────────────────────────
+          const _SettingsSectionHeader(title: 'Audio & Playback'),
+          _SettingsCard(
+            children: [
+              _buildEqualizerItem(context, ref, theme),
+            ],
+          ),
+
           // ── Section: Storage & Network ─────────────────────────────────────
           const _SettingsSectionHeader(title: 'Storage & Network'),
           _SettingsCard(
+
             children: [
               _buildSwitchItem(
                 title: 'Download only over Wi-Fi',
@@ -879,3 +901,50 @@ class _SettingsCard extends StatelessWidget {
     );
   }
 }
+
+final equalizerPresetProvider = StateProvider<String>((ref) => 'Flat');
+
+Widget _buildEqualizerItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+  final currentPreset = ref.watch(equalizerPresetProvider);
+  return ListTile(
+    leading: const Icon(Icons.graphic_eq_rounded),
+    title: const Text('Equalizer Preset'),
+    subtitle: Text('Current Mode: $currentPreset'),
+    trailing: const Icon(Icons.chevron_right_rounded),
+    onTap: () {
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          final presets = ['Flat', 'Bass Boost', 'Vocal Boost', 'Pop', 'Rock', 'Acoustic', 'Electronic'];
+          return AlertDialog(
+            title: const Text('Select Equalizer Preset'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: presets.map((preset) {
+                return RadioListTile<String>(
+                  title: Text(preset),
+                  value: preset,
+                  groupValue: currentPreset,
+                  onChanged: (val) {
+                    if (val != null) {
+                      ref.read(equalizerPresetProvider.notifier).state = val;
+                      try {
+                        ref.read(audioHandlerProvider).setEqualizerPreset(val);
+                      } catch (_) {}
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Equalizer preset changed to $val')),
+                      );
+                    }
+                  },
+
+                );
+              }).toList(),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+

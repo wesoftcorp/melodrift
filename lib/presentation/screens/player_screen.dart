@@ -308,6 +308,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget _buildTopAppBar(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final playerState = ref.watch(playerStateProvider);
+    final hasActiveTimer = playerState.sleepTimeRemaining != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -325,20 +327,119 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               letterSpacing: 2.0,
             ),
           ),
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            onPressed: () {
-              ref.read(themeProvider.notifier).setThemeMode(
-                  isDark ? AppThemeMode.light : AppThemeMode.dark);
-            },
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  hasActiveTimer ? Icons.timer : Icons.timer_outlined,
+                  color: hasActiveTimer ? Colors.amberAccent : theme.colorScheme.onSurfaceVariant,
+                ),
+                tooltip: 'Sleep Timer',
+                onPressed: () => _showSleepTimerDialog(context, ref),
+              ),
+              IconButton(
+                icon: Icon(
+                  isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onPressed: () {
+                  ref.read(themeProvider.notifier).setThemeMode(
+                      isDark ? AppThemeMode.light : AppThemeMode.dark);
+                },
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  void _showSleepTimerDialog(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final playerState = ref.watch(playerStateProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.bedtime_rounded, color: Colors.amberAccent),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Sleep Timer',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                if (playerState.sleepTimeRemaining != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Active: ${playerState.sleepTimeRemaining!.inMinutes} min remaining',
+                    style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.w600),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _buildTimerChip(ctx, ref, '15 Min', const Duration(minutes: 15)),
+                    _buildTimerChip(ctx, ref, '30 Min', const Duration(minutes: 30)),
+                    _buildTimerChip(ctx, ref, '45 Min', const Duration(minutes: 45)),
+                    _buildTimerChip(ctx, ref, '60 Min', const Duration(minutes: 60)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (playerState.sleepTimeRemaining != null)
+                  TextButton.icon(
+                    onPressed: () {
+                      ref.read(playerStateProvider.notifier).cancelSleepTimer();
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Sleep timer cancelled')),
+                      );
+                    },
+                    icon: const Icon(Icons.timer_off_outlined, color: Colors.redAccent),
+                    label: const Text('Cancel Active Timer', style: TextStyle(color: Colors.redAccent)),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTimerChip(BuildContext context, WidgetRef ref, String label, Duration duration) {
+    final theme = Theme.of(context);
+    return ActionChip(
+      avatar: const Icon(Icons.timer_outlined, size: 18),
+      label: Text(label),
+      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+      onPressed: () {
+        ref.read(playerStateProvider.notifier).setSleepTimer(duration);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sleep timer set for ${duration.inMinutes} minutes')),
+        );
+      },
+    );
+  }
+
 
 
   Widget _buildQueueTab(ScrollController? scrollController) {

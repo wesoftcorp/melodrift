@@ -10,7 +10,7 @@ import 'song_card.dart';
 import 'album_card.dart';
 import '../screens/details_screen.dart';
 
-class SearchResultsView extends ConsumerWidget {
+class SearchResultsView extends ConsumerStatefulWidget {
   final String query;
 
   const SearchResultsView({
@@ -19,13 +19,33 @@ class SearchResultsView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SearchResultsView> createState() => _SearchResultsViewState();
+}
+
+class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
+  String _selectedSourceFilter = 'All'; // 'All', 'YouTube Music', 'JioSaavn'
+
+  @override
+  Widget build(BuildContext context) {
     final repo = ref.watch(musicRepositoryProvider);
 
     return DefaultTabController(
       length: 3,
       child: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildSourceFilterChip('All', 'All'),
+                const SizedBox(width: 8),
+                _buildSourceFilterChip('YouTube Music', '🔴 YouTube'),
+                const SizedBox(width: 8),
+                _buildSourceFilterChip('JioSaavn', '🟢 JioSaavn'),
+              ],
+            ),
+          ),
           const TabBar(
             tabs: [
               Tab(text: 'Songs'),
@@ -47,16 +67,46 @@ class SearchResultsView extends ConsumerWidget {
     );
   }
 
+  Widget _buildSourceFilterChip(String filterKey, String label) {
+    final isSelected = _selectedSourceFilter == filterKey;
+    final theme = Theme.of(context);
+    return FilterChip(
+      selected: isSelected,
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+        ),
+      ),
+      selectedColor: const Color(0xFFFF5F1F),
+      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+      onSelected: (selected) {
+        setState(() {
+          _selectedSourceFilter = filterKey;
+        });
+      },
+    );
+  }
+
   Widget _buildSongsTab(MusicRepository repo) {
     return FutureBuilder<List<Song>>(
-      future: repo.searchSongs(query),
+      future: repo.searchSongs(widget.query),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        final songs = snapshot.data ?? [];
-        if (songs.isEmpty) return const Center(child: Text('No songs found'));
+        var songs = snapshot.data ?? [];
+        
+        if (_selectedSourceFilter == 'YouTube Music') {
+          songs = songs.where((s) => s.source.toLowerCase().contains('youtube')).toList();
+        } else if (_selectedSourceFilter == 'JioSaavn') {
+          songs = songs.where((s) => s.source.toLowerCase().contains('jiosaavn')).toList();
+        }
+
+        if (songs.isEmpty) return const Center(child: Text('No songs found for selected filter'));
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 180),
           itemCount: songs.length,
@@ -66,16 +116,23 @@ class SearchResultsView extends ConsumerWidget {
     );
   }
 
+
   Widget _buildAlbumsTab(MusicRepository repo) {
     return FutureBuilder<List<Album>>(
-      future: repo.searchAlbums(query),
+      future: repo.searchAlbums(widget.query),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        final albums = snapshot.data ?? [];
-        if (albums.isEmpty) return const Center(child: Text('No albums found'));
+        var albums = snapshot.data ?? [];
+        if (_selectedSourceFilter == 'YouTube Music') {
+          albums = albums.where((a) => a.source.toLowerCase().contains('youtube')).toList();
+        } else if (_selectedSourceFilter == 'JioSaavn') {
+          albums = albums.where((a) => a.source.toLowerCase().contains('jiosaavn')).toList();
+        }
+
+        if (albums.isEmpty) return const Center(child: Text('No albums found for selected filter'));
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -96,7 +153,8 @@ class SearchResultsView extends ConsumerWidget {
 
   Widget _buildArtistsTab(MusicRepository repo) {
     return FutureBuilder<List<Artist>>(
-      future: repo.searchArtists(query),
+      future: repo.searchArtists(widget.query),
+
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

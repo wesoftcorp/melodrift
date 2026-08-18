@@ -652,5 +652,41 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     
     _queueHash = _generateQueueHash(updatedQueue);
   }
+
+  Future<void> setEqualizerPreset(String preset) async {
+    _log.info('Applying Equalizer Preset: $preset');
+    switch (preset) {
+      case 'Bass Boost':
+        await _player.setPitch(0.92);
+        await _player.setVolume((_userVolume * 1.15).clamp(0.0, 1.0));
+        break;
+      case 'Vocal Boost':
+        await _player.setPitch(1.06);
+        await _player.setVolume((_userVolume * 1.05).clamp(0.0, 1.0));
+        break;
+      case 'Pop':
+        await _player.setPitch(1.02);
+        await _player.setVolume(_userVolume.clamp(0.0, 1.0));
+        break;
+      case 'Rock':
+        await _player.setPitch(0.96);
+        await _player.setVolume((_userVolume * 1.1).clamp(0.0, 1.0));
+        break;
+      case 'Acoustic':
+        await _player.setPitch(1.01);
+        await _player.setVolume((_userVolume * 0.95).clamp(0.0, 1.0));
+        break;
+      case 'Electronic':
+        await _player.setPitch(0.94);
+        await _player.setVolume((_userVolume * 1.12).clamp(0.0, 1.0));
+        break;
+      case 'Flat':
+      default:
+        await _player.setPitch(1.0);
+        await _player.setVolume(_userVolume.clamp(0.0, 1.0));
+        break;
+    }
+  }
 }
+
 
