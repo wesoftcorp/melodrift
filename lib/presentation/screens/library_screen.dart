@@ -90,12 +90,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           const PlaylistsList(),
                           actions: [
                             IconButton(
+                              icon: const Icon(Icons.link_rounded),
+                              tooltip: 'Import Playlist from URL',
+                              onPressed: _showImportPlaylistDialog,
+                            ),
+                            IconButton(
                               icon: const Icon(Icons.add_box_outlined),
                               onPressed: _showCreatePlaylistDialog,
                             ),
                           ],
                         ),
                       ),
+
                       _LibraryCategoryCard(
                         title: 'History',
                         icon: Icons.history_rounded,
@@ -235,7 +241,102 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
 
+  void _showImportPlaylistDialog() {
+    final urlController = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import Playlist from URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Paste any YouTube or YouTube Music playlist link:',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'https://www.youtube.com/playlist?list=...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link_rounded),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final url = urlController.text.trim();
+              if (url.isEmpty) return;
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Importing playlist tracks...')),
+              );
+
+              final innerTube = getIt<InnerTubeService>();
+              final tracks = await innerTube.fetchPlaylistFromUrl(url);
+
+              if (tracks.isNotEmpty && mounted) {
+                final playlistRepo = ref.read(playlistRepositoryProvider);
+                final playlistId = 'imported_${DateTime.now().millisecondsSinceEpoch}';
+                final playlist = Playlist(
+                  id: playlistId,
+                  title: 'Imported Playlist (${tracks.length} tracks)',
+                  description: 'Imported via URL',
+                  artworkUrl: tracks.first.artworkUrl,
+                  trackCount: tracks.length,
+                  songs: const [],
+                  isYouTube: false,
+                  isLocal: true,
+                );
+
+                await playlistRepo.createPlaylist(playlist);
+
+                for (final track in tracks) {
+                  final song = Song(
+                    id: track.id,
+                    title: track.title,
+                    artist: track.artist,
+                    album: track.album,
+                    duration: track.duration,
+                    artworkUrl: track.artworkUrl,
+                    videoId: track.id,
+                    source: 'YouTube Music',
+                  );
+                  await playlistRepo.addSongToPlaylist(playlist.id, song);
+                }
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Successfully imported "${playlist.title}"!')),
+                  );
+                  setState(() {});
+                }
+              }
+ else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to import playlist or no tracks found.')),
+                );
+              }
+            },
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCreatePlaylistDialog() {
+
     final titleController = TextEditingController();
     showDialog<void>(
       context: context,

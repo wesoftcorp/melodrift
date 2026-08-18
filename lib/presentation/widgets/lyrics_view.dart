@@ -144,14 +144,28 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Column(
                         children: [
-                          Text(
-                            line.text,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: isActive ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withOpacity(0.4),
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                              fontSize: isActive ? 21 : 17,
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 250),
+                            style: theme.textTheme.titleMedium!.copyWith(
+                              color: isActive
+                                  ? (theme.brightness == Brightness.dark ? const Color(0xFFFF5F1F) : theme.colorScheme.primary)
+                                  : theme.colorScheme.onSurface.withOpacity(0.35),
+                              fontWeight: isActive ? FontWeight.w900 : FontWeight.normal,
+                              fontSize: isActive ? 23 : 17,
+                              letterSpacing: isActive ? 0.2 : 0.0,
+                              shadows: isActive
+                                  ? [
+                                      Shadow(
+                                        color: const Color(0xFFFF5F1F).withOpacity(0.6),
+                                        blurRadius: 16,
+                                      ),
+                                    ]
+                                  : null,
                             ),
-                            textAlign: TextAlign.center,
+                            child: Text(
+                              line.text,
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                           if (transState.isTranslating) ...[
                             const SizedBox(height: 6),
@@ -168,6 +182,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       ),
                     ),
                   );
+
                 },
               ),
             ),

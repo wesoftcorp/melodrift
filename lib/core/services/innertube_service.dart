@@ -222,6 +222,62 @@ class InnerTubeService implements MusicProvider {
     }
   }
 
+  Future<List<MusicTrack>> fetchPlaylistFromUrl(String input) async {
+    String playlistId = input.trim();
+    final listParamMatch = RegExp(r'[?&]list=([a-zA-Z0-9_-]+)').firstMatch(playlistId);
+    if (listParamMatch != null) {
+      playlistId = listParamMatch.group(1)!;
+    }
+    
+    if (!playlistId.startsWith('VL') && !playlistId.startsWith('RD') && playlistId.length > 5) {
+      playlistId = 'VL$playlistId';
+    }
+
+    final browseUrl = '$_baseUrl/youtubei/v1/browse?key=$_apiKey';
+    final headers = _buildHeaders();
+    final payload = {
+      'context': {
+        'client': {
+          'clientName': 'WEB_REMIX',
+          'clientVersion': '1.20240101.00.00',
+          'hl': 'en',
+          'gl': 'US',
+          'utcOffsetMinutes': 330,
+        }
+      },
+      'browseId': playlistId,
+    };
+
+    try {
+      _log.info('Fetching playlist via InnerTube browse ID: $playlistId');
+      final response = await _dio.post<Map<String, dynamic>>(
+        browseUrl,
+        data: payload,
+        options: Options(headers: headers),
+      );
+
+      if (response.statusCode != 200 || response.data == null) {
+        return [];
+      }
+
+      final List<Map<String, dynamic>> renderers = [];
+      _findListItemRenderers(response.data!, renderers);
+
+      final List<MusicTrack> tracks = [];
+      for (final r in renderers) {
+        final track = _parseTrackRenderer(r);
+        if (track != null) {
+          tracks.add(track);
+        }
+      }
+      return tracks;
+    } catch (e) {
+      _log.error('Failed to fetch playlist tracks for $input: $e');
+      return [];
+    }
+  }
+
+
 
   void _findListItemRenderers(dynamic node, List<Map<String, dynamic>> results) {
     if (node is Map) {

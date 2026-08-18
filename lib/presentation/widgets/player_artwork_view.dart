@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -68,36 +69,63 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // ── Artwork with breathing animation ───────────────────────────────
+        // ── Artwork with breathing animation & ambient glow ────────────────
         AnimatedBuilder(
           animation: _breathAnim,
           builder: (context, child) => Transform.scale(
             scale: _breathAnim.value,
             child: child,
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: (theme.colorScheme.primary).withAlpha(isPlaying ? 70 : 0),
-                  blurRadius: isPlaying ? 40 : 0,
-                  spreadRadius: isPlaying ? 2 : 0,
-                  offset: const Offset(0, 16),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Ambient Glow Aura Behind Artwork
+              if (isPlaying)
+                Transform.scale(
+                  scale: 1.15,
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.rectangle,
+                      borderRadius: BorderRadius.circular(32),
+                      image: DecorationImage(
+                        image: CachedNetworkImageProvider(song.artworkUrl),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+                      child: Container(color: Colors.black.withOpacity(0.1)),
+                    ),
+                  ),
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: AppleMotionArtworkPlayer(
-                title: song.title,
-                artist: song.artist,
-                staticArtworkUrl: song.artworkUrl,
-                isPlaying: isPlaying,
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (theme.colorScheme.primary).withAlpha(isPlaying ? 80 : 0),
+                      blurRadius: isPlaying ? 40 : 0,
+                      spreadRadius: isPlaying ? 2 : 0,
+                      offset: const Offset(0, 16),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: AppleMotionArtworkPlayer(
+                    title: song.title,
+                    artist: song.artist,
+                    staticArtworkUrl: song.artworkUrl,
+                    isPlaying: isPlaying,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
+
         const SizedBox(height: 36),
         // ── Song Info ──────────────────────────────────────────────────────
         Padding(
