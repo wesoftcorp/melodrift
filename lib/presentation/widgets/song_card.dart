@@ -95,25 +95,20 @@ class SongCard extends ConsumerWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        width: 7,
+                        height: 7,
+                        margin: const EdgeInsets.only(right: 6),
                         decoration: BoxDecoration(
-                          color: _getSourceColor(song.source).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: _getSourceColor(song.source).withOpacity(0.4),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Text(
-                          _getSourceText(song.source),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: _getSourceColor(song.source),
-                          ),
+                          color: _getSourceColor(song.source),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getSourceColor(song.source).withOpacity(0.6),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           song.artist,
@@ -124,6 +119,7 @@ class SongCard extends ConsumerWidget {
                       ),
                     ],
                   ),
+
                 ],
               ),
             ),
@@ -141,30 +137,18 @@ class SongCard extends ConsumerWidget {
     );
   }
 
-  String _getSourceText(String source) {
-    switch (source.toLowerCase()) {
-      case 'jiosaavn':
-        return 'JioSaavn';
-      case 'spotify':
-        return 'Spotify';
-      case 'soundcloud':
-        return 'SoundCloud';
-      default:
-        return 'YT Music';
-    }
-  }
-
   Color _getSourceColor(String source) {
     switch (source.toLowerCase()) {
       case 'jiosaavn':
-        return Colors.amberAccent; // Amber Gold Accent
+        return const Color(0xFF00E676); // JioSaavn Green Dot
       case 'spotify':
-        return const Color(0xFF1DB954); // Spotify Green
+        return const Color(0xFF1DB954);
       case 'soundcloud':
-        return const Color(0xFF9B5DE5); // SoundCloud Purple
+        return const Color(0xFF9B5DE5);
       default:
-        return Colors.redAccent; // YouTube Music Red
+        return const Color(0xFFFF3333); // YouTube Music Red Dot
     }
   }
+
 }
 

@@ -40,9 +40,10 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
               children: [
                 _buildSourceFilterChip('All', 'All'),
                 const SizedBox(width: 8),
-                _buildSourceFilterChip('YouTube Music', '🔴 YouTube'),
+                _buildSourceFilterChip('YouTube Music', '🔴 Red'),
                 const SizedBox(width: 8),
-                _buildSourceFilterChip('JioSaavn', '🟢 JioSaavn'),
+                _buildSourceFilterChip('JioSaavn', '🟢 Green'),
+
               ],
             ),
           ),
