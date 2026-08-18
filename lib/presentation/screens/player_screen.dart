@@ -113,9 +113,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           SafeArea(
             child: Column(
               children: [
-                _buildTopAppBar(context),
+                const SizedBox(height: 56),
                 const Expanded(
                   child: SingleChildScrollView(
+
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -299,11 +300,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
 
-
+          // 4. Top App Bar (ALWAYS ON TOP)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: _buildTopAppBar(context),
+            ),
+          ),
         ],
       ),
     );
   }
+
 
   Widget _buildTopAppBar(BuildContext context) {
     final theme = Theme.of(context);
