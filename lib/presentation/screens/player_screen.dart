@@ -183,13 +183,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                                 parent: BouncingScrollPhysics(),
                               ),
                               slivers: [
-
                                 // ── Drag handle & title ──────────────────────
                                 SliverToBoxAdapter(
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.opaque,
                                     onTap: () async {
                                       if (_sheetController.isAttached) {
+                                        final isExpanded = _sheetController.size > 0.5;
                                         if (isExpanded) {
                                           if (sheetScrollController.hasClients) {
                                             await sheetScrollController.animateTo(
@@ -250,49 +250,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                                   ),
                                 ),
 
-                                // ── Tab content (only when expanded) ─────────
-                                if (isExpanded)
-                                  SliverToBoxAdapter(
-                                    child: SizedBox(
-                                      height: (MediaQuery.of(context).size.height * 0.85) - 80,
-                                      child: Column(
-                                        children: [
-                                          TabBar(
+                                // ── Tab content (ALWAYS MOUNTED FOR 100% TAB MEMORY) ─────────
+                                SliverToBoxAdapter(
+                                  child: SizedBox(
+                                    height: (MediaQuery.of(context).size.height * 0.85) - 80,
+                                    child: Column(
+                                      children: [
+                                        TabBar(
+                                          controller: _sheetTabController,
+                                          labelColor: theme.colorScheme.primary,
+                                          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                          indicatorColor: theme.colorScheme.primary,
+                                          indicatorSize: TabBarIndicatorSize.tab,
+                                          dividerColor: Colors.transparent,
+                                          labelStyle: AppTextStyles.monoSectionHeader,
+                                          tabs: const [
+                                            Tab(text: 'QUEUE'),
+                                            Tab(text: 'LYRICS'),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: TabBarView(
                                             controller: _sheetTabController,
-                                            labelColor: theme.colorScheme.primary,
-                                            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                            indicatorColor: theme.colorScheme.primary,
-                                            indicatorSize: TabBarIndicatorSize.tab,
-                                            dividerColor: Colors.transparent,
-                                            labelStyle: AppTextStyles.monoSectionHeader,
-                                            tabs: const [
-                                              Tab(text: 'QUEUE'),
-                                              Tab(text: 'LYRICS'),
+                                            children: [
+                                              _buildQueueTab(null),
+                                              LyricsView(
+                                                song: song,
+                                                position: playerState.position,
+                                                scrollController: null,
+                                              ),
                                             ],
                                           ),
-                                          const SizedBox(height: 8),
-                                          Expanded(
-                                            child: TabBarView(
-                                              controller: _sheetTabController,
-                                              children: [
-                                                _buildQueueTab(null),
-                                                LyricsView(
-                                                  song: song,
-                                                  position: playerState.position,
-                                                  scrollController: null,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-
-
-
+                                ),
                               ],
                             );
+
                           },
                         ),
                       ),
