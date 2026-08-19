@@ -10,7 +10,9 @@ import '../../domain/entities/mood_category.dart';
 import '../../domain/entities/song.dart';
 import '../widgets/search_results_view.dart';
 import '../widgets/voice_search_sheet.dart';
+import '../widgets/song_card.dart';
 import '../../core/theme/theme_provider.dart';
+
 import 'home_screen.dart';
 import '../../domain/entities/home_data.dart';
 import '../../domain/entities/artist.dart';
@@ -1342,9 +1344,24 @@ class _MoodSearchDialogState extends ConsumerState<_MoodSearchDialog> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              trailing: const Icon(
-                                Icons.play_circle_outline,
-                                color: Color(0xFFFF5F1F),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.play_circle_outline,
+                                      color: Color(0xFFFF5F1F),
+                                    ),
+                                    onPressed: () {
+                                      ref.read(playerStateProvider.notifier).playSong(song);
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => showSongOptionsMenu(context, ref, song),
+                                  ),
+                                ],
                               ),
                               onTap: () {
                                 ref
@@ -1356,6 +1373,7 @@ class _MoodSearchDialogState extends ConsumerState<_MoodSearchDialog> {
                           },
                         ),
                       ),
+
                     ],
                   );
                 },
