@@ -181,8 +181,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       final isBufferingOrLoading = pState.processingState == AudioProcessingState.buffering ||
                                    pState.processingState == AudioProcessingState.loading;
-      final targetPlaying = (_resolvingVideoId != null || isBufferingOrLoading) ? state.isPlaying : pState.playing;
-      final showLoading = targetPlaying && (_resolvingVideoId != null || isBufferingOrLoading);
+      final targetPlaying = (_resolvingVideoId != null) ? state.isPlaying : pState.playing;
+      final showLoading = _resolvingVideoId != null || (!targetPlaying && isBufferingOrLoading);
 
       // If the player says it is NOT playing, but we currently think it is playing,
       // we debounce the update to false by 200ms to filter out transient stutters.
@@ -212,6 +212,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         _updatePlaybackQueue();
       }
     });
+
 
     // 3. Queue
     _queueSubscription = _handler.queue.listen((mItems) {
@@ -625,6 +626,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _log.debug('updating queue with final media item: ${mediaItem.title}');
       await _handler.updateQueue([mediaItem], initialIndex: 0);
 
+      _resolvingVideoId = null;
+      state = state.copyWith(isLoading: false, isPlaying: true);
+
       _log.debug('invoking handler.play()');
       await _handler.play();
       _log.debug('handler.play() completed successfully');
@@ -650,18 +654,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (filteredSongs.isEmpty) {
         scaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(
-            content: Text('All songs in the selection contain explicit content and were restricted.'),
+            content: Text('All songs in this list contain explicit content and are restricted.'),
             backgroundColor: Colors.redAccent,
           ),
         );
         return;
       }
       // Re-map the initialIndex to the filtered list
-      final selectedSong = songs[initialIndex];
-      targetIndex = filteredSongs.indexWhere((s) => s.id == selectedSong.id);
-      if (targetIndex == -1) {
-        targetIndex = 0;
-      }
+      targetIndex = filteredSongs.indexWhere((s) => s.id == songs[initialIndex].id);
+      if (targetIndex == -1) targetIndex = 0;
     }
 
     final selectedSong = filteredSongs[targetIndex];
@@ -671,6 +672,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // 1. Instantly update Riverpod state so UI updates immediately
     state = state.copyWith(
       currentSong: selectedSong,
+      queue: filteredSongs,
       isLoading: true,
       isPlaying: true,
       position: Duration.zero,
@@ -711,6 +713,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       await _handler.updateQueue(mItems, initialIndex: targetIndex);
+      _resolvingVideoId = null;
+      state = state.copyWith(isLoading: false, isPlaying: true);
       await _handler.play();
     } catch (e) {
       if (generation != _playGeneration) return;
