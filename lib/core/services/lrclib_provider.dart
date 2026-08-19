@@ -15,27 +15,30 @@ class LrcLibProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
-    final cacheKey = '${title.toLowerCase().trim()}_${artist.toLowerCase().trim()}';
+    final cleanTitleStr = _cleanTitle(title);
+    final cleanArtistStr = _cleanArtist(artist);
+    final cacheKey = '${cleanTitleStr.toLowerCase()}_${cleanArtistStr.toLowerCase()}';
     if (_cache.containsKey(cacheKey)) {
-      _log.debug('Returning cached lyrics for: $title - $artist');
+      _log.debug('Returning cached lyrics for: $cleanTitleStr - $cleanArtistStr');
       return _cache[cacheKey]!;
     }
 
     const url = 'https://lrclib.net/api/search';
     try {
-      _log.info('Fetching lyrics from LRCLIB for: $title - $artist');
+      _log.info('Fetching lyrics from LRCLIB for: $cleanTitleStr - $cleanArtistStr');
       final response = await _dio.get<dynamic>(
         url,
         queryParameters: {
-          'track_name': title,
-          'artist_name': artist,
-          'duration': duration.inSeconds,
+          'track_name': cleanTitleStr,
+          'artist_name': cleanArtistStr,
+          if (duration > Duration.zero) 'duration': duration.inSeconds,
         },
         options: Options(
           receiveTimeout: const Duration(seconds: 5),
           sendTimeout: const Duration(seconds: 5),
         ),
       );
+
 
       List<LyricLine> lyrics = [];
       if (response.statusCode == 200 && response.data is List && (response.data as List).isNotEmpty) {
@@ -98,4 +101,23 @@ class LrcLibProvider implements LyricsProvider {
     }
     return lyricLines;
   }
+
+  String _cleanTitle(String title) {
+    var s = title;
+    s = s.replaceAll(RegExp(r'\s*\([^)]*from[^)]*\)', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*\([^)]*soundtrack[^)]*\)', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*\([^)]*original[^)]*\)', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*\[[^\]]*\]'), '');
+    s = s.replaceAll(RegExp(r'\s*\([^)]*feat[^)]*\)', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*\([^)]*ft[^)]*\)', caseSensitive: false), '');
+    return s.trim();
+  }
+
+  String _cleanArtist(String artist) {
+    if (artist.contains(',')) return artist.split(',').first.trim();
+    if (artist.contains('&')) return artist.split('&').first.trim();
+    return artist.trim();
+  }
 }
+
+

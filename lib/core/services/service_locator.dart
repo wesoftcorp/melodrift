@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'youtube_auth_service.dart';
 import 'innertube_service.dart';
 import 'jiosaavn_service.dart';
+import 'jiosaavn_lyrics_provider.dart';
 import 'lrclib_provider.dart';
 import 'youlyplus_provider.dart';
 import 'kugou_provider.dart';
@@ -38,10 +39,12 @@ void setupServiceLocator() {
 
   // Register LyricsRegistry and its providers
   getIt.registerLazySingleton<LyricsRegistry>(() => LyricsRegistry([
+    JioSaavnLyricsProvider(getIt<Dio>()),
     LrcLibProvider(getIt<Dio>()),
     YouLyPlusProvider(getIt<Dio>()),
     KuGouProvider(getIt<Dio>()),
   ]));
+
 
   // Register AudioProxy
   getIt.registerSingleton<AudioProxy>(AudioProxy());

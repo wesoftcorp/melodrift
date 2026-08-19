@@ -28,12 +28,14 @@ class PlayerScreen extends ConsumerStatefulWidget {
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final DraggableScrollableController _sheetController;
+  int _selectedSheetTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _sheetController = DraggableScrollableController();
   }
+
 
   @override
   void dispose() {
@@ -251,37 +253,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   SliverToBoxAdapter(
                                     child: SizedBox(
                                       height: (MediaQuery.of(context).size.height * 0.85) - 80,
-
                                       child: DefaultTabController(
+                                        initialIndex: _selectedSheetTabIndex,
                                         length: 2,
-                                        child: Column(
-                                          children: [
-                                            TabBar(
-                                              labelColor: theme.colorScheme.primary,
-                                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                              indicatorColor: theme.colorScheme.primary,
-                                              indicatorSize: TabBarIndicatorSize.tab,
-                                              dividerColor: Colors.transparent,
-                                              labelStyle: AppTextStyles.monoSectionHeader,
-                                              tabs: const [
-                                                Tab(text: 'QUEUE'),
-                                                Tab(text: 'LYRICS'),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Expanded(
-                                              child: TabBarView(
-                                                children: [
-                                                  _buildQueueTab(null),
-                                                  LyricsView(
-                                                    song: song,
-                                                    position: playerState.position,
-                                                    scrollController: null,
+                                        child: Builder(
+                                          builder: (tabContext) {
+                                            final tabController = DefaultTabController.of(tabContext);
+                                            tabController.addListener(() {
+                                              if (mounted) {
+                                                _selectedSheetTabIndex = tabController.index;
+                                              }
+                                            });
+                                            return Column(
+                                              children: [
+                                                TabBar(
+                                                  onTap: (idx) {
+                                                    _selectedSheetTabIndex = idx;
+                                                  },
+                                                  labelColor: theme.colorScheme.primary,
+                                                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                                  indicatorColor: theme.colorScheme.primary,
+                                                  indicatorSize: TabBarIndicatorSize.tab,
+                                                  dividerColor: Colors.transparent,
+                                                  labelStyle: AppTextStyles.monoSectionHeader,
+                                                  tabs: const [
+                                                    Tab(text: 'QUEUE'),
+                                                    Tab(text: 'LYRICS'),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Expanded(
+                                                  child: TabBarView(
+                                                    children: [
+                                                      _buildQueueTab(null),
+                                                      LyricsView(
+                                                        song: song,
+                                                        position: playerState.position,
+                                                        scrollController: null,
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                                ),
+                                              ],
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),

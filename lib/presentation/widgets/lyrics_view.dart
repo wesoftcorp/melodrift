@@ -34,9 +34,9 @@ class LyricsView extends ConsumerStatefulWidget {
 class _LyricsViewState extends ConsumerState<LyricsView> {
   late final ScrollController _scrollController;
   int _lastActiveIndex = -1;
-  // Cache: last computed active index and the lines list it was computed for
   int _cachedActiveIndex = -1;
   List<LyricLine>? _cachedLines;
+  final Map<int, GlobalKey> _lineKeys = {};
 
   @override
   void initState() {
@@ -52,19 +52,33 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     super.dispose();
   }
 
-  void _scrollToActive(int index) {
-    if (index == _lastActiveIndex || !mounted) return;
-    if (!_scrollController.hasClients) return;
-    _lastActiveIndex = index;
-    const itemHeight = 64.0;
-    final targetOffset = (index * itemHeight) - 120.0;
-    _scrollController.animateTo(
-      targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-    );
+  GlobalKey _getKeyForIndex(int index) {
+    return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
+  void _scrollToActive(int index) {
+    if (index == _lastActiveIndex || !mounted) return;
+    _lastActiveIndex = index;
+    final key = _lineKeys[index];
+    final keyContext = key?.currentContext;
+    if (keyContext != null) {
+      Scrollable.ensureVisible(
+        keyContext,
+        alignment: 0.5, // 0.5 = EXACT VERTICAL CENTER OF VIEWPORT
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeInOutCubic,
+      );
+    } else if (_scrollController.hasClients) {
+      // Fallback estimate if key context is not ready yet
+      const itemHeight = 64.0;
+      final targetOffset = (index * itemHeight) - 180.0;
+      _scrollController.animateTo(
+        targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
 
   /// O(n) scan but only runs when position crosses a line boundary.
   int _computeActiveIndex(List<LyricLine> lines, Duration position) {
@@ -121,7 +135,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [Colors.transparent, theme.colorScheme.onSurface, theme.colorScheme.onSurface, Colors.transparent],
-                  stops: const [0.0, 0.1, 0.8, 1.0],
+                  stops: const [0.0, 0.12, 0.88, 1.0],
                 ).createShader(bounds);
               },
               blendMode: BlendMode.dstIn,
@@ -131,14 +145,14 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   parent: BouncingScrollPhysics(),
                 ),
                 itemCount: lines.length,
-                padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
-
+                padding: const EdgeInsets.symmetric(vertical: 220, horizontal: 24),
                 itemBuilder: (context, index) {
                   final line = lines[index];
                   final isActive = index == activeIndex;
                   final translation = transState.translatedLines[line.timeMs];
 
                   return GestureDetector(
+                    key: _getKeyForIndex(index),
                     onTap: () => ref.read(playerStateProvider.notifier).seek(Duration(milliseconds: line.timeMs)),
                     onLongPress: () => _showLyricActionsModal(context, line.text, widget.song),
                     child: Padding(
@@ -183,10 +197,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       ),
                     ),
                   );
-
                 },
               ),
             ),
+
             Positioned(
               top: 16,
               right: 16,
