@@ -7,14 +7,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/entities/album.dart';
 import '../../domain/entities/home_data.dart';
+
 import '../providers/player_notifier.dart';
 import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
 import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
 import 'details_screen.dart';
 import '../widgets/home/home_trending_cascade.dart';
+import '../../data/repositories/history_repository_impl.dart';
 import '../../core/theme/tokens.dart';
+
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -218,22 +222,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ],
 
-                // ── Listen Again ─────────────────────────────────────────
-                if (feed.listenAgain.isNotEmpty) ...[  
-                  _buildSectionHeader(
-                    'Listen Again',
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'listen_again',
-                        title: 'Listen Again',
-                        type: 'songList',
-                        preloadedSongs: feed.listenAgain,
+                // ── Listen Again (User History) ─────────────────────────
+                Builder(builder: (context) {
+                  final historyAsync = ref.watch(listeningHistoryProvider);
+                  final userHistory = historyAsync.value ?? [];
+                  final listenAgainSongs = userHistory.isNotEmpty ? userHistory : feed.listenAgain;
+                  if (listenAgainSongs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      _buildSectionHeader(
+                        'Listen Again',
+                        onSeeAll: () => _openDetails(
+                          context,
+                          DetailsScreen(
+                            id: 'listen_again',
+                            title: 'Listen Again',
+                            type: 'songList',
+                            preloadedSongs: listenAgainSongs,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  _buildCompactSongRow(context, ref, feed.listenAgain),
-                ],
+                      _buildCompactSongRow(context, ref, listenAgainSongs),
+                    ],
+                  );
+                }),
+
 
                 // ── Quick Picks ──────────────────────────────────────────
                 _buildSectionHeader(
@@ -357,35 +370,98 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _buildMultiRowSongList(context, ref, feed.forgottenFavorites),
                 ],
 
-                // ── Albums for You ───────────────────────────────────────
-                if (feed.albumsForYou.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'Albums for you',
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'albums_for_you',
-                        title: 'Albums for you',
-                        type: 'albumList',
-                        preloadedAlbums: feed.albumsForYou,
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 215,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: feed.albumsForYou.length,
-                        itemBuilder: (context, index) => AlbumCard(
-                          album: feed.albumsForYou[index],
-                          size: 140.0,
+                // ── Albums for You (Personalized for User Repeated Listens) ──
+                Builder(builder: (context) {
+                  final historyAsync = ref.watch(listeningHistoryProvider);
+                  final userHistory = historyAsync.value ?? [];
+                  
+                  // Extract top repeated artists from history
+                  final Map<String, int> artistCounts = {};
+                  for (final s in userHistory) {
+                    final firstArtist = s.artist.split(',').first.trim();
+                    if (firstArtist.isNotEmpty) {
+                      artistCounts[firstArtist] = (artistCounts[firstArtist] ?? 0) + 1;
+                    }
+                  }
+                  
+                  final topArtists = artistCounts.entries.toList()
+                    ..sort((a, b) => b.value.compareTo(a.value));
+                  
+                  final topArtistName = topArtists.isNotEmpty ? topArtists.first.key : '';
+
+                  if (topArtistName.isEmpty) {
+                    if (feed.albumsForYou.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    return SliverMainAxisGroup(
+                      slivers: [
+                        _buildSectionHeader(
+                          'Albums for you',
+                          onSeeAll: () => _openDetails(
+                            context,
+                            DetailsScreen(
+                              id: 'albums_for_you',
+                              title: 'Albums for you',
+                              type: 'albumList',
+                              preloadedAlbums: feed.albumsForYou,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                ],
+                        SliverToBoxAdapter(
+                          child: SizedBox(
+                            height: 215,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: feed.albumsForYou.length,
+                              itemBuilder: (context, index) => AlbumCard(
+                                album: feed.albumsForYou[index],
+                                size: 140.0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return FutureBuilder<List<Album>>(
+                    future: ref.read(musicRepositoryProvider).searchAlbums(topArtistName),
+                    builder: (context, snapshot) {
+                      final albums = (snapshot.data?.isNotEmpty == true) ? snapshot.data! : feed.albumsForYou;
+                      if (albums.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                      return SliverMainAxisGroup(
+                        slivers: [
+                          _buildSectionHeader(
+                            'Albums for you ($topArtistName & more)',
+                            onSeeAll: () => _openDetails(
+                              context,
+                              DetailsScreen(
+                                id: 'albums_for_you',
+                                title: 'Albums for you',
+                                type: 'albumList',
+                                preloadedAlbums: albums,
+                              ),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: SizedBox(
+                              height: 215,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: albums.length,
+                                itemBuilder: (context, index) => AlbumCard(
+                                  album: albums[index],
+                                  size: 140.0,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                }),
+
 
 
 

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/entities/playlist.dart';
+import '../../data/repositories/playlist_repository_impl.dart';
 import '../providers/player_notifier.dart';
 import 'song_download_button.dart';
+
 
 class SongCard extends ConsumerWidget {
   final Song song;
@@ -123,7 +126,6 @@ class SongCard extends ConsumerWidget {
                 ],
               ),
             ),
-            SongDownloadButton(song: song),
             IconButton(
               icon: isCurrentlyPlaying 
                   ? Icon(Icons.equalizer, color: theme.colorScheme.primary)
@@ -131,9 +133,220 @@ class SongCard extends ConsumerWidget {
               color: isCurrent ? theme.colorScheme.primary : null,
               onPressed: onPlay,
             ),
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () => _showSongMenu(context, ref, onPlay),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showSongMenu(BuildContext context, WidgetRef ref, VoidCallback onPlay) {
+    final theme = Theme.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header Row
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: song.artworkUrl,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 52,
+                          height: 52,
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Icon(Icons.music_note),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            song.title,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                margin: const EdgeInsets.only(right: 6),
+                                decoration: BoxDecoration(
+                                  color: _getSourceColor(song.source),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  '${song.artist} • ${song.source}',
+                                  style: theme.textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+
+                // Option 1: Play Song
+                ListTile(
+                  leading: const Icon(Icons.play_arrow_rounded),
+                  title: const Text('Play Song'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onPlay();
+                  },
+                ),
+
+                // Option 2: Add to Playlist
+                ListTile(
+                  leading: const Icon(Icons.playlist_add_rounded),
+                  title: const Text('Add to Playlist'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showAddToPlaylistDialog(context, ref);
+                  },
+                ),
+
+                // Option 3: Download Song
+                ListTile(
+                  leading: SongDownloadButton(song: song),
+                  title: const Text('Download Song'),
+                ),
+
+                // Option 4: Song Info
+                ListTile(
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: const Text('Song Info'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showSongInfoDialog(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, WidgetRef ref) {
+    final playlistRepo = ref.read(playlistRepositoryProvider);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Add to Playlist'),
+          content: FutureBuilder<List<Playlist>>(
+            future: playlistRepo.getPlaylists(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
+              }
+              final playlists = snapshot.data ?? [];
+              if (playlists.isEmpty) {
+                return const Text('No playlists found. Create one in the Library tab.');
+              }
+              return SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: playlists.length,
+                  itemBuilder: (context, index) {
+                    final pl = playlists[index];
+                    return ListTile(
+                      leading: const Icon(Icons.playlist_play),
+                      title: Text(pl.title),
+                      subtitle: Text('${pl.trackCount} tracks'),
+                      onTap: () async {
+                        await playlistRepo.addSongToPlaylist(pl.id, song);
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Added to ${pl.title}')),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSongInfoDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Song Info'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Title: ${song.title}', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 6),
+              Text('Artist: ${song.artist}', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 6),
+              Text('Album: ${song.album.isNotEmpty ? song.album : "Single"}', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 6),
+              Text('Source: ${song.source}', style: theme.textTheme.bodyMedium),
+              if (song.duration > Duration.zero) ...[
+                const SizedBox(height: 6),
+                Text('Duration: ${song.duration.inMinutes}:${(song.duration.inSeconds % 60).toString().padLeft(2, '0')}', style: theme.textTheme.bodyMedium),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -151,4 +364,5 @@ class SongCard extends ConsumerWidget {
   }
 
 }
+
 

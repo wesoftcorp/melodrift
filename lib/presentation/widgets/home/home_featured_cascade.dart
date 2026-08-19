@@ -282,24 +282,19 @@ class _CascadeTile extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(left: 4),
                               decoration: BoxDecoration(
-                                color: _getSourceColor(album.source).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: _getSourceColor(album.source).withOpacity(0.4),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                _getSourceText(album.source),
-                                style: TextStyle(
-                                  color: _getSourceColor(album.source),
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                color: _getSourceColor(album.source),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _getSourceColor(album.source).withOpacity(0.8),
+                                    blurRadius: 6,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -333,31 +328,19 @@ class _CascadeTile extends StatelessWidget {
     );
   }
 
-  String _getSourceText(String source) {
-    switch (source.toLowerCase()) {
-      case 'jiosaavn':
-        return 'JioSaavn';
-      case 'spotify':
-        return 'Spotify';
-      case 'soundcloud':
-        return 'SoundCloud';
-      default:
-        return 'YT Music';
-    }
-  }
-
   Color _getSourceColor(String source) {
     switch (source.toLowerCase()) {
       case 'jiosaavn':
-        return Colors.amberAccent; // Amber Gold Accent
+        return const Color(0xFF00E676); // JioSaavn Green Dot
       case 'spotify':
-        return const Color(0xFF1DB954); // Spotify Green
+        return const Color(0xFF1DB954);
       case 'soundcloud':
-        return const Color(0xFF9B5DE5); // SoundCloud Purple
+        return const Color(0xFF9B5DE5);
       default:
-        return Colors.redAccent; // YouTube Music Red
+        return const Color(0xFFFF3333); // YouTube Music Red Dot
     }
   }
+
 }
 
 
