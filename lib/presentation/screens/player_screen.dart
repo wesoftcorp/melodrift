@@ -194,6 +194,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                                     );
                                   }
                                 },
+                                // Vertical drag on handle directly drives the sheet
+                                onVerticalDragUpdate: (details) {
+                                  if (_sheetController.isAttached) {
+                                    final screenH = MediaQuery.of(context).size.height;
+                                    final delta = details.primaryDelta ?? 0;
+                                    final newSize = _sheetController.size - (delta / screenH);
+                                    _sheetController.jumpTo(newSize.clamp(0.08, 0.88));
+                                  }
+                                },
+                                onVerticalDragEnd: (details) {
+                                  if (_sheetController.isAttached) {
+                                    final velocity = details.primaryVelocity ?? 0;
+                                    double target;
+                                    if (velocity > 400) {
+                                      target = 0.08; // fast swipe down → collapse
+                                    } else if (velocity < -400) {
+                                      target = 0.88; // fast swipe up → expand
+                                    } else {
+                                      // snap to nearest anchor
+                                      target = _sheetController.size > 0.48 ? 0.88 : 0.08;
+                                    }
+                                    _sheetController.animateTo(
+                                      target,
+                                      duration: const Duration(milliseconds: 280),
+                                      curve: Curves.easeOutCubic,
+                                    );
+                                  }
+                                },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
                                   child: Column(
@@ -237,28 +265,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                                 ),
                               ),
 
-                              // ── TabBar Header ────────────────────────────
-                              TabBar(
-                                controller: _sheetTabController,
-                                onTap: (index) {
-                                  ref.read(playerSelectedTabProvider.notifier).state = index;
+                              // ── TabBar — also drags the sheet ────────────
+                              GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onVerticalDragUpdate: (details) {
+                                  if (_sheetController.isAttached) {
+                                    final screenH = MediaQuery.of(context).size.height;
+                                    final delta = details.primaryDelta ?? 0;
+                                    final newSize = _sheetController.size - (delta / screenH);
+                                    _sheetController.jumpTo(newSize.clamp(0.08, 0.88));
+                                  }
                                 },
-                                labelColor: theme.colorScheme.primary,
-                                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                indicatorColor: theme.colorScheme.primary,
-                                indicatorSize: TabBarIndicatorSize.tab,
-                                dividerColor: Colors.transparent,
-                                labelStyle: AppTextStyles.monoSectionHeader,
-                                tabs: const [
-                                  Tab(text: 'QUEUE'),
-                                  Tab(text: 'LYRICS'),
-                                ],
+                                onVerticalDragEnd: (details) {
+                                  if (_sheetController.isAttached) {
+                                    final velocity = details.primaryVelocity ?? 0;
+                                    double target;
+                                    if (velocity > 400) {
+                                      target = 0.08;
+                                    } else if (velocity < -400) {
+                                      target = 0.88;
+                                    } else {
+                                      target = _sheetController.size > 0.48 ? 0.88 : 0.08;
+                                    }
+                                    _sheetController.animateTo(
+                                      target,
+                                      duration: const Duration(milliseconds: 280),
+                                      curve: Curves.easeOutCubic,
+                                    );
+                                  }
+                                },
+                                child: TabBar(
+                                  controller: _sheetTabController,
+                                  onTap: (index) {
+                                    ref.read(playerSelectedTabProvider.notifier).state = index;
+                                  },
+                                  labelColor: theme.colorScheme.primary,
+                                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                  indicatorColor: theme.colorScheme.primary,
+                                  indicatorSize: TabBarIndicatorSize.tab,
+                                  dividerColor: Colors.transparent,
+                                  labelStyle: AppTextStyles.monoSectionHeader,
+                                  tabs: const [
+                                    Tab(text: 'QUEUE'),
+                                    Tab(text: 'LYRICS'),
+                                  ],
+                                ),
                               ),
 
                               // ── Tab Content View (Expanded to fill bottom 100%) ──
                               Expanded(
                                 child: TabBarView(
                                   controller: _sheetTabController,
+                                  // Disable TabBarView's own swipe so it doesn't
+                                  // fight vertical drags passed to the sheet
+                                  physics: const NeverScrollableScrollPhysics(),
                                   children: [
                                     _buildQueueTab(sheetScrollController),
                                     // Consumer isolates position rebuilds to LyricsView only
