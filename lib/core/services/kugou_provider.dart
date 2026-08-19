@@ -15,8 +15,9 @@ class KuGouProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
-    const searchUrl = 'http://lyrics.kugou.com/search';
-    const downloadUrl = 'http://lyrics.kugou.com/download';
+    const searchUrl = 'https://lyrics.kugou.com/search';
+    const downloadUrl = 'https://lyrics.kugou.com/download';
+
     
     try {
       _log.info('Searching KuGou lyrics for: $title - $artist');

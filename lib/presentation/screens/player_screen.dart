@@ -26,22 +26,24 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerProviderStateMixin {
   late final DraggableScrollableController _sheetController;
-  int _selectedSheetTabIndex = 0;
+  late final TabController _sheetTabController;
 
   @override
   void initState() {
     super.initState();
     _sheetController = DraggableScrollableController();
+    _sheetTabController = TabController(length: 2, vsync: this);
   }
-
 
   @override
   void dispose() {
     _sheetController.dispose();
+    _sheetTabController.dispose();
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -253,54 +255,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   SliverToBoxAdapter(
                                     child: SizedBox(
                                       height: (MediaQuery.of(context).size.height * 0.85) - 80,
-                                      child: DefaultTabController(
-                                        initialIndex: _selectedSheetTabIndex,
-                                        length: 2,
-                                        child: Builder(
-                                          builder: (tabContext) {
-                                            final tabController = DefaultTabController.of(tabContext);
-                                            tabController.addListener(() {
-                                              if (mounted) {
-                                                _selectedSheetTabIndex = tabController.index;
-                                              }
-                                            });
-                                            return Column(
+                                      child: Column(
+                                        children: [
+                                          TabBar(
+                                            controller: _sheetTabController,
+                                            labelColor: theme.colorScheme.primary,
+                                            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                            indicatorColor: theme.colorScheme.primary,
+                                            indicatorSize: TabBarIndicatorSize.tab,
+                                            dividerColor: Colors.transparent,
+                                            labelStyle: AppTextStyles.monoSectionHeader,
+                                            tabs: const [
+                                              Tab(text: 'QUEUE'),
+                                              Tab(text: 'LYRICS'),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Expanded(
+                                            child: TabBarView(
+                                              controller: _sheetTabController,
                                               children: [
-                                                TabBar(
-                                                  onTap: (idx) {
-                                                    _selectedSheetTabIndex = idx;
-                                                  },
-                                                  labelColor: theme.colorScheme.primary,
-                                                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                                  indicatorColor: theme.colorScheme.primary,
-                                                  indicatorSize: TabBarIndicatorSize.tab,
-                                                  dividerColor: Colors.transparent,
-                                                  labelStyle: AppTextStyles.monoSectionHeader,
-                                                  tabs: const [
-                                                    Tab(text: 'QUEUE'),
-                                                    Tab(text: 'LYRICS'),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Expanded(
-                                                  child: TabBarView(
-                                                    children: [
-                                                      _buildQueueTab(null),
-                                                      LyricsView(
-                                                        song: song,
-                                                        position: playerState.position,
-                                                        scrollController: null,
-                                                      ),
-                                                    ],
-                                                  ),
+                                                _buildQueueTab(null),
+                                                LyricsView(
+                                                  song: song,
+                                                  position: playerState.position,
+                                                  scrollController: null,
                                                 ),
                                               ],
-                                            );
-                                          },
-                                        ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
+
 
 
                               ],

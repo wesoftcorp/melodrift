@@ -23,35 +23,21 @@ class LrcLibProvider implements LyricsProvider {
       return _cache[cacheKey]!;
     }
 
-    const url = 'https://lrclib.net/api/search';
     try {
       _log.info('Fetching lyrics from LRCLIB for: $cleanTitleStr - $cleanArtistStr');
-      final response = await _dio.get<dynamic>(
-        url,
-        queryParameters: {
-          'track_name': cleanTitleStr,
-          'artist_name': cleanArtistStr,
-          if (duration > Duration.zero) 'duration': duration.inSeconds,
-        },
-        options: Options(
-          receiveTimeout: const Duration(seconds: 5),
-          sendTimeout: const Duration(seconds: 5),
-        ),
-      );
-
-
       List<LyricLine> lyrics = [];
-      if (response.statusCode == 200 && response.data is List && (response.data as List).isNotEmpty) {
-        final results = response.data as List<dynamic>;
-        final bestMatch = results.first as Map<String, dynamic>;
-        final syncedLyrics = bestMatch['syncedLyrics'] as String?;
-        final plainLyrics = bestMatch['plainLyrics'] as String?;
 
-        if (syncedLyrics != null && syncedLyrics.isNotEmpty) {
-          lyrics = _parseLrc(syncedLyrics);
-        } else if (plainLyrics != null && plainLyrics.isNotEmpty) {
-          lyrics = _parsePlain(plainLyrics);
-        }
+      // Stage 1: Search by track_name and artist_name without strict duration filter
+      lyrics = await _queryLrcLib({'track_name': cleanTitleStr, 'artist_name': cleanArtistStr});
+
+      // Stage 2: Search by general query (q) if Stage 1 yields no results
+      if (lyrics.isEmpty && cleanArtistStr.isNotEmpty) {
+        lyrics = await _queryLrcLib({'q': '$cleanTitleStr $cleanArtistStr'});
+      }
+
+      // Stage 3: Search by title alone if previous stages failed
+      if (lyrics.isEmpty) {
+        lyrics = await _queryLrcLib({'q': cleanTitleStr});
       }
 
       if (_cache.length > 100) {
@@ -64,6 +50,37 @@ class LrcLibProvider implements LyricsProvider {
       return [];
     }
   }
+
+  Future<List<LyricLine>> _queryLrcLib(Map<String, dynamic> params) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        'https://lrclib.net/api/search',
+        queryParameters: params,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 4),
+          sendTimeout: const Duration(seconds: 4),
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data is List && (response.data as List).isNotEmpty) {
+        final results = response.data as List<dynamic>;
+        for (final item in results) {
+          if (item is Map<String, dynamic>) {
+            final syncedLyrics = item['syncedLyrics'] as String?;
+            final plainLyrics = item['plainLyrics'] as String?;
+
+            if (syncedLyrics != null && syncedLyrics.trim().isNotEmpty) {
+              return _parseLrc(syncedLyrics);
+            } else if (plainLyrics != null && plainLyrics.trim().isNotEmpty) {
+              return _parsePlain(plainLyrics);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
 
 
   List<LyricLine> _parseLrc(String lrcText) {
