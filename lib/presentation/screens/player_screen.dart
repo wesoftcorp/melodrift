@@ -11,8 +11,6 @@ import '../../domain/entities/song.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/theme/theme_provider.dart';
-
-
 import '../providers/player_providers.dart';
 
 final relatedSongsProvider = FutureProvider.family<List<Song>, String>((ref, videoId) async {
@@ -59,8 +57,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
     super.dispose();
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerStateProvider);
@@ -70,10 +66,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
       return const Scaffold(body: Center(child: Text('No song playing')));
     }
 
-
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     final scaffoldBg = isDark ? AppColors.darkBackground : theme.colorScheme.background;
     final radial1Color = isDark ? const Color(0x33141E32) : theme.colorScheme.primary.withOpacity(0.08);
     final radial2Color = isDark ? const Color(0x2232143C) : theme.colorScheme.secondary.withOpacity(0.06);
@@ -129,14 +124,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
             ),
           ),
 
-          // 2. Main content UI
+          // 2. Main content UI (Artwork & Controls)
           SafeArea(
             child: Column(
               children: [
                 const SizedBox(height: 56),
                 const Expanded(
                   child: SingleChildScrollView(
-
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -149,167 +143,132 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                     ),
                   ),
                 ),
-                // Padding space for the collapsed sheet handle (approx 85px)
-                const SizedBox(height: 85),
+                // Padding space for the collapsed sheet handle
+                const SizedBox(height: 80),
               ],
             ),
           ),
 
-          // 3. Sliding tab panel (LYRICS & QUEUE) — anchored to bottom of Stack
+          // 3. Sliding tab panel (LYRICS & QUEUE) — Anchored cleanly to bottom
           Positioned.fill(
             child: DraggableScrollableSheet(
               controller: _sheetController,
-              initialChildSize: 0.1,
-              minChildSize: 0.1,
-              maxChildSize: 0.85,
+              initialChildSize: 0.08,
+              minChildSize: 0.08,
+              maxChildSize: 0.88,
               snap: true,
-              snapSizes: const [0.1, 0.85],
+              snapSizes: const [0.08, 0.88],
               builder: (context, sheetScrollController) {
-                final theme = Theme.of(context);
-                // IMPORTANT: sheetScrollController MUST be the controller of the
-                // outermost scrollable (CustomScrollView). This is what drives
-                // the sheet's drag behaviour.
                 return Container(
                   decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                    color: theme.colorScheme.surfaceContainerHigh.withAlpha(245),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(128),
-                        blurRadius: 40,
-                        offset: const Offset(0, -10),
+                        color: Colors.black.withAlpha(140),
+                        blurRadius: 30,
+                        offset: const Offset(0, -6),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                      child: Material(
-                        color: theme.colorScheme.surfaceContainerHigh.withAlpha(220),
-                        child: ListenableBuilder(
-                          listenable: _sheetController,
-                          builder: (context, _) {
-                            final isExpanded = _sheetController.isAttached
-                                ? _sheetController.size > 0.5
-                                : false;
-
-                            return CustomScrollView(
-                              controller: sheetScrollController,
-                              physics: const AlwaysScrollableScrollPhysics(
-                                parent: BouncingScrollPhysics(),
-                              ),
-                              slivers: [
-                                // ── Drag handle & title ──────────────────────
-                                SliverToBoxAdapter(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () async {
-                                      if (_sheetController.isAttached) {
-                                        final isExpanded = _sheetController.size > 0.5;
-                                        if (isExpanded) {
-                                          if (sheetScrollController.hasClients) {
-                                            await sheetScrollController.animateTo(
-                                              0.0,
-                                              duration: const Duration(milliseconds: 150),
-                                              curve: Curves.easeOut,
-                                            );
-                                          }
-                                          await _sheetController.animateTo(
-                                            0.1,
-                                            duration: const Duration(milliseconds: 300),
-                                            curve: Curves.easeInOut,
-                                          );
-                                        } else {
-                                          await _sheetController.animateTo(
-                                            0.85,
-                                            duration: const Duration(milliseconds: 300),
-                                            curve: Curves.easeInOut,
-                                          );
-                                        }
-                                      }
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(top: 12, bottom: 12, left: 24, right: 24),
-                                      child: Column(
-                                        children: [
-                                          // Pill handle
-                                          Container(
-                                            width: 48,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme.surfaceContainerHighest,
-                                              borderRadius: BorderRadius.circular(3),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                'Lyrics & Queue',
-                                                style: AppTextStyles.titleSmall.copyWith(
-                                                  color: theme.colorScheme.onSurface.withOpacity(0.8),
-                                                ),
-                                              ),
-                                              Icon(
-                                                isExpanded
-                                                    ? Icons.keyboard_arrow_down
-                                                    : Icons.keyboard_arrow_up,
-                                                color: theme.colorScheme.onSurfaceVariant,
-                                                size: 28,
-                                              ),
-                                            ],
-                                          ),
-                                        ],
+                      filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                      child: SafeArea(
+                        top: false,
+                        bottom: true,
+                        child: Column(
+                          children: [
+                            // ── Drag handle & title ──────────────────────
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () async {
+                                if (_sheetController.isAttached) {
+                                  final isExpanded = _sheetController.size > 0.5;
+                                  await _sheetController.animateTo(
+                                    isExpanded ? 0.08 : 0.88,
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeOutCubic,
+                                  );
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Pill handle
+                                    Container(
+                                      width: 42,
+                                      height: 5,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
+                                        borderRadius: BorderRadius.circular(2.5),
                                       ),
                                     ),
-                                  ),
-                                ),
-
-                                // ── Tab content (ALWAYS MOUNTED FOR 100% TAB MEMORY) ─────────
-                                SliverToBoxAdapter(
-                                  child: SizedBox(
-                                    height: (MediaQuery.of(context).size.height * 0.85) - 80,
-                                    child: Column(
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        TabBar(
-                                          controller: _sheetTabController,
-                                          onTap: (index) {
-                                            ref.read(playerSelectedTabProvider.notifier).state = index;
-                                          },
-                                          labelColor: theme.colorScheme.primary,
-                                          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                          indicatorColor: theme.colorScheme.primary,
-                                          indicatorSize: TabBarIndicatorSize.tab,
-                                          dividerColor: Colors.transparent,
-                                          labelStyle: AppTextStyles.monoSectionHeader,
-                                          tabs: const [
-                                            Tab(text: 'QUEUE'),
-                                            Tab(text: 'LYRICS'),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Expanded(
-                                          child: TabBarView(
-                                            controller: _sheetTabController,
-                                            children: [
-                                              _buildQueueTab(null),
-                                              LyricsView(
-                                                song: song,
-                                                position: playerState.position,
-                                                scrollController: null,
-                                              ),
-                                            ],
+                                        Text(
+                                          'Lyrics & Queue',
+                                          style: AppTextStyles.titleSmall.copyWith(
+                                            color: theme.colorScheme.onSurface,
+                                            fontWeight: FontWeight.w600,
                                           ),
+                                        ),
+                                        ListenableBuilder(
+                                          listenable: _sheetController,
+                                          builder: (context, _) {
+                                            final isExp = _sheetController.isAttached && _sheetController.size > 0.5;
+                                            return Icon(
+                                              isExp ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                                              color: theme.colorScheme.onSurfaceVariant,
+                                              size: 26,
+                                            );
+                                          },
                                         ),
                                       ],
                                     ),
-                                  ),
+                                  ],
                                 ),
-                              ],
-                            );
+                              ),
+                            ),
 
-                          },
+                            // ── TabBar Header ────────────────────────────
+                            TabBar(
+                              controller: _sheetTabController,
+                              onTap: (index) {
+                                ref.read(playerSelectedTabProvider.notifier).state = index;
+                              },
+                              labelColor: theme.colorScheme.primary,
+                              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                              indicatorColor: theme.colorScheme.primary,
+                              indicatorSize: TabBarIndicatorSize.tab,
+                              dividerColor: Colors.transparent,
+                              labelStyle: AppTextStyles.monoSectionHeader,
+                              tabs: const [
+                                Tab(text: 'QUEUE'),
+                                Tab(text: 'LYRICS'),
+                              ],
+                            ),
+
+                            // ── Tab Content View (Expanded to fill bottom 100%) ──
+                            Expanded(
+                              child: TabBarView(
+                                controller: _sheetTabController,
+                                children: [
+                                  _buildQueueTab(sheetScrollController),
+                                  LyricsView(
+                                    song: song,
+                                    position: playerState.position,
+                                    scrollController: sheetScrollController,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -333,7 +292,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
     );
   }
 
-
   Widget _buildTopAppBar(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -354,7 +312,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
             tooltip: 'Minimize Player',
             onPressed: () => context.router.maybePop(),
           ),
-
           Text(
             'NOW PLAYING',
             style: AppTextStyles.labelLarge.copyWith(
@@ -475,8 +432,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
     );
   }
 
-
-
   Widget _buildQueueTab(ScrollController? scrollController) {
     return Consumer(
       builder: (context, ref, child) {
@@ -494,6 +449,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
             controller: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             itemCount: displayedQueue.length,
+            padding: const EdgeInsets.only(bottom: 24),
             itemBuilder: (context, index) => _buildQueueTile(
               context,
               ref,
@@ -508,7 +464,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
             scrollController: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             itemCount: displayedQueue.length,
-
+            padding: const EdgeInsets.only(bottom: 24),
             itemBuilder: (context, index) => _buildQueueTile(
               context,
               ref,
@@ -588,5 +544,4 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
       },
     );
   }
-
 }
