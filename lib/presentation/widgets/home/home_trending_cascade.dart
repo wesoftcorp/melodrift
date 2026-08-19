@@ -144,25 +144,30 @@ class HomeTrendingCascadeState extends State<HomeTrendingCascade> {
           ),
         ),
         const SizedBox(height: 8),
-        // Page indicators
+        // Page indicators (Max 6 dots for clean aesthetic)
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            widget.songs.length,
-            (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 6,
-              width: _currentPage == index ? 16 : 6,
-              decoration: BoxDecoration(
-                color: _currentPage == index
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
+            widget.songs.length.clamp(0, 6),
+            (index) {
+              final activeDot = _currentPage % 6;
+              final isSelected = activeDot == index;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 6,
+                width: isSelected ? 16 : 6,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            },
           ),
         ),
+
       ],
     );
   }
