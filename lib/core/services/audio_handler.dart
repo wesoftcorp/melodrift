@@ -57,6 +57,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   void _init() {
     _playlist = ConcatenatingAudioSource(children: []);
+    _initEqualizer();
+
     
     // Defer setAudioSource until syncPlaylist has items to prevent Windows hang
 
@@ -653,40 +655,87 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     _queueHash = _generateQueueHash(updatedQueue);
   }
 
+  AndroidLoudnessEnhancer? _loudnessEnhancer;
+  String _currentPreset = 'Flat';
+
+  void _initEqualizer() async {
+    try {
+      if (Platform.isAndroid) {
+        _loudnessEnhancer = AndroidLoudnessEnhancer();
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final savedPreset = prefs.getString('equalizer_preset') ?? 'Flat';
+      await setEqualizerPreset(savedPreset);
+    } catch (e) {
+      _log.error('Failed to init equalizer: $e');
+    }
+  }
+
   Future<void> setEqualizerPreset(String preset) async {
     _log.info('Applying Equalizer Preset: $preset');
+    _currentPreset = preset;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('equalizer_preset', preset);
+    } catch (_) {}
+
+    double gainDb = 0.0;
+    double volumeMult = 1.0;
+    double speedVal = 1.0;
+
     switch (preset) {
       case 'Bass Boost':
-        await _player.setPitch(0.92);
-        await _player.setVolume((_userVolume * 1.15).clamp(0.0, 1.0));
+        gainDb = 12.0; // 12 dB hardware gain boost on Android
+        volumeMult = 1.25;
+        speedVal = 0.98;
         break;
       case 'Vocal Boost':
-        await _player.setPitch(1.06);
-        await _player.setVolume((_userVolume * 1.05).clamp(0.0, 1.0));
+        gainDb = 4.0;
+        volumeMult = 1.05;
+        speedVal = 1.0;
         break;
       case 'Pop':
-        await _player.setPitch(1.02);
-        await _player.setVolume(_userVolume.clamp(0.0, 1.0));
+        gainDb = 6.0;
+        volumeMult = 1.1;
+        speedVal = 1.0;
         break;
       case 'Rock':
-        await _player.setPitch(0.96);
-        await _player.setVolume((_userVolume * 1.1).clamp(0.0, 1.0));
+        gainDb = 10.0;
+        volumeMult = 1.2;
+        speedVal = 1.0;
         break;
       case 'Acoustic':
-        await _player.setPitch(1.01);
-        await _player.setVolume((_userVolume * 0.95).clamp(0.0, 1.0));
+        gainDb = 3.0;
+        volumeMult = 0.98;
+        speedVal = 1.0;
         break;
       case 'Electronic':
-        await _player.setPitch(0.94);
-        await _player.setVolume((_userVolume * 1.12).clamp(0.0, 1.0));
+        gainDb = 9.0;
+        volumeMult = 1.18;
+        speedVal = 1.02;
         break;
       case 'Flat':
       default:
-        await _player.setPitch(1.0);
-        await _player.setVolume(_userVolume.clamp(0.0, 1.0));
+        gainDb = 0.0;
+        volumeMult = 1.0;
+        speedVal = 1.0;
         break;
     }
+
+    try {
+      if (_loudnessEnhancer != null) {
+        await _loudnessEnhancer!.setEnabled(gainDb > 0);
+        await _loudnessEnhancer!.setTargetGain(gainDb);
+      }
+    } catch (e) {
+      _log.error('Loudness enhancer failed: $e');
+    }
+
+    await _player.setSpeed(speedVal);
+    await _player.setVolume((_userVolume * volumeMult).clamp(0.0, 1.0));
   }
+
 }
 
 

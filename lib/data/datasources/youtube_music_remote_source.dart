@@ -533,11 +533,20 @@ class YouTubeMusicRemoteSource {
         fetchJioSongs('hindi hits$langSuffix'),
       ]).then((results) => quickPicks = interleaveSongs(results[0], results[1])),
 
-      fetchAlbums('latest new release 2025 2026$langSuffix').then((v) {
-        final currentYear = DateTime.now().year;
-        newReleases = v.where((a) => a.year == null || a.year! >= currentYear - 1).toList();
-        if (newReleases.isEmpty) newReleases = v;
+      Future.wait([
+        fetchAlbums('top new releases hits$langSuffix'),
+        fetchAlbums('latest blockbuster releases$langSuffix'),
+      ]).then((results) {
+        final combined = [...results[0], ...results[1]];
+        final Map<String, Album> uniqueMap = {};
+        for (final a in combined) {
+          if (a.artworkUrl.isNotEmpty && !uniqueMap.containsKey(a.title.toLowerCase())) {
+            uniqueMap[a.title.toLowerCase()] = a;
+          }
+        }
+        newReleases = uniqueMap.values.toList();
       }),
+
 
 
       Future.wait([

@@ -17,51 +17,59 @@ final musicRepositoryProvider = Provider<MusicRepository>((ref) {
 
 class MusicRepositoryImpl implements MusicRepository {
   final YouTubeMusicRemoteSource _remoteSource;
+  final Map<String, List<Song>> _songSearchCache = {};
+  final Map<String, List<Artist>> _artistSearchCache = {};
 
   MusicRepositoryImpl(this._remoteSource);
 
   @override
   Future<List<Song>> searchSongs(String query) async {
+    final cacheKey = query.trim().toLowerCase();
+    if (_songSearchCache.containsKey(cacheKey)) {
+      return _songSearchCache[cacheKey]!;
+    }
+
     List<Song> ytSongs = [];
     List<Song> jioSongs = [];
 
-    // 1. Fetch YouTube Music songs
-    try {
-      ytSongs = await _remoteSource.searchSongs(query);
-    } catch (_) {}
+    await Future.wait([
+      _remoteSource.searchSongs(query).then((v) => ytSongs = v).timeout(const Duration(seconds: 4), onTimeout: () => []),
+      Future(() async {
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
+          final tracks = await jioSaavn.search(query).timeout(const Duration(seconds: 4), onTimeout: () => []);
+          jioSongs = tracks.map((t) => Song(
+            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            duration: t.duration,
+            artworkUrl: t.artworkUrl,
+            videoId: t.id,
+            streamUrl: null,
+            source: 'JioSaavn',
+          )).toList();
+        } catch (_) {}
+      }),
+    ]);
 
-    // 2. Fetch JioSaavn songs
-    try {
-      final jioSaavn = getIt<JioSaavnService>();
-      final tracks = await jioSaavn.search(query);
-      jioSongs = tracks.map((t) => Song(
-        id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
-        title: t.title,
-        artist: t.artist,
-        album: t.album,
-        duration: t.duration,
-        artworkUrl: t.artworkUrl,
-        videoId: t.id,
-        streamUrl: null,
-        source: 'JioSaavn',
-      )).toList();
-    } catch (_) {}
-
-    // 3. Interleave YouTube Music and JioSaavn songs 50/50
     final List<Song> combined = [];
     final int maxLen = ytSongs.length > jioSongs.length ? ytSongs.length : jioSongs.length;
     for (int i = 0; i < maxLen; i++) {
       if (i < ytSongs.length) combined.add(ytSongs[i]);
       if (i < jioSongs.length) combined.add(jioSongs[i]);
     }
-    return combined.isNotEmpty ? combined : (ytSongs.isNotEmpty ? ytSongs : jioSongs);
+    final result = combined.isNotEmpty ? combined : (ytSongs.isNotEmpty ? ytSongs : jioSongs);
+    if (result.isNotEmpty) {
+      _songSearchCache[cacheKey] = result;
+    }
+    return result;
   }
-
 
   @override
   Future<List<Album>> searchAlbums(String query) async {
     final jioSaavn = getIt<JioSaavnService>();
-    final tracks = await jioSaavn.search(query);
+    final tracks = await jioSaavn.search(query).timeout(const Duration(seconds: 4), onTimeout: () => []);
     final Map<String, Album> uniqueAlbums = {};
     for (final t in tracks) {
       final albumName = t.album.isNotEmpty ? t.album : 'Single';
@@ -83,81 +91,74 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Artist>> searchArtists(String query) async {
+    final cacheKey = query.trim().toLowerCase();
+    if (_artistSearchCache.containsKey(cacheKey)) {
+      return _artistSearchCache[cacheKey]!;
+    }
+
     final Map<String, Artist> uniqueArtists = {};
 
-    // 1. Fetch directly from JioSaavn artist search endpoint
-    try {
-      final jioSaavn = getIt<JioSaavnService>();
-      final jioArtists = await jioSaavn.searchArtists(query);
-      for (final a in jioArtists) {
-        final name = a['name'] as String? ?? a['title'] as String? ?? '';
-        final imagesRaw = a['image'] as List<dynamic>? ?? [];
-        String img = '';
-        if (imagesRaw.isNotEmpty) {
-          final last = imagesRaw.last;
-          if (last is Map) {
-            img = last['url']?.toString() ?? last['link']?.toString() ?? '';
+    await Future.wait([
+      // 1. Fetch JioSaavn artist endpoint
+      Future(() async {
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
+          final jioArtists = await jioSaavn.searchArtists(query).timeout(const Duration(seconds: 4), onTimeout: () => []);
+          for (final a in jioArtists) {
+            final name = a['name'] as String? ?? a['title'] as String? ?? '';
+            final imagesRaw = a['image'] as List<dynamic>? ?? [];
+            String img = '';
+            if (imagesRaw.isNotEmpty) {
+              final last = imagesRaw.last;
+              if (last is Map) {
+                img = last['url']?.toString() ?? last['link']?.toString() ?? '';
+              }
+            }
+            if (img.isEmpty && a['artworkUrl'] != null) {
+              img = a['artworkUrl'].toString();
+            }
+            final id = a['id']?.toString() ?? name;
+            if (name.isNotEmpty && img.isNotEmpty && !uniqueArtists.containsKey(name.toLowerCase())) {
+              uniqueArtists[name.toLowerCase()] = Artist(
+                id: 'jiosaavn_artist_$id',
+                name: name,
+                artworkUrl: img,
+                subscribers: 'JioSaavn Artist',
+                isVerified: true,
+              );
+            }
           }
-        }
-        if (img.isEmpty && a['artworkUrl'] != null) {
-          img = a['artworkUrl'].toString();
-        }
-        final id = a['id']?.toString() ?? name;
-        if (name.isNotEmpty && img.isNotEmpty && !uniqueArtists.containsKey(name.toLowerCase())) {
-          uniqueArtists[name.toLowerCase()] = Artist(
-            id: 'jiosaavn_artist_$id',
-            name: name,
-            artworkUrl: img,
-            subscribers: 'JioSaavn Artist',
-            isVerified: true,
-          );
-        }
-      }
+        } catch (_) {}
+      }),
+      // 2. Extract artists from YouTube Music search results
+      Future(() async {
+        try {
+          final ytSongs = await _remoteSource.searchSongs(query).timeout(const Duration(seconds: 4), onTimeout: () => []);
+          for (final s in ytSongs) {
+            final firstArtist = s.artist.split(',').first.trim();
+            if (firstArtist.isNotEmpty &&
+                !uniqueArtists.containsKey(firstArtist.toLowerCase()) &&
+                s.artworkUrl.isNotEmpty) {
+              uniqueArtists[firstArtist.toLowerCase()] = Artist(
+                id: 'yt_artist_${s.id}',
+                name: firstArtist,
+                artworkUrl: s.artworkUrl,
+                subscribers: 'YouTube Music Artist',
+                isVerified: true,
+              );
+            }
+          }
+        } catch (_) {}
+      }),
+    ]);
 
-    } catch (_) {}
-
-    // 2. Extract artists from track search results as additional fallback
-    try {
-      final jioSaavn = getIt<JioSaavnService>();
-      final tracks = await jioSaavn.search(query);
-      for (final t in tracks) {
-        final firstArtist = t.artist.split(',').first.trim();
-        if (firstArtist.isNotEmpty &&
-            !uniqueArtists.containsKey(firstArtist.toLowerCase()) &&
-            t.artworkUrl.isNotEmpty &&
-            !t.artworkUrl.contains('default')) {
-          uniqueArtists[firstArtist.toLowerCase()] = Artist(
-            id: 'artist_${t.id}',
-            name: firstArtist,
-            artworkUrl: t.artworkUrl,
-            subscribers: 'Artist',
-            isVerified: true,
-          );
-        }
-      }
-    } catch (_) {}
-
-    // 3. Extract artists from YouTube Music track search results
-    try {
-      final ytSongs = await _remoteSource.searchSongs(query);
-      for (final s in ytSongs) {
-        final firstArtist = s.artist.split(',').first.trim();
-        if (firstArtist.isNotEmpty &&
-            !uniqueArtists.containsKey(firstArtist.toLowerCase()) &&
-            s.artworkUrl.isNotEmpty) {
-          uniqueArtists[firstArtist.toLowerCase()] = Artist(
-            id: 'yt_artist_${s.id}',
-            name: firstArtist,
-            artworkUrl: s.artworkUrl,
-            subscribers: 'YouTube Music Artist',
-            isVerified: true,
-          );
-        }
-      }
-    } catch (_) {}
-
-    return uniqueArtists.values.toList();
+    final result = uniqueArtists.values.toList();
+    if (result.isNotEmpty) {
+      _artistSearchCache[cacheKey] = result;
+    }
+    return result;
   }
+
 
 
 
