@@ -123,3 +123,7 @@ final nextSongProvider = Provider<Song?>((ref) {
   
   return playerState.queue[currentIndex + 1];
 });
+
+/// Persistent selected tab index for Player sheet (0: QUEUE, 1: LYRICS)
+final playerSelectedTabProvider = StateProvider<int>((ref) => 0);
+

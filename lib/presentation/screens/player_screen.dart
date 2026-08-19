@@ -13,6 +13,8 @@ import '../../core/theme/tokens.dart';
 import '../../core/theme/theme_provider.dart';
 
 
+import '../providers/player_providers.dart';
+
 final relatedSongsProvider = FutureProvider.family<List<Song>, String>((ref, videoId) async {
   final repository = ref.watch(musicRepositoryProvider);
   return repository.getRelatedSongs(videoId);
@@ -34,15 +36,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _sheetController = DraggableScrollableController();
-    _sheetTabController = TabController(length: 2, vsync: this);
+    final initialTab = ref.read(playerSelectedTabProvider);
+    _sheetTabController = TabController(
+      length: 2,
+      initialIndex: initialTab,
+      vsync: this,
+    );
+    _sheetTabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (_sheetTabController.indexIsChanging || _sheetTabController.index != ref.read(playerSelectedTabProvider)) {
+      ref.read(playerSelectedTabProvider.notifier).state = _sheetTabController.index;
+    }
   }
 
   @override
   void dispose() {
+    _sheetTabController.removeListener(_onTabChanged);
     _sheetController.dispose();
     _sheetTabController.dispose();
     super.dispose();
   }
+
 
 
   @override
@@ -258,6 +274,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                                       children: [
                                         TabBar(
                                           controller: _sheetTabController,
+                                          onTap: (index) {
+                                            ref.read(playerSelectedTabProvider.notifier).state = index;
+                                          },
                                           labelColor: theme.colorScheme.primary,
                                           unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
                                           indicatorColor: theme.colorScheme.primary,
