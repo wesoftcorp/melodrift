@@ -10,7 +10,9 @@ import '../../domain/entities/song.dart';
 import '../widgets/downloads_list.dart';
 import '../widgets/playlists_list.dart';
 import '../widgets/history_list.dart';
+import '../widgets/song_card.dart';
 import '../providers/player_notifier.dart';
+
 import '../widgets/layout/mini_player.dart';
 import '../providers/auth_provider.dart';
 import '../../core/services/service_locator.dart';
@@ -622,7 +624,7 @@ class _RecentlyAddedList extends ConsumerWidget {
   }
 }
 
-class _RecentlyAddedItem extends StatefulWidget {
+class _RecentlyAddedItem extends ConsumerStatefulWidget {
   final Song song;
   final Color glowColor;
   final VoidCallback onTap;
@@ -634,10 +636,11 @@ class _RecentlyAddedItem extends StatefulWidget {
   });
 
   @override
-  State<_RecentlyAddedItem> createState() => _RecentlyAddedItemState();
+  ConsumerState<_RecentlyAddedItem> createState() => _RecentlyAddedItemState();
 }
 
-class _RecentlyAddedItemState extends State<_RecentlyAddedItem> {
+class _RecentlyAddedItemState extends ConsumerState<_RecentlyAddedItem> {
+
   double _scale = 1.0;
 
   @override
@@ -727,8 +730,9 @@ class _RecentlyAddedItemState extends State<_RecentlyAddedItem> {
               ),
               IconButton(
                 icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
-                onPressed: () {},
+                onPressed: () => showSongOptionsMenu(context, ref, widget.song),
               ),
+
             ],
           ),
         ),
@@ -1016,7 +1020,35 @@ class _YoutubeLikedSongsViewState extends ConsumerState<_YoutubeLikedSongsView> 
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
               ),
-              trailing: const Icon(Icons.play_circle_fill_rounded, color: Colors.red, size: 28),
+              trailing: Builder(
+                builder: (context) {
+                  final song = Song(
+                    id: track.id,
+                    title: title,
+                    artist: artist,
+                    album: track.album,
+                    duration: track.duration,
+                    artworkUrl: artworkUrl,
+                    videoId: track.id,
+                    source: 'YouTube Music',
+                  );
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.red, size: 28),
+                        onPressed: () {
+                          ref.read(playerStateProvider.notifier).playSong(song);
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.more_vert),
+                        onPressed: () => showSongOptionsMenu(context, ref, song),
+                      ),
+                    ],
+                  );
+                },
+              ),
               onTap: () {
                 final song = Song(
                   id: track.id,
@@ -1033,6 +1065,7 @@ class _YoutubeLikedSongsViewState extends ConsumerState<_YoutubeLikedSongsView> 
             );
           },
         );
+
       },
     );
   }

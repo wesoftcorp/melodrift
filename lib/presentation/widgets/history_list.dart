@@ -5,6 +5,8 @@ import '../../data/repositories/history_repository_impl.dart';
 import '../../domain/entities/song.dart';
 import '../providers/player_notifier.dart';
 
+import 'song_card.dart';
+
 class HistoryList extends ConsumerWidget {
   const HistoryList({super.key});
 
@@ -39,6 +41,10 @@ class HistoryList extends ConsumerWidget {
               ),
               title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => showSongOptionsMenu(context, ref, song),
+              ),
               onTap: () {
                 ref.read(playerStateProvider.notifier).playSong(song);
               },
@@ -49,3 +55,4 @@ class HistoryList extends ConsumerWidget {
     );
   }
 }
+

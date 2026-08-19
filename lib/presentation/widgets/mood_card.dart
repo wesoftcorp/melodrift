@@ -5,6 +5,8 @@ import '../../domain/entities/mood_category.dart';
 import '../../domain/entities/song.dart';
 import '../../data/repositories/music_repository_impl.dart';
 import '../providers/player_notifier.dart';
+import 'song_card.dart';
+
 
 /// A single mood/genre pill tile with a gradient background.
 class MoodCard extends ConsumerWidget {
@@ -310,9 +312,24 @@ class _MoodSongsDialogState extends ConsumerState<_MoodSongsDialog> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              trailing: const Icon(
-                                Icons.play_circle_outline,
-                                color: Color(0xFFFF5F1F),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.play_circle_outline,
+                                      color: Color(0xFFFF5F1F),
+                                    ),
+                                    onPressed: () {
+                                      ref.read(playerStateProvider.notifier).playSong(song);
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => showSongOptionsMenu(context, ref, song),
+                                  ),
+                                ],
                               ),
                               onTap: () {
                                 ref.read(playerStateProvider.notifier).playSong(song);
@@ -322,6 +339,7 @@ class _MoodSongsDialogState extends ConsumerState<_MoodSongsDialog> {
                           },
                         ),
                       ),
+
                     ],
                   );
                 },
