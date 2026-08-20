@@ -466,6 +466,7 @@ class SettingsScreen extends ConsumerWidget {
           final loggedUser = await ref.read(authProvider.notifier).signInWithGoogle();
           if (context.mounted && loggedUser != null) {
             await ref.read(cloudSyncServiceProvider).syncNow(ref);
+            if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Welcome, ${loggedUser.displayName}! Cloud library & recommendations synced.'),

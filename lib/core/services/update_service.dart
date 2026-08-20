@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -20,9 +20,9 @@ class UpdateInfo {
     required this.version,
     required this.title,
     required this.changelog,
-    this.downloadUrl,
     required this.htmlUrl,
     required this.publishedAt,
+    this.downloadUrl,
   });
 }
 
@@ -217,8 +217,9 @@ class UpdateService {
     final ValueNotifier<double> progressNotifier = ValueNotifier(0.0);
     final ValueNotifier<String> statusNotifier = ValueNotifier('Starting download...');
 
-    showDialog<void>(
-      context: context,
+    unawaited(
+      showDialog<void>(
+        context: context,
       barrierDismissible: false,
       builder: (progCtx) {
         return AlertDialog(
@@ -268,7 +269,7 @@ class UpdateService {
           ),
         );
       },
-    );
+    ));
 
     try {
       final dio = Dio();
@@ -315,7 +316,9 @@ class UpdateService {
             action: SnackBarAction(
               label: 'Open Browser',
               textColor: Colors.white,
-              onPressed: () => launchUrl(Uri.parse(update.htmlUrl), mode: LaunchMode.externalApplication),
+              onPressed: () async {
+                await launchUrl(Uri.parse(update.htmlUrl), mode: LaunchMode.externalApplication);
+              },
             ),
           ),
         );

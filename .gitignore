@@ -59,4 +59,9 @@ youtube-music-resolver-vercel/node_modules/
 youtube-music-resolver-vercel/package-lock.json
 youtube-music-resolver-vercel/.vercel/
 
+# Release distribution binaries
+/dist_release/
+*.apk
+*.msix
+
 node_modules/

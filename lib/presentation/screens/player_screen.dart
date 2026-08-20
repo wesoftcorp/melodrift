@@ -125,11 +125,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
           ),
 
           // 2. Main content UI (Artwork & Controls)
-          SafeArea(
+          const SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 56),
-                const Expanded(
+                SizedBox(height: 56),
+                Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -144,7 +144,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                   ),
                 ),
                 // Padding space for the collapsed sheet handle
-                const SizedBox(height: 80),
+                SizedBox(height: 80),
               ],
             ),
           ),
@@ -418,7 +418,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
     final theme = Theme.of(context);
     final playerState = ref.watch(playerStateProvider);
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: theme.colorScheme.surface,
       shape: const RoundedRectangleBorder(

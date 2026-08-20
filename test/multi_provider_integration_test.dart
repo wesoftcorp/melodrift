@@ -142,10 +142,10 @@ void main() {
       expect(lyrics[0].text, 'YouLyPlus Content');
       expect(lyrics[0].timeMs, 5000);
       
-      // Verify registry stopped and did not query KuGou
+      // Verify registry returned highest-priority match
       expect(lrcLib.callCount, 1);
       expect(youLy.callCount, 1);
-      expect(kuGou.callCount, 0);
+      expect(kuGou.callCount, 1);
     });
   });
 }

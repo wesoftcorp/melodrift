@@ -657,6 +657,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   AndroidLoudnessEnhancer? _loudnessEnhancer;
   String _currentPreset = 'Flat';
+  String get currentPreset => _currentPreset;
 
   void _initEqualizer() async {
     try {

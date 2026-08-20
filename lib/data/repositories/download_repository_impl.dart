@@ -132,10 +132,8 @@ class DownloadRepositoryImpl implements DownloadRepository {
         // IMPORTANT: Always resolve fresh — pre-cached song.streamUrl may be expired.
         // JioSaavn CDN URLs are time-limited signed links (expire in minutes).
         String? resolvedUrl;
-
-        if (resolvedUrl == null || resolvedUrl.isEmpty) {
-          try {
-            final jioSaavn = getIt<JioSaavnService>();
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
             if (song.source.toLowerCase() == 'jiosaavn') {
               resolvedUrl = await jioSaavn.getStreamUrl(song.id);
             } else {
@@ -168,7 +166,6 @@ class DownloadRepositoryImpl implements DownloadRepository {
           } catch (err) {
             _log.warning('JioSaavn resolver lookup threw exception: $err');
           }
-        }
 
         if (resolvedUrl == null || resolvedUrl.isEmpty) {
           final isYouTube = song.source.toLowerCase().contains('youtube');
@@ -200,7 +197,7 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
 
 
-        if (resolvedUrl == null || resolvedUrl.isEmpty) {
+        if (resolvedUrl.isEmpty) {
           throw StateError('Unable to resolve a playable stream URL for downloading "${song.title}"');
         }
         final String streamUrl = resolvedUrl;

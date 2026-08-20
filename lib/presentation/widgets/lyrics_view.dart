@@ -236,7 +236,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
   void _showLyricActionsModal(BuildContext context, String lyricText, Song song) {
     final theme = Theme.of(context);
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: theme.colorScheme.surface,
       shape: const RoundedRectangleBorder(

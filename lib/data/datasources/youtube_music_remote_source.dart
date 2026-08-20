@@ -996,7 +996,7 @@ class YouTubeMusicRemoteSource {
         manifest = await _yt.videos.streamsClient
             .getManifest(targetId, ytClients: [client])
             .timeout(const Duration(seconds: 10));
-        if (manifest != null && manifest.audioOnly.isNotEmpty) break;
+        if (manifest.audioOnly.isNotEmpty) break;
       } catch (_) {}
     }
 

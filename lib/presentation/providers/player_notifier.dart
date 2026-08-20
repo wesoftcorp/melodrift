@@ -327,7 +327,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       // 3. Direct Fast Resolution for YouTube Tracks (< 300ms)
-      String targetVideoId = (song?.videoId != null && song!.videoId.isNotEmpty) ? song.videoId : videoId;
+      final String targetVideoId = (song?.videoId != null && song!.videoId.isNotEmpty) ? song.videoId : videoId;
       final isValidYouTubeId = RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(targetVideoId);
 
       if (isValidYouTubeId) {

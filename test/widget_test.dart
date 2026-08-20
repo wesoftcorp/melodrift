@@ -38,6 +38,9 @@ class MockMelodriftAudioHandler extends BaseAudioHandler implements MelodriftAud
   @override
   Future<void> setEqualizerPreset(String preset) async {}
 
+  @override
+  String get currentPreset => 'Flat';
+
 
   @override
   BehaviorSubject<MediaItem?> get mediaItem => _mediaItem;
@@ -264,7 +267,7 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     // Verify that the app is initialized and has a root App widget
     expect(find.byType(App), findsOneWidget);
