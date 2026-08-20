@@ -1,4 +1,23 @@
-# Shorebird configuration for Melodrift Over-The-Air (OTA) Code Push
-# https://docs.shorebird.dev
-app_id: 3c8e5472-749d-4299-8cf0-a5482315a67c
-auto_update: true
+# This file is used to configure the Shorebird updater used by your app.
+# Learn more at https://docs.shorebird.dev
+# This file does not contain any sensitive information and should be checked into version control.
+
+# Your app_id is the unique identifier assigned to your app.
+# It is used to identify your app when requesting patches from Shorebird's servers.
+# It is not a secret and can be shared publicly.
+app_id: ca26dca5-849f-443f-9249-af16462fb09d
+flavors:
+  devFoss: ca26dca5-849f-443f-9249-af16462fb09d
+  devFull: a4c1a123-0536-48cb-b9f1-8598b8143825
+  prodFoss: 623c04bd-02f9-4cd7-876c-5668670ee514
+  prodFull: 9b52a15d-0bdd-4a4c-8039-d6230d31eee0
+  devfoss: dd587a91-3ee1-4051-bff3-969753ff6079
+  devfull: f5e21cf1-770b-4b8a-a155-9f1c9263f684
+  prodfoss: 53363db0-f07a-40c7-99cd-8245a1d918f5
+  prodfull: 0bf72204-dd8d-4704-ac96-7cf8b8fbcbb9
+
+# auto_update controls if Shorebird should automatically update in the background on launch.
+# If auto_update: false, you will need to use package:shorebird_code_push to trigger updates.
+# https://pub.dev/packages/shorebird_code_push
+# Uncomment the following line to disable automatic updates.
+# auto_update: false
