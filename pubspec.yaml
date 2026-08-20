@@ -109,6 +109,7 @@ flutter:
   assets:
     - assets/images/
     - assets/animations/
+    - shorebird.yaml
 
 flavorizr:
   flavors:
