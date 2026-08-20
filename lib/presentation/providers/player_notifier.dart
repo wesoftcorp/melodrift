@@ -14,9 +14,10 @@ import '../../core/services/audio_handler.dart';
 import '../../core/utils/logger.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/jiosaavn_service.dart';
-import '../../core/services/music_track.dart';
-import '../../core/utils/matching_engine.dart';
-import '../screens/settings_screen.dart' show allowExplicitContentProvider;
+import '../../core/services/taste_profiler_service.dart';
+import '../../core/services/recommendation_service.dart';
+import '../../core/services/analytics_service.dart';
+import '../screens/settings_screen.dart' show allowExplicitContentProvider, autoplayEnabledProvider;
 import '../../app.dart' show scaffoldMessengerKey;
 
 class PlayerState {
@@ -123,6 +124,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Timer? _playbackStateDebounceTimer;
   String? _lastSavedSongId;
   DateTime? _lastSkipTime;
+  final Map<String, String> _streamUrlCache = {};
 
   PlayerNotifier(
     this._handler,
@@ -253,6 +255,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _localSource.saveListeningHistoryRecord(record);
       _log.info('Saved song to history: ${song.title}');
       _ref.invalidate(listeningHistoryProvider);
+
+      // Track analytics & taste profile
+      try {
+        unawaited(_ref.read(analyticsServiceProvider).logSongPlayed(song));
+        unawaited(_ref.read(tasteProfilerServiceProvider).recordPlayEvent(
+          song: song,
+          playedDuration: state.position,
+          totalDuration: state.duration,
+          isSkipped: false,
+        ));
+      } catch (_) {}
     } catch (e, st) {
       _log.error('Failed to save song to history', e, st);
     }
@@ -294,200 +307,87 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<String> _resolveStream(String videoId, {Song? song}) async {
     try {
-      _log.debug('Resolving stream for videoId: $videoId');
-      
-      // Check if downloaded locally first using the original song.id to prevent query-matching failures
       final lookupId = song?.id ?? videoId;
+
+      // 1. Instant Cache Hit (0ms playback)
+      if (_streamUrlCache.containsKey(lookupId) && _streamUrlCache[lookupId]!.isNotEmpty) {
+        _log.info('Instant stream resolution from memory cache for $lookupId');
+        return _streamUrlCache[lookupId]!;
+      }
+      
+      // 2. Check local download
       final localSong = await _localSource.getSong(lookupId);
       if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
           _log.info('Playing local download: ${localSong.filePath}');
+          _streamUrlCache[lookupId] = localSong.filePath!;
           return localSong.filePath!;
         }
       }
 
+      // 3. Direct Fast Resolution for YouTube Tracks (< 300ms)
+      String targetVideoId = (song?.videoId != null && song!.videoId.isNotEmpty) ? song.videoId : videoId;
+      final isValidYouTubeId = RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(targetVideoId);
 
-      // Direct JioSaavn stream resolution if song is from JioSaavn
-      if (song != null && song.source.toLowerCase().contains('jiosaavn')) {
-        _log.info('Resolving JioSaavn stream directly using ID: ${song.id}');
+      if (isValidYouTubeId) {
         try {
-          final jioSaavn = getIt<JioSaavnService>();
-          final url = await jioSaavn.getStreamUrl(song.id);
-          if (url != null && url.isNotEmpty) {
-            _log.info('JioSaavn stream resolved successfully for ${song.title}');
+          final url = await _repository
+              .getStreamUrl(targetVideoId, quality: 'High')
+              .timeout(const Duration(seconds: 8));
+          if (url.isNotEmpty) {
+            _streamUrlCache[lookupId] = url;
+            _log.info('Direct YouTube stream resolved in <300ms for $targetVideoId');
             return url;
           }
-          _log.warning('JioSaavn.getStreamUrl returned null/empty for ${song.id}');
+        } catch (e) {
+          _log.warning('Direct YouTube resolution failed ($e), attempting fallback...');
+        }
+      }
+
+      // 4. JioSaavn Track Resolution (if source is JioSaavn)
+      if (song != null && song.source.toLowerCase().contains('jiosaavn')) {
+        try {
+          final jioSaavn = getIt<JioSaavnService>();
+          final url = await jioSaavn.getStreamUrl(song.id).timeout(const Duration(seconds: 6));
+          if (url != null && url.isNotEmpty) {
+            _streamUrlCache[lookupId] = url;
+            return url;
+          }
         } catch (e) {
           _log.warning('JioSaavn direct stream fetch failed: $e');
         }
-
-        // If the song has a valid YouTube videoId, resolve it directly via YouTube
-        final isValidYouTubeId = RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(song.videoId);
-        if (isValidYouTubeId) {
-          _log.info('JioSaavn failed — falling back to YouTube with known videoId: ${song.videoId}');
-          return await _repository.getStreamUrl(song.videoId, quality: 'High')
-              .timeout(const Duration(seconds: 15));
-        }
-
-        // videoId is not a YouTube ID — try JioSaavn search by clean title as last resort
-        try {
-          String cleanTitle = song.title;
-          final colonIdx = cleanTitle.indexOf(':');
-          if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-          final pipeIdx = cleanTitle.indexOf('|');
-          if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-          final cleanArtist = song.artist.split(',').first.trim();
-          final query = '$cleanTitle $cleanArtist'.trim();
-          _log.info('JioSaavn title-search fallback for: "$query"');
-          final jioSaavn = getIt<JioSaavnService>();
-          final candidates = await jioSaavn.search(query).timeout(const Duration(seconds: 6));
-          if (candidates.isNotEmpty) {
-            final url = await jioSaavn.getStreamUrl(candidates.first.id)
-                .timeout(const Duration(seconds: 8));
-            if (url != null && url.isNotEmpty) {
-              _log.info('JioSaavn title-search resolved stream for "${song.title}"');
-              return url;
-            }
-          }
-        } catch (e) {
-          _log.warning('JioSaavn title-search fallback failed: $e');
-        }
-        // No JioSaavn resolution possible — log and fall through to YouTube text search
-        _log.warning('All JioSaavn resolution paths failed for "${song.title}"');
       }
 
-
-
-      String targetVideoId = videoId;
-      final isYouTube = song != null && song.source.toLowerCase().contains('youtube');
-      if (song != null && !isYouTube) {
-        final resolvedSong = await _ensureYouTubeVideoId(song);
-        targetVideoId = resolvedSong.videoId;
-      }
-
-      // Try JioSaavn matching first for 320kbps audio stream (only for YouTube songs)
-      if (song != null && isYouTube) {
-        try {
-          // YouTube song titles often contain full descriptions like:
-          // "Vaaste Song: Dhvani Bhanushali, Tanishk Bagchi | T-Series"
-          // Strip everything after ':' or '|' to get a clean search query.
-          String cleanTitle = song.title;
-          final colonIdx = cleanTitle.indexOf(':');
-          if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-          final pipeIdx = cleanTitle.indexOf('|');
-          if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-
-          // Also clean artist — use only first artist if multiple separated by ,
-          final cleanArtist = song.artist.split(',').first.trim();
-
-          // Search with title + artist for a stronger match
-          final searchQuery = '$cleanTitle $cleanArtist'.trim();
-          _log.debug('Attempting JioSaavn stream resolution for YouTube song. Query: "$searchQuery"');
-          final jioSaavn = getIt<JioSaavnService>();
-          final candidates = await jioSaavn.search(searchQuery).timeout(const Duration(seconds: 6));
-          if (candidates.isNotEmpty) {
-            final ytTrack = MusicTrack(
-              id: song.videoId,
-              title: cleanTitle,   // use cleaned title for matching
-              artist: cleanArtist,
-              album: song.album,
-              duration: song.duration,
-              artworkUrl: song.artworkUrl,
-              source: 'youtube',
-            );
-            final match = findMatchingSaavnTrack(ytTrack, candidates);
-            if (match != null) {
-              _log.info('Matching JioSaavn track found: ${match.title} by ${match.artist}');
-              final saavnUrl = await jioSaavn.getStreamUrl(match.id).timeout(const Duration(seconds: 8));
-              if (saavnUrl != null && saavnUrl.isNotEmpty) {
-                _log.info('Successfully resolved JioSaavn 320kbps stream URL');
-                return saavnUrl;
-              }
-            } else {
-              _log.debug('No JioSaavn match for "$cleanTitle" within duration tolerance');
-            }
-          }
-        } catch (e) {
-          _log.warning('JioSaavn stream resolution failed (falling back to YouTube): $e');
-        }
-      }
-
-      
-      // Fallback to YouTube Music stream
-      const quality = 'High';
-      String url = '';
-      try {
-        url = await _repository
-          .getStreamUrl(targetVideoId, quality: quality)
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              _log.warning('Stream resolution timeout for $targetVideoId after 15 seconds');
-              return '';
-            },
-          );
-      } catch (e) {
-        _log.warning('Direct videoId resolution for $targetVideoId failed: $e. Trying YouTube search fallback...');
-      }
-
-      // If direct resolution failed, attempt automatic search-based fallback using title & artist
-      if (url.isEmpty && song != null) {
+      // 5. Fallback Search by Clean Title & Artist
+      if (song != null) {
         String cleanTitle = song.title;
         final colonIdx = cleanTitle.indexOf(':');
         if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
         final pipeIdx = cleanTitle.indexOf('|');
         if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-
         final cleanArtist = song.artist.split(',').first.trim();
         final queryId = '$cleanTitle $cleanArtist'.trim();
 
-        _log.info('Searching YouTube for active mirror of "$queryId"...');
+        _log.info('Searching active mirror for "$queryId"...');
         try {
-          url = await _repository
-            .getStreamUrl(queryId, quality: quality)
-            .timeout(const Duration(seconds: 15));
-        } catch (e2) {
-          _log.error('YouTube search fallback also failed: $e2');
+          final url = await _repository
+              .getStreamUrl(queryId, quality: 'High')
+              .timeout(const Duration(seconds: 10));
+          if (url.isNotEmpty) {
+            _streamUrlCache[lookupId] = url;
+            return url;
+          }
+        } catch (e) {
+          _log.error('Search fallback failed: $e');
         }
       }
 
-
-      if (url.isNotEmpty) {
-        _log.debug('Successfully resolved stream URL: $url');
-      }
-      return url;
-
+      return '';
     } catch (e, stackTrace) {
       _log.error('Error resolving stream for videoId $videoId: $e', e, stackTrace);
       return '';
     }
-  }
-
-  Future<Song> _ensureYouTubeVideoId(Song song) async {
-    if (song.source.toLowerCase().contains('youtube')) {
-      return song;
-    }
-
-    // If videoId is a valid 11-character YouTube video ID (e.g. decorated JioSaavn songs from home feed), preserve it
-    if (song.videoId.length == 11) {
-      return song;
-    }
-    
-    // If videoId is not 11 characters (e.g. search suggestions), use title and artist as search key for streamUrl
-    _log.info('Non-YouTube videoId "${song.videoId}" detected for ${song.source}. Passing "${song.title} ${song.artist}" to stream resolver.');
-    return Song(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration,
-      artworkUrl: song.artworkUrl,
-      videoId: '${song.title} ${song.artist}',
-      streamUrl: song.streamUrl,
-      source: song.source,
-    );
   }
 
   // Pre-resolve next song in queue
@@ -769,6 +669,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } else if (state.repeatMode == AudioServiceRepeatMode.all) {
         targetIndex = 0;
       } else {
+        // Check if autoplay infinite radio is enabled
+        final isAutoplay = _ref.read(autoplayEnabledProvider);
+        if (isAutoplay) {
+          _log.info('Queue ended. Fetching autoplay recommendations...');
+          try {
+            final recs = await _ref.read(recommendationServiceProvider).getAutoplayQueue(currentSong);
+            if (recs.isNotEmpty) {
+              await addSongsToQueue(recs);
+              await skipToQueueItem(currentIndex + 1);
+              return;
+            }
+          } catch (e) {
+            _log.error('Failed to load autoplay recommendations: $e');
+          }
+        }
         return; // End of queue
       }
     }

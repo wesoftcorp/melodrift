@@ -3,52 +3,51 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Firebase configuration for Melodrift
-///
-/// SETUP INSTRUCTIONS:
-/// 1. Create Firebase project at https://console.firebase.google.com/
-/// 2. Register Android app with package name: com.melodrift.dev
-/// 3. Download google-services.json from Firebase Console
-/// 4. Place at: android/app/google-services.json
-/// 5. Get SHA-1: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey
-/// 6. Update the values below from google-services.json
-///
-/// For local development without Firebase:
-/// - Use FOSS flavors (devFoss/prodFoss)
-/// - Firebase is optional and gracefully fails over
-///
-/// Android values are sourced from android/app/google-services.json
+/// Sourced from Firebase Project: melodrift-melody
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
       return const FirebaseOptions(
-        apiKey: 'YOUR_WEB_API_KEY',
-        appId: 'YOUR_WEB_APP_ID',
-        messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-        projectId: 'YOUR_FIREBASE_PROJECT_ID',
-        authDomain: 'YOUR_FIREBASE_PROJECT_ID.firebaseapp.com',
-        databaseURL: 'https://YOUR_FIREBASE_PROJECT_ID-default-rtdb.firebaseio.com',
-        storageBucket: 'YOUR_FIREBASE_PROJECT_ID.firebasestorage.app',
+        apiKey: 'AIzaSyBtSpZHU5evdAabbVLvFRfHGNEIIsl8Q3w',
+        appId: '1:606758484923:web:8ab9360fc9be9786a7229e',
+        messagingSenderId: '606758484923',
+        projectId: 'melodrift-melody',
+        authDomain: 'melodrift-melody.firebaseapp.com',
+        databaseURL: 'https://melodrift-melody-default-rtdb.asia-southeast1.firebasedatabase.app',
+        storageBucket: 'melodrift-melody.firebasestorage.app',
+        measurementId: 'G-02S70Q5BCG',
       );
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return const FirebaseOptions(
-          apiKey: 'YOUR_ANDROID_API_KEY',
-          appId: 'YOUR_ANDROID_APP_ID',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-          projectId: 'YOUR_FIREBASE_PROJECT_ID',
-          databaseURL: 'https://YOUR_FIREBASE_PROJECT_ID-default-rtdb.firebaseio.com',
-          storageBucket: 'YOUR_FIREBASE_PROJECT_ID.firebasestorage.app',
+          apiKey: 'AIzaSyC7JuwpzXE0iWuNRhVUB3lIiFII4GuEqPM',
+          appId: '1:606758484923:android:c383a7dea8d7f211a7229e',
+          messagingSenderId: '606758484923',
+          projectId: 'melodrift-melody',
+          databaseURL: 'https://melodrift-melody-default-rtdb.asia-southeast1.firebasedatabase.app',
+          storageBucket: 'melodrift-melody.firebasestorage.app',
         );
       case TargetPlatform.iOS:
         return const FirebaseOptions(
-          apiKey: 'YOUR_IOS_API_KEY',
-          appId: 'YOUR_IOS_APP_ID',
-          messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-          projectId: 'YOUR_FIREBASE_PROJECT_ID',
-          databaseURL: 'https://YOUR_FIREBASE_PROJECT_ID-default-rtdb.firebaseio.com',
-          storageBucket: 'YOUR_FIREBASE_PROJECT_ID.firebasestorage.app',
+          apiKey: 'AIzaSyC7JuwpzXE0iWuNRhVUB3lIiFII4GuEqPM',
+          appId: '1:606758484923:ios:4310c8d968eb9cb9a7229e',
+          messagingSenderId: '606758484923',
+          projectId: 'melodrift-melody',
+          databaseURL: 'https://melodrift-melody-default-rtdb.asia-southeast1.firebasedatabase.app',
+          storageBucket: 'melodrift-melody.firebasestorage.app',
           iosBundleId: 'com.melodrift',
+        );
+      case TargetPlatform.windows:
+        return const FirebaseOptions(
+          apiKey: 'AIzaSyBtSpZHU5evdAabbVLvFRfHGNEIIsl8Q3w',
+          appId: '1:606758484923:web:8ab9360fc9be9786a7229e',
+          messagingSenderId: '606758484923',
+          projectId: 'melodrift-melody',
+          authDomain: 'melodrift-melody.firebaseapp.com',
+          databaseURL: 'https://melodrift-melody-default-rtdb.asia-southeast1.firebasedatabase.app',
+          storageBucket: 'melodrift-melody.firebasestorage.app',
+          measurementId: 'G-02S70Q5BCG',
         );
       default:
         throw UnsupportedError(

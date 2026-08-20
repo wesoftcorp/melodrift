@@ -35,6 +35,8 @@ class PlaylistsList extends ConsumerWidget {
                         imageUrl: playlist.artworkUrl,
                         width: 48,
                         height: 48,
+                        memCacheWidth: 96,
+                        memCacheHeight: 96,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => const Icon(Icons.playlist_play),
                       )

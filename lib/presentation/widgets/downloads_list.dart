@@ -52,6 +52,8 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
                   imageUrl: song.artworkUrl,
                   width: 44,
                   height: 44,
+                  memCacheWidth: 88,
+                  memCacheHeight: 88,
                   fit: BoxFit.cover,
                    errorWidget: (_, __, ___) => const Icon(Icons.music_note),
                 ),

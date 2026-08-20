@@ -17,6 +17,7 @@ import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
 import 'details_screen.dart';
 import '../widgets/home/home_trending_cascade.dart';
 import '../../data/repositories/history_repository_impl.dart';
+import '../../core/services/recommendation_service.dart';
 import '../../core/theme/tokens.dart';
 
 
@@ -262,6 +263,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
                 _buildMultiRowSongList(context, ref, feed.quickPicks),
+
+                // ── Personalized Recommendations (YouTube-style) ─────────
+                ref.watch(personalizedRecommendationsProvider).when(
+                  data: (rec) {
+                    if (rec.songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    return SliverMainAxisGroup(
+                      slivers: [
+                        _buildSectionHeader(
+                          rec.title,
+                          onSeeAll: () => _openDetails(
+                            context,
+                            DetailsScreen(
+                              id: 'personalized_rec',
+                              title: rec.title,
+                              type: 'songList',
+                              preloadedSongs: rec.songs,
+                            ),
+                          ),
+                        ),
+                        _buildMultiRowSongList(context, ref, rec.songs),
+                      ],
+                    );
+                  },
+                  loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                  error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+                ),
 
                 // ── Featured Playlists for You ───────────────────────────
                 if (feed.featuredPlaylistsForYou.isNotEmpty) ...[

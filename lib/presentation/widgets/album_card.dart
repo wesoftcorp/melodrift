@@ -42,6 +42,8 @@ class AlbumCard extends StatelessWidget {
                 imageUrl: album.artworkUrl,
                 width: size,
                 height: size,
+                memCacheWidth: (size * 2).toInt(),
+                memCacheHeight: (size * 2).toInt(),
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
                   width: size,

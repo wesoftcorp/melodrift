@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_route/auto_route.dart';
@@ -9,11 +8,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../core/services/audio_handler.dart';
 import '../providers/auth_provider.dart';
+import '../providers/player_notifier.dart';
 
 import '../../flavors.dart';
 import '../../presentation/providers/duration_cache_provider.dart';
 import '../../core/services/image_caching_service.dart';
-import '../../core/utils/widget_rebuild_tracker.dart';
+import '../../core/services/cloud_sync_service.dart';
+import '../../core/services/update_service.dart';
 import '../screens/home_screen.dart' show homeLanguageProvider, kLanguageOptions;
 
 // ── WiFi Only Downloads Provider ─────────────────────────────────────────────
@@ -33,43 +34,7 @@ class DownloadOnlyWifiNotifier extends StateNotifier<bool> {
   }
 }
 
-
-
-// ── Custom YouTube API URL Provider ─────────────────────────────────────────────
-final customYoutubeApiUrlProvider = StateNotifierProvider<CustomYoutubeApiUrlNotifier, String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return CustomYoutubeApiUrlNotifier(prefs);
-});
-
-class CustomYoutubeApiUrlNotifier extends StateNotifier<String> {
-  final SharedPreferences _prefs;
-  CustomYoutubeApiUrlNotifier(this._prefs) : super(_prefs.getString('custom_youtube_api_url') ?? '');
-
-  Future<void> setUrl(String value) async {
-    await _prefs.setString('custom_youtube_api_url', value);
-    state = value;
-  }
-}
-
-// ── Custom JioSaavn API URL Provider ─────────────────────────────────────────────
-final customJioSaavnApiUrlProvider = StateNotifierProvider<CustomJioSaavnApiUrlNotifier, String>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return CustomJioSaavnApiUrlNotifier(prefs);
-});
-
-class CustomJioSaavnApiUrlNotifier extends StateNotifier<String> {
-  final SharedPreferences _prefs;
-  CustomJioSaavnApiUrlNotifier(this._prefs) : super(_prefs.getString('custom_jiosaavn_api_url') ?? '');
-
-  Future<void> setUrl(String value) async {
-    await _prefs.setString('custom_jiosaavn_api_url', value);
-    state = value;
-  }
-}
-
-
-
-
+// ── Allow Explicit Content Provider ──────────────────────────────────────────
 final allowExplicitContentProvider = StateNotifierProvider<AllowExplicitContentNotifier, bool>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return AllowExplicitContentNotifier(prefs);
@@ -84,6 +49,62 @@ class AllowExplicitContentNotifier extends StateNotifier<bool> {
     state = value;
   }
 }
+
+// ── Autoplay Continuous Radio Provider ───────────────────────────────────────
+final autoplayEnabledProvider = StateNotifierProvider<AutoplayEnabledNotifier, bool>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return AutoplayEnabledNotifier(prefs);
+});
+
+class AutoplayEnabledNotifier extends StateNotifier<bool> {
+  final SharedPreferences _prefs;
+  AutoplayEnabledNotifier(this._prefs) : super(_prefs.getBool('autoplay_enabled') ?? true);
+
+  Future<void> toggle(bool value) async {
+    await _prefs.setBool('autoplay_enabled', value);
+    state = value;
+  }
+}
+
+// ── Streaming Quality Provider ───────────────────────────────────────────────
+enum AudioStreamingQuality { auto, low, normal, high }
+
+final streamingQualityProvider = StateNotifierProvider<StreamingQualityNotifier, AudioStreamingQuality>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return StreamingQualityNotifier(prefs);
+});
+
+class StreamingQualityNotifier extends StateNotifier<AudioStreamingQuality> {
+  final SharedPreferences _prefs;
+  StreamingQualityNotifier(this._prefs) : super(_loadFromPrefs(_prefs));
+
+  static AudioStreamingQuality _loadFromPrefs(SharedPreferences prefs) {
+    final idx = prefs.getInt('streaming_quality') ?? 3; // Default High
+    return AudioStreamingQuality.values[idx.clamp(0, AudioStreamingQuality.values.length - 1)];
+  }
+
+  Future<void> setQuality(AudioStreamingQuality quality) async {
+    await _prefs.setInt('streaming_quality', quality.index);
+    state = quality;
+  }
+}
+
+// ── Equalizer Preset Provider ────────────────────────────────────────────────
+final equalizerPresetProvider = StateNotifierProvider<EqualizerPresetNotifier, String>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return EqualizerPresetNotifier(prefs);
+});
+
+class EqualizerPresetNotifier extends StateNotifier<String> {
+  final SharedPreferences _prefs;
+  EqualizerPresetNotifier(this._prefs) : super(_prefs.getString('equalizer_preset') ?? 'Flat');
+
+  Future<void> setPreset(String value) async {
+    await _prefs.setString('equalizer_preset', value);
+    state = value;
+  }
+}
+
 // ── Settings Screen ──────────────────────────────────────────────────────────
 @RoutePage()
 class SettingsScreen extends ConsumerWidget {
@@ -122,7 +143,6 @@ class SettingsScreen extends ConsumerWidget {
             }
           },
         ),
-
         actions: [
           IconButton(
             icon: Icon(
@@ -142,19 +162,34 @@ class SettingsScreen extends ConsumerWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 100),
         children: [
-          // ── Section: Account ───────────────────────────────────────────────
-          const _SettingsSectionHeader(title: 'Account'),
+          // ── Section: Account & Cloud ───────────────────────────────────────
+          const _SettingsSectionHeader(title: 'Account & Cloud Sync'),
           _SettingsCard(
             children: [
-              _buildGoogleAccountItem(context, ref, theme),
-              _buildDivider(theme),
-              _buildYoutubeAccountItem(context, ref, theme),
-              _buildDivider(theme),
-              _buildSubscriptionItem(theme),
+              _buildAccountProfileItem(context, ref, theme),
             ],
           ),
 
-
+          // ── Section: Audio & Playback ──────────────────────────────────────
+          const _SettingsSectionHeader(title: 'Audio & Playback'),
+          _SettingsCard(
+            children: [
+              _buildEqualizerItem(context, ref, theme),
+              _buildDivider(theme),
+              _buildStreamingQualityItem(context, ref, theme),
+              _buildDivider(theme),
+              _buildSwitchItem(
+                title: 'Autoplay Infinite Radio',
+                subtitle: 'Keep playing similar songs when playlist ends',
+                icon: Icons.all_inclusive_rounded,
+                value: ref.watch(autoplayEnabledProvider),
+                onChanged: (val) => ref.read(autoplayEnabledProvider.notifier).toggle(val),
+                theme: theme,
+              ),
+              _buildDivider(theme),
+              _buildSleepTimerItem(context, ref, theme),
+            ],
+          ),
 
           // ── Section: Content & Display ─────────────────────────────────────
           const _SettingsSectionHeader(title: 'Content & Display'),
@@ -173,7 +208,8 @@ class SettingsScreen extends ConsumerWidget {
               _buildThemeModeItem(context, ref, theme, themeMode),
               _buildDivider(theme),
               _buildSwitchItem(
-                title: 'Enable Firebase Sync',
+                title: 'Enable Cloud Sync',
+                subtitle: 'Sync playlists and history across devices',
                 icon: Icons.cloud_queue_rounded,
                 value: ref.watch(firebaseEnabledProvider),
                 onChanged: (value) async {
@@ -188,18 +224,9 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
 
-          // ── Section: Audio & Equalizer ──────────────────────────────────────
-          const _SettingsSectionHeader(title: 'Audio & Playback'),
-          _SettingsCard(
-            children: [
-              _buildEqualizerItem(context, ref, theme),
-            ],
-          ),
-
           // ── Section: Storage & Network ─────────────────────────────────────
           const _SettingsSectionHeader(title: 'Storage & Network'),
           _SettingsCard(
-
             children: [
               _buildSwitchItem(
                 title: 'Download only over Wi-Fi',
@@ -209,11 +236,10 @@ class SettingsScreen extends ConsumerWidget {
                 theme: theme,
               ),
               _buildDivider(theme),
-              _buildStorageProgressItem(theme),
-              _buildDivider(theme),
-              _buildStorageActionsItem(context, theme),
+              _buildClearCacheItem(context, theme),
             ],
           ),
+
           // ── Section: About ─────────────────────────────────────────────────
           const _SettingsSectionHeader(title: 'About'),
           _SettingsCard(
@@ -229,10 +255,39 @@ class SettingsScreen extends ConsumerWidget {
               ),
               _buildDivider(theme),
               ListTile(
-                title: const Text('Website'),
+                title: const Text('Check for Updates'),
+                subtitle: const Text('Tap to check for latest release'),
+                leading: const Icon(Icons.system_update_rounded, color: Color(0xFFFF5F1F)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                onTap: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Checking for updates...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                  final update = await UpdateService.checkLatestRelease();
+                  if (!context.mounted) return;
+                  if (update != null) {
+                    await UpdateService.showUpdateDialog(context, update, isManual: true);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('You are already on the latest version! (v1.2.0)'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+              _buildDivider(theme),
+              ListTile(
+                title: const Text('Official Website'),
+                subtitle: const Text('melodrift.rajeevupadhyay.com'),
                 trailing: const Icon(Icons.open_in_new_rounded, size: 16),
                 onTap: () async {
-                  final url = Uri.parse('https://rajeevupadhyay.com');
+                  final url = Uri.parse('https://melodrift.rajeevupadhyay.com');
                   if (await canLaunchUrl(url)) {
                     await launchUrl(url, mode: LaunchMode.externalApplication);
                   }
@@ -240,7 +295,8 @@ class SettingsScreen extends ConsumerWidget {
               ),
               _buildDivider(theme),
               ListTile(
-                title: const Text('Email'),
+                title: const Text('Support Email'),
+                subtitle: const Text('rajeev.upadhyay@live.in'),
                 trailing: const Icon(Icons.mail_outline_rounded, size: 16),
                 onTap: () async {
                   final url = Uri.parse('mailto:rajeev.upadhyay@live.in');
@@ -252,25 +308,28 @@ class SettingsScreen extends ConsumerWidget {
               _buildDivider(theme),
               ListTile(
                 title: const Text('Version'),
-                trailing: Text(
-                  '1.0.0 (Nocturnal)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withAlpha(30),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '1.2.0 (Build 120)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                 ),
-              ),
-              _buildDivider(theme),
-              ListTile(
-                title: const Text('Terms of Service'),
-                trailing: const Icon(Icons.open_in_new_rounded, size: 16),
-                onTap: () {},
               ),
               _buildDivider(theme),
               ListTile(
                 title: const Text('Privacy Policy'),
                 trailing: const Icon(Icons.open_in_new_rounded, size: 16),
                 onTap: () async {
-                  final url = Uri.parse('https://rockstarrajeev.github.io/melodrift/privacy-policy.html');
+                  final url = Uri.parse('https://melodrift.rajeevupadhyay.com/privacy.html');
                   if (await canLaunchUrl(url)) {
                     await launchUrl(url, mode: LaunchMode.externalApplication);
                   }
@@ -306,39 +365,93 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildGoogleAccountItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+  Widget _buildAccountProfileItem(BuildContext context, WidgetRef ref, ThemeData theme) {
     final user = ref.watch(authProvider);
+    final syncStatus = ref.watch(cloudSyncStatusProvider);
 
     if (user != null) {
-      return ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
-              ? CachedNetworkImageProvider(user.photoUrl!)
-              : null,
-          child: user.photoUrl == null || user.photoUrl!.isEmpty
-              ? const Icon(Icons.person)
-              : null,
-        ),
-        title: Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(user.email ?? 'Google Account'),
-        trailing: TextButton(
-          onPressed: () => ref.read(authProvider.notifier).signOut(),
-          child: const Text('Sign Out', style: TextStyle(color: Color(0xFFFF4500))),
-        ),
+      final subtitle = user.email ?? 'Synced with Melodrift Cloud';
+      return Column(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: CircleAvatar(
+              radius: 22,
+              backgroundColor: const Color(0xFFFF4500).withOpacity(0.15),
+              backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
+                  ? CachedNetworkImageProvider(user.photoUrl!)
+                  : null,
+              child: user.photoUrl == null || user.photoUrl!.isEmpty
+                  ? Text(
+                      user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : 'U',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF4500)),
+                    )
+                  : null,
+            ),
+            title: Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+            trailing: TextButton(
+              onPressed: () => ref.read(authProvider.notifier).signOut(),
+              child: const Text('Sign Out', style: TextStyle(color: Color(0xFFFF4500))),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      syncStatus == CloudSyncStatus.syncing
+                          ? Icons.sync_rounded
+                          : Icons.cloud_done_rounded,
+                      size: 16,
+                      color: syncStatus == CloudSyncStatus.syncing ? Colors.orange : Colors.green,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      syncStatus == CloudSyncStatus.syncing ? 'Syncing library...' : 'Cloud library backed up',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: const Icon(Icons.sync_rounded, size: 14),
+                  label: const Text('Sync Now', style: TextStyle(fontSize: 12)),
+                  onPressed: () async {
+                    final success = await ref.read(cloudSyncServiceProvider).syncNow(ref);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(success ? 'Library synced successfully' : 'Sync completed with offline cache'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      leading: const CircleAvatar(
-        radius: 20,
-        backgroundColor: Colors.transparent,
-        child: Icon(Icons.account_circle_outlined, size: 28),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.g_mobiledata_rounded, color: Colors.blue, size: 32),
       ),
-      title: const Text('Sign In with Google', style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text('Sync library & listening history'),
+      title: const Text('Sign In with Google', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+      subtitle: const Text('Sync playlists, favorites & listening history across devices', style: TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: () async {
         if (F.isFoss) {
@@ -348,157 +461,33 @@ class SettingsScreen extends ConsumerWidget {
         if (!ref.read(firebaseEnabledProvider)) {
           await ref.read(firebaseEnabledProvider.notifier).toggle(true);
         }
-        await ref.read(authProvider.notifier).signInWithGoogle();
-      },
-    );
-  }
 
-  Widget _buildYoutubeAccountItem(BuildContext context, WidgetRef ref, ThemeData theme) {
-    final ytAccount = ref.watch(youtubeAuthProvider);
-
-    if (ytAccount != null) {
-      return ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.red.withOpacity(0.15),
-          child: const Icon(Icons.play_arrow_rounded, color: Colors.red, size: 24),
-        ),
-        title: Text(ytAccount.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text('YouTube Music Account Synced', style: TextStyle(color: Colors.green, fontSize: 12)),
-        trailing: TextButton(
-          onPressed: () => ref.read(youtubeAuthProvider.notifier).signOut(),
-          child: const Text('Disconnect', style: TextStyle(color: Color(0xFFFF4500))),
-        ),
-      );
-    }
-
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(Icons.music_note_rounded, color: Colors.red),
-      ),
-      title: const Text('Sync YouTube Music Account', style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text('Sync Liked Songs & Playlists via InnerTube'),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => _showYoutubeCookieDialog(context, ref),
-    );
-  }
-
-  void _showYoutubeCookieDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
-
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-
-        final theme = Theme.of(context);
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: const [
-              Icon(Icons.sync_rounded, color: Colors.red),
-              SizedBox(width: 10),
-              Text('Sync YouTube Music'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'To sync your YouTube Music Liked Songs & Playlists via InnerTube:',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    '1. Open music.youtube.com in Browser\n'
-                    '2. Press F12 -> Application -> Cookies\n'
-                    '3. Copy the Cookie header string\n'
-                    '4. Paste it below to authenticate',
-                    style: TextStyle(fontSize: 12, height: 1.4),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: controller,
-                  maxLines: 3,
-                  style: const TextStyle(fontSize: 12),
-                  decoration: InputDecoration(
-                    hintText: 'Paste Cookie value here (e.g. SAPISID=...; SID=...)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    contentPadding: const EdgeInsets.all(12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        try {
+          final loggedUser = await ref.read(authProvider.notifier).signInWithGoogle();
+          if (context.mounted && loggedUser != null) {
+            await ref.read(cloudSyncServiceProvider).syncNow(ref);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Welcome, ${loggedUser.displayName}! Cloud library & recommendations synced.'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
               ),
-              onPressed: () async {
-                final cookie = controller.text.trim();
-                if (cookie.isNotEmpty) {
-                  final success = await ref.read(youtubeAuthProvider.notifier).loginWithCookie(cookie);
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success ? 'YouTube Account Synced Successfully!' : 'Invalid cookie string'),
-                        backgroundColor: success ? Colors.green : Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Connect & Sync'),
-            ),
-          ],
-        );
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Google Sign-In failed: $e'),
+                backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
       },
     );
   }
-
-
-  Widget _buildSubscriptionItem(ThemeData theme) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFFFF4500).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFF4500)),
-      ),
-      title: const Text('Melodrift Plus', style: TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: const Text('Active • Renews Oct 24', style: TextStyle(color: Color(0xFFFF4500))),
-      trailing: const Icon(Icons.chevron_right_rounded),
-    );
-  }
-
 
   Widget _buildSwitchItem({
     required String title,
@@ -506,13 +495,157 @@ class SettingsScreen extends ConsumerWidget {
     required bool value,
     required ValueChanged<bool> onChanged,
     required ThemeData theme,
+    String? subtitle,
   }) {
     return SwitchListTile(
       secondary: Icon(icon),
       title: Text(title),
+      subtitle: subtitle != null ? Text(subtitle, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)) : null,
       value: value,
       activeColor: const Color(0xFFFF4500),
       onChanged: onChanged,
+    );
+  }
+
+  Widget _buildStreamingQualityItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final quality = ref.watch(streamingQualityProvider);
+    String label;
+    switch (quality) {
+      case AudioStreamingQuality.auto:
+        label = 'Auto (Adaptive)';
+        break;
+      case AudioStreamingQuality.low:
+        label = 'Low (96 kbps - Data Saver)';
+        break;
+      case AudioStreamingQuality.normal:
+        label = 'Normal (160 kbps)';
+        break;
+      case AudioStreamingQuality.high:
+        label = 'High (320 kbps - HD Audio)';
+        break;
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.high_quality_rounded),
+      title: const Text('Streaming Audio Quality'),
+      subtitle: Text(label),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Streaming Audio Quality'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<AudioStreamingQuality>(
+                  title: const Text('Auto (Adaptive)'),
+                  value: AudioStreamingQuality.auto,
+                  groupValue: quality,
+                  activeColor: const Color(0xFFFF4500),
+                  onChanged: (val) {
+                    if (val != null) ref.read(streamingQualityProvider.notifier).setQuality(val);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                RadioListTile<AudioStreamingQuality>(
+                  title: const Text('Low (96 kbps - Data Saver)'),
+                  value: AudioStreamingQuality.low,
+                  groupValue: quality,
+                  activeColor: const Color(0xFFFF4500),
+                  onChanged: (val) {
+                    if (val != null) ref.read(streamingQualityProvider.notifier).setQuality(val);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                RadioListTile<AudioStreamingQuality>(
+                  title: const Text('Normal (160 kbps)'),
+                  value: AudioStreamingQuality.normal,
+                  groupValue: quality,
+                  activeColor: const Color(0xFFFF4500),
+                  onChanged: (val) {
+                    if (val != null) ref.read(streamingQualityProvider.notifier).setQuality(val);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                RadioListTile<AudioStreamingQuality>(
+                  title: const Text('High (320 kbps - HD Audio)'),
+                  value: AudioStreamingQuality.high,
+                  groupValue: quality,
+                  activeColor: const Color(0xFFFF4500),
+                  onChanged: (val) {
+                    if (val != null) ref.read(streamingQualityProvider.notifier).setQuality(val);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSleepTimerItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final playerState = ref.watch(playerStateProvider);
+    final remaining = playerState.sleepTimeRemaining;
+    final label = remaining != null && remaining > Duration.zero
+        ? '${remaining.inMinutes + 1} min remaining'
+        : 'Off';
+
+    return ListTile(
+      leading: const Icon(Icons.bedtime_rounded),
+      title: const Text('Sleep Timer'),
+      subtitle: Text(label),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Set Sleep Timer'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: const Text('Turn Off'),
+                  onTap: () {
+                    ref.read(playerStateProvider.notifier).setSleepTimer(null);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  title: const Text('15 Minutes'),
+                  onTap: () {
+                    ref.read(playerStateProvider.notifier).setSleepTimer(const Duration(minutes: 15));
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  title: const Text('30 Minutes'),
+                  onTap: () {
+                    ref.read(playerStateProvider.notifier).setSleepTimer(const Duration(minutes: 30));
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  title: const Text('45 Minutes'),
+                  onTap: () {
+                    ref.read(playerStateProvider.notifier).setSleepTimer(const Duration(minutes: 45));
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  title: const Text('60 Minutes'),
+                  onTap: () {
+                    ref.read(playerStateProvider.notifier).setSleepTimer(const Duration(minutes: 60));
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -541,74 +674,75 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStorageProgressItem(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Cache Size',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+  Widget _buildEqualizerItem(BuildContext context, WidgetRef ref, ThemeData theme) {
+    final currentPreset = ref.watch(equalizerPresetProvider);
+    return ListTile(
+      leading: const Icon(Icons.graphic_eq_rounded),
+      title: const Text('Equalizer Preset'),
+      subtitle: Text('Current Mode: $currentPreset'),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) {
+            final presets = ['Flat', 'Bass Boost', 'Vocal Boost', 'Pop', 'Rock', 'Acoustic', 'Electronic'];
+            return AlertDialog(
+              title: const Text('Select Equalizer Preset'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: presets.map((preset) {
+                  return RadioListTile<String>(
+                    title: Text(preset),
+                    value: preset,
+                    groupValue: currentPreset,
+                    activeColor: const Color(0xFFFF4500),
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(equalizerPresetProvider.notifier).setPreset(val);
+                        try {
+                          ref.read(audioHandlerProvider).setEqualizerPreset(val);
+                        } catch (_) {}
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Equalizer preset changed to $val')),
+                        );
+                      }
+                    },
+                  );
+                }).toList(),
               ),
-              Text(
-                '1.2 GB / 5.0 GB',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: SizedBox(
-              height: 8,
-              child: LinearProgressIndicator(
-                value: 0.24, // 24% placeholder
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF4500)),
-              ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildStorageActionsItem(BuildContext context, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFFF4500), width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              onPressed: () => _showOptimizationsDialog(context),
-              child: const Text(
-                'Clear Cache',
-                style: TextStyle(
-                  color: Color(0xFFFF4500),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
+  Widget _buildClearCacheItem(BuildContext context, ThemeData theme) {
+    return ListTile(
+      leading: const Icon(Icons.cleaning_services_rounded),
+      title: const Text('Clear Cache'),
+      subtitle: const Text('Free up storage by clearing cached images & temp files'),
+      trailing: TextButton(
+        onPressed: () => _handleClearCache(context),
+        child: const Text('Clear', style: TextStyle(color: Color(0xFFFF4500), fontWeight: FontWeight.bold)),
       ),
+      onTap: () => _handleClearCache(context),
     );
+  }
+
+  void _handleClearCache(BuildContext context) async {
+    await CachedNetworkImageManager.clearCache();
+    DurationCachingService().clearCache();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cache cleared successfully'),
+          backgroundColor: Color(0xFFFF4500),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -633,8 +767,6 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
-
-
 
   String _getThemeModeName(AppThemeMode mode) {
     switch (mode) {
@@ -727,126 +859,9 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
-
-
-
-  void _showOptimizationsDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final durStats = DurationCache.getStats();
-            final imgStatsStr = CachedNetworkImageManager.getCacheStats();
-            final rebuildsList = WidgetRebuildTracker.getHotWidgets();
-            final rebuildStats = rebuildsList.isEmpty
-                ? 'No hot widgets detected.'
-                : rebuildsList.join('\n');
-
-            return AlertDialog(
-              title: const Text('Optimizations & Caching'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Cache Statistics',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Duration Cache: ${durStats.size} / ${durStats.maxSize} entries'),
-                    Text(imgStatsStr),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Rebuild Tracking',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      kDebugMode
-                          ? 'Hot Widgets (rebuilds/sec):\n$rebuildStats'
-                          : 'Rebuild tracker is active in debug mode.',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    const SizedBox(height: 24),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              DurationCachingService().clearCache();
-                              setDialogState(() {});
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Duration cache cleared')),
-                              );
-                            },
-                            child: const Text('Clear Durations'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              CachedNetworkImageManager.clearCache();
-                              setDialogState(() {});
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Image cache cleared')),
-                              );
-                            },
-                            child: const Text('Clear Images'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (kDebugMode) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            WidgetRebuildTracker.reset();
-                            setDialogState(() {});
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Rebuild stats reset')),
-                            );
-                          },
-                          child: const Text('Reset Rebuild Stats'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-
 // Styled section components
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -901,50 +916,3 @@ class _SettingsCard extends StatelessWidget {
     );
   }
 }
-
-final equalizerPresetProvider = StateProvider<String>((ref) => 'Flat');
-
-Widget _buildEqualizerItem(BuildContext context, WidgetRef ref, ThemeData theme) {
-  final currentPreset = ref.watch(equalizerPresetProvider);
-  return ListTile(
-    leading: const Icon(Icons.graphic_eq_rounded),
-    title: const Text('Equalizer Preset'),
-    subtitle: Text('Current Mode: $currentPreset'),
-    trailing: const Icon(Icons.chevron_right_rounded),
-    onTap: () {
-      showDialog(
-        context: context,
-        builder: (ctx) {
-          final presets = ['Flat', 'Bass Boost', 'Vocal Boost', 'Pop', 'Rock', 'Acoustic', 'Electronic'];
-          return AlertDialog(
-            title: const Text('Select Equalizer Preset'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: presets.map((preset) {
-                return RadioListTile<String>(
-                  title: Text(preset),
-                  value: preset,
-                  groupValue: currentPreset,
-                  onChanged: (val) {
-                    if (val != null) {
-                      ref.read(equalizerPresetProvider.notifier).state = val;
-                      try {
-                        ref.read(audioHandlerProvider).setEqualizerPreset(val);
-                      } catch (_) {}
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Equalizer preset changed to $val')),
-                      );
-                    }
-                  },
-
-                );
-              }).toList(),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-

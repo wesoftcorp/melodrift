@@ -48,8 +48,8 @@ void main() async {
     }
   }
 
-  // Initialize Firebase Core only if opted-in and on Full flavor
-  final useFirebase = prefs.getBool('use_firebase') ?? false;
+  // Initialize Firebase Core by default on Full flavor (or if explicitly enabled in prefs)
+  final useFirebase = prefs.getBool('use_firebase') ?? true;
   if (F.isFull && useFirebase) {
     try {
       _log.info('Initializing Firebase for ${F.name} flavor...');

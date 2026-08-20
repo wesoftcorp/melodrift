@@ -1,0 +1,4 @@
+# Shorebird configuration for Melodrift Over-The-Air (OTA) Code Push
+# https://docs.shorebird.dev
+app_id: 3c8e5472-749d-4299-8cf0-a5482315a67c
+auto_update: true

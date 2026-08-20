@@ -120,7 +120,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
 
                   // ── YouTube Music Synced Section ─────────────────────────────
-                  if (ref.watch(youtubeAuthProvider) != null) ...[
+                  if (ref.watch(authProvider) != null) ...[
                     const SizedBox(height: 24),
                     InkWell(
                       onTap: () => _openYoutubeLikedSongs(context),

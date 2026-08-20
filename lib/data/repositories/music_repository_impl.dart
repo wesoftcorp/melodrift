@@ -9,6 +9,7 @@ import '../../domain/repositories/music_repository.dart';
 import '../datasources/youtube_music_remote_source.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/jiosaavn_service.dart';
+import '../../core/utils/matching_engine.dart';
 
 final musicRepositoryProvider = Provider<MusicRepository>((ref) {
   final remoteSource = ref.watch(youtubeMusicRemoteSourceProvider);
@@ -54,10 +55,32 @@ class MusicRepositoryImpl implements MusicRepository {
     ]);
 
     final List<Song> combined = [];
+    final Set<String> seenKeys = {};
+
+    String makeSongKey(Song s) {
+      final cleanTitle = normalizeTitle(s.title);
+      final cleanArtist = s.artist.split(',').first.split('&').first.split('•').first.trim().toLowerCase();
+      return '$cleanTitle|$cleanArtist';
+    }
+
     final int maxLen = ytSongs.length > jioSongs.length ? ytSongs.length : jioSongs.length;
     for (int i = 0; i < maxLen; i++) {
-      if (i < ytSongs.length) combined.add(ytSongs[i]);
-      if (i < jioSongs.length) combined.add(jioSongs[i]);
+      if (i < ytSongs.length) {
+        final key = makeSongKey(ytSongs[i]);
+        if (!seenKeys.contains(key) && !seenKeys.contains(ytSongs[i].id)) {
+          seenKeys.add(key);
+          seenKeys.add(ytSongs[i].id);
+          combined.add(ytSongs[i]);
+        }
+      }
+      if (i < jioSongs.length) {
+        final key = makeSongKey(jioSongs[i]);
+        if (!seenKeys.contains(key) && !seenKeys.contains(jioSongs[i].id)) {
+          seenKeys.add(key);
+          seenKeys.add(jioSongs[i].id);
+          combined.add(jioSongs[i]);
+        }
+      }
     }
     final result = combined.isNotEmpty ? combined : (ytSongs.isNotEmpty ? ytSongs : jioSongs);
     if (result.isNotEmpty) {
