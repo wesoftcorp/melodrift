@@ -12,6 +12,7 @@ import '../../data/repositories/music_repository_impl.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/theme/theme_provider.dart';
 import '../providers/player_providers.dart';
+import '../widgets/song_options_sheet.dart';
 
 final relatedSongsProvider = FutureProvider.family<List<Song>, String>((ref, videoId) async {
   final repository = ref.watch(musicRepositoryProvider);
@@ -402,11 +403,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                   isDark ? Icons.wb_sunny_outlined : Icons.nightlight_round,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
+                tooltip: isDark ? 'Light Theme' : 'Dark Theme',
                 onPressed: () {
                   ref.read(themeProvider.notifier).setThemeMode(
                       isDark ? AppThemeMode.light : AppThemeMode.dark);
                 },
               ),
+              if (playerState.currentSong != null)
+                IconButton(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Song Options',
+                  onPressed: () => showSongOptionsMenu(
+                    context,
+                    ref,
+                    playerState.currentSong!,
+                  ),
+                ),
             ],
           ),
         ],

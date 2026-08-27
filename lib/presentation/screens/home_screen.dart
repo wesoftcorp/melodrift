@@ -11,9 +11,11 @@ import '../../domain/entities/album.dart';
 import '../../domain/entities/home_data.dart';
 
 import '../providers/player_notifier.dart';
+import '../providers/home_discovery_notifier.dart';
 import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
 import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
+import '../widgets/song_download_button.dart';
 import 'details_screen.dart';
 import '../widgets/home/home_trending_cascade.dart';
 import '../../data/repositories/history_repository_impl.dart';
@@ -84,9 +86,24 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
+  bool _registeredInitialSongs = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 600) {
+      ref.read(homeDiscoveryProvider.notifier).loadMore();
+    }
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -102,9 +119,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onRefresh: () async {
           try {
             final prefs = await SharedPreferences.getInstance();
-            // Clear all home feed cache keys so a fresh decorated feed is fetched
-            await prefs.remove('home_feed_cache_date_v5');
-            await prefs.remove('home_feed_cache_date_v7');
+            // Clear all home feed cache keys so a fresh feed is fetched
+            await prefs.remove('home_feed_cache_date_v8');
             await prefs.remove('home_feed_cache_data_all');
             await prefs.remove('home_feed_cache_data_English');
             await prefs.remove('home_feed_cache_data_Hindi');
@@ -114,6 +130,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             await prefs.remove('home_feed_cache_data_Hindi Nepali');
             await prefs.remove('home_feed_cache_data_English Hindi Nepali');
           } catch (_) {}
+          _registeredInitialSongs = false;
+          await ref.read(homeDiscoveryProvider.notifier).refresh();
           return ref.refresh(homeFeedProvider.future);
         },
         child: feedAsync.when(
@@ -145,6 +163,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           data: (feed) {
+            if (!_registeredInitialSongs) {
+              _registeredInitialSongs = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  ref.read(homeDiscoveryProvider.notifier).registerExistingSongs([
+                    ...feed.quickPicks,
+                    ...feed.trendingSongs,
+                    ...feed.charts,
+                    ...feed.listenAgain,
+                    ...feed.indianMusic,
+                    ...feed.forgottenFavorites,
+                  ]);
+                }
+              });
+            }
             return Stack(
               children: [
                 if (isDark)
@@ -513,6 +546,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
 
+                // ── Endless Discovery (Echo-Music Style Infinite Scroll) ─────
+                _buildSectionHeader(
+                  'Endless Discovery',
+                  textColor: const Color(0xFFFF5F1F),
+                ),
+                _buildEndlessDiscoveryList(context, ref),
+
                 const SliverToBoxAdapter(child: SizedBox(height: 180)),
               ],
             ),
@@ -782,6 +822,267 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
       ),
     );
+  }
+
+  // ── Endless Discovery Infinite Scroll List (Echo-Music Style) ────────────
+  Widget _buildEndlessDiscoveryList(BuildContext context, WidgetRef ref) {
+    final discoveryState = ref.watch(homeDiscoveryProvider);
+    final songs = discoveryState.songs;
+
+    if (songs.isEmpty && discoveryState.isLoading) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+        ),
+      );
+    }
+
+    if (songs.isEmpty && discoveryState.hasError) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Center(
+            child: TextButton.icon(
+              onPressed: () => ref.read(homeDiscoveryProvider.notifier).loadMore(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Load More Songs'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index == songs.length) {
+              // Loading bottom spinner for endless scroll
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: discoveryState.isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                      : TextButton.icon(
+                          onPressed: () => ref.read(homeDiscoveryProvider.notifier).loadMore(),
+                          icon: const Icon(Icons.expand_more_rounded),
+                          label: const Text('Discover More'),
+                        ),
+                ),
+              );
+            }
+
+            final song = songs[index];
+            return _buildEchoMusicSongTile(context, ref, song, songs, index);
+          },
+          childCount: songs.length + 1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEchoMusicSongTile(
+    BuildContext context,
+    WidgetRef ref,
+    Song song,
+    List<Song> allSongs,
+    int index,
+  ) {
+    final theme = Theme.of(context);
+    final (:currentId, :isPlaying) = ref.watch(
+      playerStateProvider.select((s) => (currentId: s.currentSong?.id, isPlaying: s.isPlaying)),
+    );
+    final isCurrent = currentId == song.id;
+
+    final cardBg = isCurrent
+        ? theme.colorScheme.primary.withOpacity(0.14)
+        : theme.colorScheme.surfaceContainerHighest.withOpacity(0.35);
+
+    final borderColor = isCurrent
+        ? theme.colorScheme.primary.withOpacity(0.5)
+        : theme.colorScheme.outlineVariant.withOpacity(0.12);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            ref.read(playerStateProvider.notifier).playQueue(allSongs, initialIndex: index);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                // 1. Squircle Artwork with Live Playing Overlay
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: song.artworkUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: song.artworkUrl,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Container(
+                                width: 48,
+                                height: 48,
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                child: const Icon(Icons.music_note, size: 24),
+                              ),
+                            )
+                          : Container(
+                              width: 48,
+                              height: 48,
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child: const Icon(Icons.music_note, size: 24),
+                            ),
+                    ),
+                    if (isCurrent)
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          isPlaying ? Icons.equalizer_rounded : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+
+                // 2. Song Metadata (Title, Artist & Source badge)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
+                          color: isCurrent ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              song.artist,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(left: 6, right: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: _getSongSourceColor(song.source).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              song.source == 'JioSaavn' ? 'JioSaavn' : 'YT Music',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                                color: _getSongSourceColor(song.source),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Actions: Download & 3-Dots Menu
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (song.duration > Duration.zero)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Text(
+                          _formatDuration(song.duration),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          ),
+                        ),
+                      ),
+                    SongDownloadButton(
+                      song: song,
+                      size: 20,
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.more_vert_rounded,
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      tooltip: 'More Options',
+                      onPressed: () => showSongOptionsMenu(
+                        context,
+                        ref,
+                        song,
+                        onPlay: () => ref.read(playerStateProvider.notifier).playQueue(allSongs, initialIndex: index),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  Color _getSongSourceColor(String source) {
+    switch (source.toLowerCase()) {
+      case 'jiosaavn':
+        return const Color(0xFF00E676);
+      case 'spotify':
+        return const Color(0xFF1DB954);
+      case 'soundcloud':
+        return const Color(0xFF9B5DE5);
+      default:
+        return const Color(0xFFFF3B30);
+    }
   }
 
   String _getGreeting() {

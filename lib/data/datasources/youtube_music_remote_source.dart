@@ -522,6 +522,96 @@ class YouTubeMusicRemoteSource {
     Album? featuredPlaylist;
     final moods = getMoodGenreCategories();
     List<Song> trendingSongs = [];
+    final now = DateTime.now();
+    final dayIndex = (now.difference(DateTime(now.year, 1, 1)).inDays + now.weekday) % 7;
+
+    final quickPickYtKeywords = [
+      'trending viral music',
+      'billboard hot 100 hits',
+      'latest global chartbusters',
+      'top dance pop hits',
+      'fresh release radar songs',
+      'viral tiktok reels songs',
+      'top acoustic pop hits',
+    ];
+    final quickPickJioKeywords = [
+      'latest hindi hits',
+      'trending bollywood songs',
+      'top punjabi hits',
+      'superhit hindi romantic',
+      'chartbuster party songs',
+      'fresh indie hindi music',
+      'top 50 hindi weekly',
+    ];
+
+    final trendingYtKeywords = [
+      'viral hits today',
+      'top global trending songs',
+      'fresh summer hits',
+      'popular club hits',
+      'trending electronic pop',
+      'today top tracks',
+      'popular chill hits',
+    ];
+    final trendingJioKeywords = [
+      'trending hindi songs',
+      'viral reel songs hindi',
+      'latest punjabi pop',
+      'top non-stop hits',
+      'bollywood dance hits',
+      'acoustic hindi gems',
+      'top artist chartbusters',
+    ];
+
+    final indianYtKeywords = [
+      'bollywood blockbuster songs',
+      'punjabi pop chartbusters',
+      'soulful sufi hits',
+      'romantic melodies bollywood',
+      'latest hindi soundtracks',
+      'desi pop hits',
+      'evergreen bollywood romance',
+    ];
+    final indianJioKeywords = [
+      'bollywood top 20',
+      'punjabi top hits',
+      'soulful hindi tracks',
+      'superhit love songs',
+      'desi party mix',
+      'feel good hindi songs',
+      'bollywood unplugged',
+    ];
+
+    final chartKeywords = [
+      'top 50 global songs',
+      'top music charts',
+      'weekly music countdown',
+      'official top 40 music',
+      'hottest songs right now',
+      'streaming top hits',
+      'viral song chart',
+    ];
+
+    final listenAgainKeywords = [
+      'romantic love songs',
+      'soulful acoustic melodies',
+      'peaceful ambient hits',
+      'heartfelt acoustic songs',
+      'melodic chill vibes',
+      'sweet romantic ballads',
+      'evening mood tracks',
+    ];
+
+    final forgottenKeywords = [
+      'retro 90s songs',
+      '2000s nostalgic pop',
+      'classic hindi 90s',
+      'timeless evergreen hits',
+      'golden retro classics',
+      'nostalgic millennial hits',
+      'unforgettable oldies',
+    ];
+
     List<Album> featuredPlaylistsForYou = [];
     List<Song> indianMusic = [];
     List<Song> forgottenFavorites = [];
@@ -529,8 +619,8 @@ class YouTubeMusicRemoteSource {
 
     await Future.wait([
       Future.wait([
-        fetchYtSongs('trending songs$langSuffix'),
-        fetchJioSongs('hindi hits$langSuffix'),
+        fetchYtSongs('${quickPickYtKeywords[dayIndex]}$langSuffix'),
+        fetchJioSongs('${quickPickJioKeywords[dayIndex]}$langSuffix'),
       ]).then((results) => quickPicks = interleaveSongs(results[0], results[1])),
 
       Future.wait([
@@ -547,32 +637,30 @@ class YouTubeMusicRemoteSource {
         newReleases = uniqueMap.values.toList();
       }),
 
-
-
       Future.wait([
-        fetchYtSongs('top music chart$langSuffix'),
+        fetchYtSongs('${chartKeywords[dayIndex]}$langSuffix'),
         fetchJioSongs('trending$langSuffix'),
       ]).then((results) => charts = interleaveSongs(results[0], results[1])),
 
       Future.wait([
-        fetchYtSongs('romantic songs$langSuffix'),
+        fetchYtSongs('${listenAgainKeywords[dayIndex]}$langSuffix'),
         fetchJioSongs('romantic$langSuffix'),
       ]).then((results) => listenAgain = interleaveSongs(results[0], results[1])),
 
       Future.wait([
-        fetchYtSongs('viral hits$langSuffix'),
-        fetchJioSongs('hindi top$langSuffix'),
+        fetchYtSongs('${trendingYtKeywords[dayIndex]}$langSuffix'),
+        fetchJioSongs('${trendingJioKeywords[dayIndex]}$langSuffix'),
       ]).then((results) => trendingSongs = interleaveSongs(results[0], results[1])),
 
       fetchAlbums('popular playlists$langSuffix').then((v) => featuredPlaylistsForYou = v),
 
       Future.wait([
-        fetchYtSongs('bollywood hits$langSuffix'),
-        fetchJioSongs('bollywood$langSuffix'),
+        fetchYtSongs('${indianYtKeywords[dayIndex]}$langSuffix'),
+        fetchJioSongs('${indianJioKeywords[dayIndex]}$langSuffix'),
       ]).then((results) => indianMusic = interleaveSongs(results[0], results[1])),
 
       Future.wait([
-        fetchYtSongs('retro 90s songs$langSuffix'),
+        fetchYtSongs('${forgottenKeywords[dayIndex]}$langSuffix'),
         fetchJioSongs('90s retro$langSuffix'),
       ]).then((results) => forgottenFavorites = interleaveSongs(results[0], results[1])),
 

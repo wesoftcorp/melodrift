@@ -9,6 +9,8 @@ import '../../core/theme/tokens.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/apple_music_service.dart';
 import 'premium_player_components.dart';
+import 'song_download_button.dart';
+import 'song_options_sheet.dart';
 
 /// Artwork card with breathing scale animation when playing.
 class PlayerArtworkView extends ConsumerStatefulWidget {
@@ -127,40 +129,70 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
         ),
 
         const SizedBox(height: 36),
-        // ── Song Info ──────────────────────────────────────────────────────
+        // ── Song Info & Actions ───────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32), // player-padding
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w700, // headline-lg
-                        fontSize: 28, // headline-lg-mobile
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis, // Or Marquee if added later
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 24,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          song.artist,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.85),
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      song.artist,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  // Action Buttons Row (Download, Info, More Options)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 1. Download Action
+                      SongDownloadButton(
+                        song: song,
+                        size: 22,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                      // 2. Song Info Action
+                      IconButton(
+                        icon: const Icon(Icons.info_outline_rounded, size: 22),
+                        tooltip: 'Song Details',
+                        color: theme.colorScheme.onSurfaceVariant,
+                        onPressed: () => showSongInfoDialog(context, song),
+                      ),
+                      // 3. 3-Dots More Options
+                      IconButton(
+                        icon: const Icon(Icons.more_vert_rounded, size: 22),
+                        tooltip: 'More Options',
+                        color: theme.colorScheme.onSurfaceVariant,
+                        onPressed: () => showSongOptionsMenu(context, ref, song),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
