@@ -20,5 +20,18 @@ class Song {
     this.streamUrl,
     this.source = 'JioSaavn',
   });
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Song &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          videoId == other.videoId &&
+          title == other.title &&
+          artist == other.artist &&
+          streamUrl == other.streamUrl;
+
+  @override
+  int get hashCode => Object.hash(id, videoId, title, artist, streamUrl);
 }
 

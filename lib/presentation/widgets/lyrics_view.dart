@@ -45,10 +45,25 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   }
 
   @override
+  void didUpdateWidget(LyricsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.song.id != widget.song.id) {
+      _lastActiveIndex = -1;
+      _cachedActiveIndex = -1;
+      _cachedLines = null;
+      _lineKeys.clear();
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
+    _lineKeys.clear();
     super.dispose();
   }
 
@@ -123,7 +138,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         }
 
         final activeIndex = _computeActiveIndex(lines, widget.position);
-        if (activeIndex != -1) {
+        if (activeIndex != -1 && activeIndex != _lastActiveIndex) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive(activeIndex));
         }
 

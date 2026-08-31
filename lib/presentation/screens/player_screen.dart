@@ -528,16 +528,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
   Widget _buildQueueTab(ScrollController? scrollController) {
     return Consumer(
       builder: (context, ref, child) {
-        final playerState = ref.watch(playerStateProvider);
-        final displayedQueue = playerState.playbackQueue;
-        final currentSong = playerState.currentSong;
+        final displayedQueue = ref.watch(playerStateProvider.select((s) => s.playbackQueue));
+        final currentSongId = ref.watch(playerStateProvider.select((s) => s.currentSong?.id));
+        final isShuffle = ref.watch(playerStateProvider.select((s) => s.isShuffle));
 
         if (displayedQueue.isEmpty) {
           final theme = Theme.of(context);
           return Center(child: Text('Queue is empty', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))));
         }
 
-        if (playerState.isShuffle) {
+        if (isShuffle) {
           return ListView.builder(
             controller: scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
@@ -548,8 +548,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
               ref,
               displayedQueue[index],
               index,
-              currentSong,
-              playerState,
+              currentSongId,
             ),
           );
         } else {
@@ -563,8 +562,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
               ref,
               displayedQueue[index],
               index,
-              currentSong,
-              playerState,
+              currentSongId,
             ),
             onReorder: (oldIndex, newIndex) {
               ref.read(playerStateProvider.notifier).reorderQueue(oldIndex, newIndex);
@@ -580,11 +578,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
     WidgetRef ref,
     Song song,
     int index,
-    Song? currentSong,
-    PlayerState playerState,
+    String? currentSongId,
   ) {
     final theme = Theme.of(context);
-    final isCurrent = currentSong?.id == song.id;
+    final isCurrent = currentSongId == song.id;
 
     return ListTile(
       key: ValueKey('${song.id}_$index'),
@@ -630,7 +627,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
               },
             ),
       onTap: () {
-        final originalIndex = playerState.queue.indexWhere((s) => s.id == song.id);
+        final originalQueue = ref.read(playerStateProvider).queue;
+        final originalIndex = originalQueue.indexWhere((s) => s.id == song.id);
         if (originalIndex != -1) {
           ref.read(playerStateProvider.notifier).skipToQueueItem(originalIndex);
         }
