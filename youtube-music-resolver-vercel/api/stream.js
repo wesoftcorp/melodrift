@@ -1,4 +1,4 @@
-import { Innertube, UniversalCache } from 'youtubei.js';
+import { Innertube, UniversalCache, Platform } from 'youtubei.js';
 
 export const config = {
   api: { responseLimit: false },
@@ -21,7 +21,6 @@ export default async function handler(req, res) {
     let proxyDispatcher = null;
     if (process.env.YOUTUBE_PROXY) {
       const { ProxyAgent } = await import('undici');
-      const { Platform } = await import('youtubei.js');
       proxyDispatcher = new ProxyAgent(process.env.YOUTUBE_PROXY);
       options.fetch = async (input, init) =>
         Platform.shim.fetch(input, { ...init, dispatcher: proxyDispatcher });
@@ -49,8 +48,9 @@ export default async function handler(req, res) {
     const streamUrl = format.url || format.decipher(yt.session.player);
     if (!streamUrl) return res.status(500).json({ success: false, error: 'Could not decipher stream URL' });
 
-    // Fetch the audio stream through the proxy session
-    const upstream = await yt.session.http.fetch(streamUrl, {
+    // Fetch the raw media URL through the Webshare proxy dispatcher
+    const upstream = await Platform.shim.fetch(streamUrl, {
+      dispatcher: proxyDispatcher,
       headers: {
         ...(req.headers['range'] ? { 'Range': req.headers['range'] } : {}),
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
