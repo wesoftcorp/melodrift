@@ -19,6 +19,16 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   double _userVolume = 1.0;
   bool _isFadingOut = false;
+  // Cached preference values — refreshed on demand, NOT re-read from disk every tick
+  bool _crossfadeEnabled = false;
+  bool _gaplessEnabled = true;
+
+  /// Reload preference cache — call this when settings change
+  Future<void> reloadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    _crossfadeEnabled = prefs.getBool('crossfade_enabled') ?? false;
+    _gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
+  }
 
   /// Fades the volume from current level to target level over a duration
   Future<void> _fadeVolume(double targetVolume, Duration duration) async {
@@ -57,9 +67,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   void _init() {
     _playlist = ConcatenatingAudioSource(children: []);
     _initEqualizer();
-
-    
-    // Defer setAudioSource until syncPlaylist has items to prevent Windows hang
+    // Load cached preferences once at startup
+    reloadPreferences();
 
     // 1. Listen to all relevant player streams to update playbackState
     _player.playbackEventStream.listen(
@@ -110,24 +119,19 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       if (queueIndex != null && queue.value.isNotEmpty && queueIndex < queue.value.length) {
         mediaItem.add(queue.value[queueIndex]);
 
-        // Crossfade: Fade in the new track
-        final prefs = await SharedPreferences.getInstance();
-        final crossfade = prefs.getBool('crossfade_enabled') ?? false;
-        if (crossfade && _player.playing) {
+        // Crossfade: Fade in the new track (use cached preference — no disk I/O)
+        if (_crossfadeEnabled && _player.playing) {
           await _player.setVolume(0.0);
           await _fadeVolume(1.0, const Duration(milliseconds: 600));
         }
       }
     });
 
-    // Crossfade position monitoring
+    // Crossfade position monitoring (use cached preference — no disk I/O on every tick)
     _player.positionStream.listen((position) async {
       final duration = _player.duration;
       if (duration == null || duration == Duration.zero) return;
-
-      final prefs = await SharedPreferences.getInstance();
-      final crossfade = prefs.getBool('crossfade_enabled') ?? false;
-      if (!crossfade) return;
+      if (!_crossfadeEnabled) return;
 
       final remaining = duration - position;
       if (remaining <= const Duration(seconds: 3) && !_isFadingOut && _player.playing) {
@@ -219,10 +223,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   Future<void> skipToNext() async {
     if (_playlist.length == 0) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final crossfade = prefs.getBool('crossfade_enabled') ?? false;
-
-    if (crossfade && _player.playing) {
+    if (_crossfadeEnabled && _player.playing) {
       await _fadeVolume(0.0, const Duration(milliseconds: 400));
     }
 
@@ -232,7 +233,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       await _player.seek(Duration.zero, index: 0);
     }
 
-    if (crossfade && _player.playing) {
+    if (_crossfadeEnabled && _player.playing) {
       await _fadeVolume(1.0, const Duration(milliseconds: 400));
     }
   }
@@ -241,10 +242,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   Future<void> skipToPrevious() async {
     if (_playlist.length == 0) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final crossfade = prefs.getBool('crossfade_enabled') ?? false;
-
-    if (crossfade && _player.playing) {
+    if (_crossfadeEnabled && _player.playing) {
       await _fadeVolume(0.0, const Duration(milliseconds: 400));
     }
 
@@ -254,7 +252,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       await _player.seek(Duration.zero);
     }
 
-    if (crossfade && _player.playing) {
+    if (_crossfadeEnabled && _player.playing) {
       await _fadeVolume(1.0, const Duration(milliseconds: 400));
     }
   }
@@ -509,11 +507,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
     try {
       _log.debug('Overwriting playlist with ${playable.items.length} playable items from ${newQueue.length} queued items, initialIndex: $initialIndex');
-      final prefs = await SharedPreferences.getInstance();
-      final gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
-      
+      // Use cached gapless preference — no disk I/O during queue sync
       _playlist = ConcatenatingAudioSource(
-        useLazyPreparation: gaplessEnabled,
+        useLazyPreparation: _gaplessEnabled,
         children: playable.items.map(_createAudioSource).toList(),
       );
       final validQueueIndex = (initialIndex >= 0 && initialIndex < newQueue.length) ? initialIndex : playable.queueIndices.first;

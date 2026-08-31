@@ -775,6 +775,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }
+
+      // CRITICAL: inject the resolved URL into the handler queue BEFORE skipping.
+      // Without this, audio_handler.skipToQueueItem() returns null for the player
+      // index (item not in _playlist yet) and the skip silently does nothing.
+      final updatedQueue = List<MediaItem>.from(_handler.queue.value);
+      if (originalIndex < updatedQueue.length) {
+        final extras = Map<String, dynamic>.from(updatedQueue[originalIndex].extras ?? {});
+        extras['streamUrl'] = streamUrl;
+        updatedQueue[originalIndex] = updatedQueue[originalIndex].copyWith(extras: extras);
+        // Use updateQueue with smart diff so only the one changed entry is re-synced
+        await _handler.updateQueue(updatedQueue, initialIndex: originalIndex);
+      }
+
       await _handler.skipToQueueItem(originalIndex);
       await _handler.play();
     } catch (e) {

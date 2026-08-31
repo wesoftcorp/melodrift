@@ -39,6 +39,9 @@ class MockMelodriftAudioHandler extends BaseAudioHandler implements MelodriftAud
   Future<void> setEqualizerPreset(String preset) async {}
 
   @override
+  Future<void> reloadPreferences() async {}
+
+  @override
   String get currentPreset => 'Flat';
 
 
