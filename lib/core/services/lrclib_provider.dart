@@ -223,8 +223,21 @@ class LrcLibProvider implements LyricsProvider {
     return lyricLines;
   }
 
-  static String cleanTitle(String title) {
+  static String cleanTitle(String title, [String? artist]) {
     var s = title;
+    // Handle SoundCloud/YouTube "Artist - Title" format
+    if (s.contains(' - ') && !s.contains(RegExp(r'\s*-(?:\s*official|\s*lyrics|\s*audio)', caseSensitive: false))) {
+      final parts = s.split(' - ');
+      if (parts.length == 2 && parts[1].trim().isNotEmpty) {
+        if (artist != null && artist.isNotEmpty) {
+          final artLower = artist.toLowerCase();
+          if (parts[0].toLowerCase().contains(artLower) || artLower.contains(parts[0].toLowerCase())) {
+            s = parts[1];
+          }
+        }
+      }
+    }
+
     // Strip common YouTube/audio junk
     s = s.replaceAll(RegExp(r'\s*\([^)]*official[^)]*\)', caseSensitive: false), '');
     s = s.replaceAll(RegExp(r'\s*\[[^\]]*official[^\]]*\]', caseSensitive: false), '');
