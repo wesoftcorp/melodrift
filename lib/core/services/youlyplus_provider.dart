@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../../domain/entities/lyrics.dart';
 import '../utils/logger.dart';
 import 'lyrics_provider.dart';
+import 'lrclib_provider.dart';
 
 class YouLyPlusProvider implements LyricsProvider {
   final Dio _dio;
@@ -14,14 +15,16 @@ class YouLyPlusProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
+    final cleanTitleStr = LrcLibProvider.cleanTitle(title);
+    final cleanArtistStr = LrcLibProvider.cleanArtist(artist);
     const url = 'https://youlyplus.top/api/lyrics';
     try {
-      _log.info('Fetching lyrics from YouLyPlus for: $title - $artist');
+      _log.info('Fetching lyrics from YouLyPlus for: "$cleanTitleStr" by "$cleanArtistStr"');
       final response = await _dio.get<dynamic>(
         url,
         queryParameters: {
-          'title': title,
-          'artist': artist,
+          'title': cleanTitleStr,
+          'artist': cleanArtistStr,
           'duration': duration.inSeconds,
         },
         options: Options(

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../../domain/entities/lyrics.dart';
 import '../utils/logger.dart';
 import 'lyrics_provider.dart';
+import 'lrclib_provider.dart';
 
 class JioSaavnLyricsProvider implements LyricsProvider {
   final Dio _dio;
@@ -25,9 +26,9 @@ class JioSaavnLyricsProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
-    final cleanTitleStr = _cleanTitle(title);
-    final cleanArtistStr = _cleanArtist(artist);
-    _log.info('Fetching lyrics from JioSaavn for: $cleanTitleStr - $cleanArtistStr');
+    final cleanTitleStr = LrcLibProvider.cleanTitle(title);
+    final cleanArtistStr = LrcLibProvider.cleanArtist(artist);
+    _log.info('Fetching lyrics from JioSaavn for: "$cleanTitleStr" by "$cleanArtistStr"');
 
     final dioOptions = Options(
       headers: {
@@ -50,7 +51,20 @@ class JioSaavnLyricsProvider implements LyricsProvider {
           final body = response.data!;
           final results = (body['data']?['results'] ?? body['results']) as List<dynamic>?;
           if (results != null && results.isNotEmpty) {
-            final songId = results.first['id']?.toString();
+            // Find best matching song
+            final targetTitleLower = cleanTitleStr.toLowerCase();
+            dynamic matchedSong = results.first;
+            for (final r in results) {
+              if (r is Map<String, dynamic>) {
+                final rTitle = (r['title'] ?? r['name'] ?? '').toString().toLowerCase();
+                if (rTitle.contains(targetTitleLower) || targetTitleLower.contains(rTitle)) {
+                  matchedSong = r;
+                  break;
+                }
+              }
+            }
+
+            final songId = matchedSong['id']?.toString();
             if (songId != null && songId.isNotEmpty) {
               final lyricsResponse = await _dio.get<Map<String, dynamic>>(
                 '$host/api/songs/$songId/lyrics',
@@ -62,7 +76,7 @@ class JioSaavnLyricsProvider implements LyricsProvider {
                 final rawLyrics = lyricsData['lyrics']?.toString();
                 if (rawLyrics != null && rawLyrics.trim().isNotEmpty) {
                   _log.info('Successfully fetched JioSaavn lyrics from $host');
-                  return _parseJioSaavnLyrics(rawLyrics);
+                  return _parseJioSaavnLyrics(rawLyrics, duration);
                 }
               }
             }
@@ -107,7 +121,7 @@ class JioSaavnLyricsProvider implements LyricsProvider {
               final rawLyrics = lyricsResp.data!['lyrics']?.toString();
               if (rawLyrics != null && rawLyrics.trim().isNotEmpty) {
                 _log.info('Successfully fetched JioSaavn lyrics from official API');
-                return _parseJioSaavnLyrics(rawLyrics);
+                return _parseJioSaavnLyrics(rawLyrics, duration);
               }
             }
           }
@@ -120,41 +134,26 @@ class JioSaavnLyricsProvider implements LyricsProvider {
     return [];
   }
 
-  List<LyricLine> _parseJioSaavnLyrics(String rawLyrics) {
+  List<LyricLine> _parseJioSaavnLyrics(String rawLyrics, Duration duration) {
     final cleanText = rawLyrics
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll('&quot;', '"')
         .replaceAll('&amp;', '&')
         .replaceAll('&#039;', "'");
 
-    final lines = cleanText.split('\n');
-    final lyricLines = <LyricLine>[];
-    int timeMs = 0;
+    final rawLines = cleanText.split('\n');
+    final validLines = rawLines.map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    if (validLines.isEmpty) return [];
 
-    for (final line in lines) {
-      final text = line.trim();
-      if (text.isNotEmpty) {
-        lyricLines.add(LyricLine(timeMs: timeMs, text: text));
-        timeMs += 3500;
-      }
+    final lyricLines = <LyricLine>[];
+    final totalDurationMs = duration.inMilliseconds > 10000 ? duration.inMilliseconds : (validLines.length * 3500);
+    final stepMs = (totalDurationMs / (validLines.length + 1)).round();
+
+    int timeMs = 0;
+    for (final text in validLines) {
+      lyricLines.add(LyricLine(timeMs: timeMs, text: text));
+      timeMs += stepMs;
     }
     return lyricLines;
-  }
-
-  String _cleanTitle(String title) {
-    var s = title;
-    s = s.replaceAll(RegExp(r'\s*\([^)]*from[^)]*\)', caseSensitive: false), '');
-    s = s.replaceAll(RegExp(r'\s*\([^)]*soundtrack[^)]*\)', caseSensitive: false), '');
-    s = s.replaceAll(RegExp(r'\s*\([^)]*original[^)]*\)', caseSensitive: false), '');
-    s = s.replaceAll(RegExp(r'\s*\[[^\]]*\]'), '');
-    s = s.replaceAll(RegExp(r'\s*\([^)]*feat[^)]*\)', caseSensitive: false), '');
-    s = s.replaceAll(RegExp(r'\s*\([^)]*ft[^)]*\)', caseSensitive: false), '');
-    return s.trim();
-  }
-
-  String _cleanArtist(String artist) {
-    if (artist.contains(',')) return artist.split(',').first.trim();
-    if (artist.contains('&')) return artist.split('&').first.trim();
-    return artist.trim();
   }
 }

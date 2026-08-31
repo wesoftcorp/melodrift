@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../domain/entities/lyrics.dart';
 import '../utils/logger.dart';
 import 'lyrics_provider.dart';
+import 'lrclib_provider.dart';
 
 class KuGouProvider implements LyricsProvider {
   final Dio _dio;
@@ -15,19 +16,20 @@ class KuGouProvider implements LyricsProvider {
 
   @override
   Future<List<LyricLine>> getLyrics(String title, String artist, Duration duration) async {
+    final cleanTitleStr = LrcLibProvider.cleanTitle(title);
+    final cleanArtistStr = LrcLibProvider.cleanArtist(artist);
     const searchUrl = 'https://lyrics.kugou.com/search';
     const downloadUrl = 'https://lyrics.kugou.com/download';
 
-    
     try {
-      _log.info('Searching KuGou lyrics for: $title - $artist');
+      _log.info('Searching KuGou lyrics for: "$cleanTitleStr" by "$cleanArtistStr"');
       final searchResponse = await _dio.get<dynamic>(
         searchUrl,
         queryParameters: {
           'ver': 1,
           'man': 'yes',
           'client': 'pc',
-          'keyword': '$title $artist',
+          'keyword': '$cleanTitleStr $cleanArtistStr',
           'duration': duration.inMilliseconds,
         },
         options: Options(

@@ -51,11 +51,11 @@ void setupServiceLocator() {
     getIt<SoundCloudService>(),
   ));
 
-  // Register LyricsRegistry and its providers
+  // Register LyricsRegistry and its providers (prioritizing synced databases)
   getIt.registerLazySingleton<LyricsRegistry>(() => LyricsRegistry([
-    JioSaavnLyricsProvider(getIt<Dio>()),
     LrcLibProvider(getIt<Dio>()),
     YouLyPlusProvider(getIt<Dio>()),
     KuGouProvider(getIt<Dio>()),
+    JioSaavnLyricsProvider(getIt<Dio>()),
   ]));
 }
