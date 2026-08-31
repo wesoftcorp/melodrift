@@ -24,8 +24,10 @@ class PlaylistsList extends ConsumerWidget {
         }
         final playlistRepo = ref.read(playlistRepositoryProvider);
         return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 120),
           itemCount: playlists.length,
           itemBuilder: (context, index) {
+
             final playlist = playlists[index];
             return ListTile(
               leading: ClipRRect(

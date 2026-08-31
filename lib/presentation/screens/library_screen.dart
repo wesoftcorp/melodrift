@@ -14,12 +14,15 @@ import '../widgets/song_card.dart';
 import '../providers/player_notifier.dart';
 
 import '../widgets/layout/mini_player.dart';
-import '../providers/auth_provider.dart';
 import '../../core/services/service_locator.dart';
-import '../../core/services/innertube_service.dart';
+
 import '../../core/services/music_track.dart';
+import '../../core/services/jiosaavn_service.dart';
+import '../../core/services/spotify_service.dart';
 
 @RoutePage()
+
+
 
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -119,74 +122,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ],
                   ),
 
-                  // ── YouTube Music Synced Section ─────────────────────────────
-                  if (ref.watch(authProvider) != null) ...[
-                    const SizedBox(height: 24),
-                    InkWell(
-                      onTap: () => _openYoutubeLikedSongs(context),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.red.shade900.withOpacity(0.4),
-                              Colors.red.shade600.withOpacity(0.2),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.red.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.red.withOpacity(0.4),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(Icons.favorite_rounded, color: Colors.white, size: 24),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'YouTube Liked Songs',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Synced via InnerTube account',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-
                   const SizedBox(height: 32),
+
 
 
                   // Recently Added header
@@ -224,14 +161,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  void _openYoutubeLikedSongs(BuildContext context) {
-    _openSubPage(
-      'YouTube Liked Songs',
-      const _YoutubeLikedSongsView(),
-    );
-  }
-
   void _openSubPage(String title, Widget body, {List<Widget>? actions}) {
+
     context.router.pushWidget(
       _SubPageScaffold(
         title: title,
@@ -254,19 +185,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Paste any YouTube or YouTube Music playlist link:',
+              'Paste any Playlist or Album Web Link / ID:',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: urlController,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'https://www.youtube.com/playlist?list=...',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.link_rounded),
+              decoration: InputDecoration(
+                hintText: 'https://.../playlist/...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.link_rounded),
               ),
             ),
+
           ],
         ),
         actions: [
@@ -274,7 +208,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               final url = urlController.text.trim();
               if (url.isEmpty) return;
@@ -284,17 +218,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 const SnackBar(content: Text('Importing playlist tracks...')),
               );
 
-              final innerTube = getIt<InnerTubeService>();
-              final tracks = await innerTube.fetchPlaylistFromUrl(url);
+              List<MusicTrack> tracks = [];
+              String playlistTitle = 'Imported Playlist';
+              String artwork = '';
+
+              if (url.contains('spotify.com') || url.startsWith('spotify:')) {
+                final spotify = getIt<SpotifyService>();
+                final result = await spotify.fetchPlaylist(url);
+                if (result != null) {
+                  tracks = (result['tracks'] as List<MusicTrack>?) ?? [];
+                  playlistTitle = result['title'] as String? ?? playlistTitle;
+                  artwork = result['artworkUrl'] as String? ?? '';
+                }
+              } else {
+                final jioSaavn = getIt<JioSaavnService>();
+                tracks = await jioSaavn.browse(url);
+                if (tracks.isNotEmpty) {
+                  playlistTitle = tracks.first.album;
+                  artwork = tracks.first.artworkUrl;
+                }
+              }
 
               if (tracks.isNotEmpty && mounted) {
                 final playlistRepo = ref.read(playlistRepositoryProvider);
                 final playlistId = 'imported_${DateTime.now().millisecondsSinceEpoch}';
                 final playlist = Playlist(
                   id: playlistId,
-                  title: 'Imported Playlist (${tracks.length} tracks)',
-                  description: 'Imported via URL',
-                  artworkUrl: tracks.first.artworkUrl,
+                  title: '$playlistTitle (${tracks.length} tracks)',
+                  description: 'Imported Playlist',
+                  artworkUrl: artwork.isNotEmpty ? artwork : tracks.first.artworkUrl,
                   trackCount: tracks.length,
                   songs: const [],
                   isYouTube: false,
@@ -312,9 +264,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     duration: track.duration,
                     artworkUrl: track.artworkUrl,
                     videoId: track.id,
-                    source: 'YouTube Music',
+                    source: track.source,
                   );
-                  await playlistRepo.addSongToPlaylist(playlist.id, song);
+                  await playlistRepo.addSongToPlaylist(playlistId, song);
                 }
 
                 if (mounted) {
@@ -548,60 +500,26 @@ class _RecentlyAddedList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final historyRepo = ref.watch(historyRepositoryProvider);
+    final historyAsync = ref.watch(listeningHistoryProvider);
 
-    return FutureBuilder<List<Song>>(
-      future: historyRepo.getListeningHistory(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-        final songs = snapshot.data ?? [];
-
-        // If history is empty, show curated fallback placeholders from code.html
+    return historyAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (_, __) => _buildFallbackList(context, ref),
+      data: (songs) {
         if (songs.isEmpty) {
-          return const Column(
-            children: [
-              _CuratedHistoryItem(
-                title: 'Midnight Echoes',
-                subtitle: 'Album • The Synthetics',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDmYrssaDV0PZUKOM-chgp8nSZGZkRQsUQ8JDZA950gdOcpk6mFu6t8xAHlJxfRwpC3tRv-BEXG08VIBzIz1BoKIJmDUjAsVkFFK3emXovIrEUFG7JJBnxlN_FvKXCYC_2CPr-c5WFvtq9J7NhkydMlQuA736bkmHUOuyJ8A8MnbREuexC8WFmySqEPwv2dr7AoyRwZLWVbWLYQxtjZXT2fChf1dbJTRx1gtPJG-OG2YKVjnzt09xiOkFQg3E3hBmW6lNTK2TSgmoA',
-                isArtist: false,
-                glowColor: Color(0x3DFFB3B5),
-              ),
-              _CuratedHistoryItem(
-                title: 'Structure & Void',
-                subtitle: 'Playlist • 42 tracks',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBIMDwyfXzseMzgTJ7B_z8ARi_5eQNGCi57gWmHfFCWeYmvVIpOK-Nie0JnWSaduI29hxi-wE_3vz-riT_9HOVFTynRfKnyjSbyCd4e0YOut_XZrAyldRfqPij6SWBMfXv2bUlNjsyB1WVwnUupQTbD6VF_eaAKmPTWMjWMh5XJklIXN3nTs5kwPAStk73jnyRAb59E1d4QBZ6zQnTLtcdpx2IkmrFXd_AaSzDOwhp97ynuoKqJ_uUssD7cUMbmMNH0CXjDHZ0OGYU',
-                isArtist: false,
-                glowColor: Color(0x3D64C8FF),
-              ),
-              _CuratedHistoryItem(
-                title: 'Lumina',
-                subtitle: 'Artist',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCovvhHTPnRbAH7NJC4M1VC9urVDaMj4ysnw9BAWwKhTY5qQlhCa_F2tGRzP59l_UvOWG5_PF0CYQyteQTU6EZWy0mPjcW__aj8kFN_VLnQ_XIS2HutLALl8d3qCsBlWkynCIuPFtlqWTSn002r_t0l8q_iwJjVGCd-Plr0vL6pO8rH6e4mwD9S3MPivD1Bqf_VnhVO6eWih7tgfiO2SgAljzchjJ6HTlV4g-RlD6Wo46DaafVQpqpUQS2mmjdaxyMUC1HnAutOtE8',
-                isArtist: true,
-                glowColor: Color(0x3DC86464),
-              ),
-              _CuratedHistoryItem(
-                title: 'Crimson Tide',
-                subtitle: 'Album • Scarlet Dawn',
-                imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD_jvwuKdb7B0LepLmVl5r6SHwNBmuSjU7cBduaMN0eVaoXGUPME_zAenoi4LA1tezKkbeXcIqN7L99PTr-mTwseuRzO-eUx7hAk4hwqoO-cbYdGlVf0kPPhAyp8IYz9SRUNlL84gxrsohMmRBg-zPoneIx0Ojt6QYZIp-FqcwXIqJMwfgS5jZU6YHyIb7-fTptq3Cpjg5Qyew5AeGzsAa8FO8O5tCfGZTqbtgLKc4wOMsXnszXmYDDToLQ2MgQGOTakolP10uHu8Q',
-                isArtist: false,
-                glowColor: Color(0x3DFFB3B5),
-              ),
-            ],
-          );
+          return _buildFallbackList(context, ref);
         }
 
         // Show actual history items
         return Column(
-          children: songs.map((song) {
+          children: songs.asMap().entries.map((entry) {
+            final index = entry.key;
+            final song = entry.value;
             const glowColors = [
               Color(0x3DFFB3B5),
               Color(0x3D64C8FF),
@@ -614,7 +532,7 @@ class _RecentlyAddedList extends ConsumerWidget {
               song: song,
               glowColor: glowColor,
               onTap: () {
-                ref.read(playerStateProvider.notifier).playSong(song);
+                ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
               },
             );
           }).toList(),
@@ -622,7 +540,75 @@ class _RecentlyAddedList extends ConsumerWidget {
       },
     );
   }
+
+  Widget _buildFallbackList(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: _kCuratedQuickPlaySongs.asMap().entries.map((entry) {
+        final index = entry.key;
+        final song = entry.value;
+        const glowColors = [
+          Color(0x3DFFB3B5),
+          Color(0x3D64C8FF),
+          Color(0x3DC86464),
+          Color(0x3DFFD700),
+        ];
+        final glowColor = glowColors[index % glowColors.length];
+
+        return _RecentlyAddedItem(
+          song: song,
+          glowColor: glowColor,
+          onTap: () {
+            ref.read(playerStateProvider.notifier).playQueue(_kCuratedQuickPlaySongs, initialIndex: index);
+          },
+        );
+      }).toList(),
+    );
+  }
 }
+
+const List<Song> _kCuratedQuickPlaySongs = [
+  Song(
+    id: 'jiosaavn_kesariya',
+    title: 'Kesariya',
+    artist: 'Arijit Singh, Pritam',
+    album: 'Brahmastra',
+    duration: Duration(minutes: 4, seconds: 28),
+    artworkUrl: 'https://c.saavncdn.com/191/Kesariya-From-Brahmastra-Hindi-2022-20220717092820-500x500.jpg',
+    videoId: 'kesariya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_chaleya',
+    title: 'Chaleya',
+    artist: 'Arijit Singh, Shilpa Rao, Anirudh',
+    album: 'Jawan',
+    duration: Duration(minutes: 3, seconds: 20),
+    artworkUrl: 'https://c.saavncdn.com/026/Chaleya-From-Jawan-Hindi-2023-20230814114339-500x500.jpg',
+    videoId: 'chaleya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_heeriye',
+    title: 'Heeriye',
+    artist: 'Jasleen Royal, Arijit Singh',
+    album: 'Heeriye',
+    duration: Duration(minutes: 3, seconds: 15),
+    artworkUrl: 'https://c.saavncdn.com/022/Heeriye-feat-Arijit-Singh-Hindi-2023-20230714151044-500x500.jpg',
+    videoId: 'heeriye',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_apna_bana_le',
+    title: 'Apna Bana Le',
+    artist: 'Arijit Singh, Sachin-Jigar',
+    album: 'Bhediya',
+    duration: Duration(minutes: 4, seconds: 21),
+    artworkUrl: 'https://c.saavncdn.com/815/Bhediya-Hindi-2022-20230419121008-500x500.jpg',
+    videoId: 'apna_bana_le',
+    source: 'JioSaavn',
+  ),
+];
+
 
 class _RecentlyAddedItem extends ConsumerStatefulWidget {
   final Song song;
@@ -741,124 +727,10 @@ class _RecentlyAddedItemState extends ConsumerState<_RecentlyAddedItem> {
   }
 }
 
-class _CuratedHistoryItem extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final String imageUrl;
-  final bool isArtist;
-  final Color glowColor;
-
-  const _CuratedHistoryItem({
-    required this.title,
-    required this.subtitle,
-    required this.imageUrl,
-    required this.isArtist,
-    required this.glowColor,
-  });
-
-  @override
-  State<_CuratedHistoryItem> createState() => _CuratedHistoryItemState();
-}
-
-class _CuratedHistoryItemState extends State<_CuratedHistoryItem> {
-  double _scale = 1.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _scale = 0.98),
-      onTapUp: (_) => setState(() => _scale = 1.0),
-      onTapCancel: () => setState(() => _scale = 1.0),
-      onTap: () {},
-      child: AnimatedScale(
-        scale: _scale,
-        duration: const Duration(milliseconds: 150),
-        child: Container(
-          height: 72,
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: isDark
-                ? theme.colorScheme.surfaceContainerLow.withOpacity(0.5)
-                : theme.colorScheme.surfaceContainerLowest.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.outline.withOpacity(0.05),
-            ),
-          ),
-          child: Row(
-            children: [
-              // Artwork with glow
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: widget.isArtist ? BoxShape.circle : BoxShape.rectangle,
-                  borderRadius: widget.isArtist ? null : BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.glowColor.withOpacity(0.25),
-                      blurRadius: 12,
-                      spreadRadius: -2,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: widget.isArtist ? BorderRadius.circular(999) : BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => const Icon(Icons.music_note),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.onSurfaceVariant),
-                onPressed: () {},
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-Page Wrapper Scaffold
 // ─────────────────────────────────────────────────────────────────────────────
+
 
 class _SubPageScaffold extends ConsumerWidget {
   final String title;
@@ -912,163 +784,6 @@ class _SubPageScaffold extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// YouTube Liked Songs View Widget
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _YoutubeLikedSongsView extends ConsumerStatefulWidget {
-  const _YoutubeLikedSongsView();
-
-  @override
-  ConsumerState<_YoutubeLikedSongsView> createState() => _YoutubeLikedSongsViewState();
-}
-
-class _YoutubeLikedSongsViewState extends ConsumerState<_YoutubeLikedSongsView> {
-  late Future<List<MusicTrack>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = getIt<InnerTubeService>().fetchLikedSongs();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return FutureBuilder<List<MusicTrack>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.red),
-          );
-        }
-
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.music_off_rounded, size: 48, color: Colors.grey),
-                const SizedBox(height: 12),
-                Text(
-                  snapshot.hasError
-                      ? 'Error loading YouTube Liked Songs'
-                      : 'No Liked Songs found or session expired',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _future = getIt<InnerTubeService>().fetchLikedSongs();
-                    });
-                  },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final tracks = snapshot.data!;
-
-        return ListView.builder(
-          itemCount: tracks.length,
-          padding: const EdgeInsets.only(bottom: 100, left: 16, right: 16),
-          itemBuilder: (context, index) {
-            final track = tracks[index];
-            final title = track.title;
-            final artist = track.artist;
-            final artworkUrl = track.artworkUrl;
-
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(vertical: 4),
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: artworkUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: artworkUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(
-                          width: 48,
-                          height: 48,
-                          color: Colors.grey.shade800,
-                          child: const Icon(Icons.music_note, color: Colors.white),
-                        ),
-                      )
-                    : Container(
-                        width: 48,
-                        height: 48,
-                        color: Colors.grey.shade800,
-                        child: const Icon(Icons.music_note, color: Colors.white),
-                      ),
-              ),
-              title: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
-              ),
-              trailing: Builder(
-                builder: (context) {
-                  final song = Song(
-                    id: track.id,
-                    title: title,
-                    artist: artist,
-                    album: track.album,
-                    duration: track.duration,
-                    artworkUrl: artworkUrl,
-                    videoId: track.id,
-                    source: 'YouTube Music',
-                  );
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.red, size: 28),
-                        onPressed: () {
-                          ref.read(playerStateProvider.notifier).playSong(song);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.more_vert),
-                        onPressed: () => showSongOptionsMenu(context, ref, song),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              onTap: () {
-                final song = Song(
-                  id: track.id,
-                  title: title,
-                  artist: artist,
-                  album: track.album,
-                  duration: track.duration,
-                  artworkUrl: artworkUrl,
-                  videoId: track.id,
-                  source: 'YouTube Music',
-                );
-                ref.read(playerStateProvider.notifier).playSong(song);
-              },
-            );
-          },
-        );
-
-      },
-    );
-  }
-}
 
 

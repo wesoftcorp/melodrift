@@ -27,7 +27,10 @@ android {
 
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // ⚠️ PRODUCTION: Replace with a real keystore before publishing to Play Store.
+            // To configure: create a key.properties file in /android with keyAlias,
+            // keyPassword, storeFile, storePassword and wire it in here.
+            // For now, using debug keys so flutter run --release works during development.
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true

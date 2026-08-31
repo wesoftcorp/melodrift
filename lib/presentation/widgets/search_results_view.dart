@@ -22,6 +22,17 @@ class SearchResultsView extends ConsumerStatefulWidget {
   ConsumerState<SearchResultsView> createState() => _SearchResultsViewState();
 }
 
+/// Keyed wrapper so when query changes the widget fully rebuilds, clearing
+/// stale Future results from the previous search.
+class SearchResultsViewKeyed extends StatelessWidget {
+  final String query;
+  const SearchResultsViewKeyed({required this.query, super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      SearchResultsView(key: ValueKey(query), query: query);
+}
+
 class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
   String _selectedSourceFilter = 'All'; // 'All', 'YouTube Music', 'JioSaavn'
 
@@ -35,16 +46,19 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildSourceFilterChip('All', 'All'),
-                const SizedBox(width: 8),
-                _buildSourceFilterChip('YouTube Music', '🔴 Red'),
-                const SizedBox(width: 8),
-                _buildSourceFilterChip('JioSaavn', '🟢 Green'),
-
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildSourceFilterChip('All', 'All'),
+                  const SizedBox(width: 8),
+                  _buildSourceFilterChip('JioSaavn', '⚡ HD Tracks'),
+                  const SizedBox(width: 8),
+                  _buildSourceFilterChip('Spotify', '✨ Global Hits'),
+                  const SizedBox(width: 8),
+                  _buildSourceFilterChip('SoundCloud', '🎧 Lo-Fi & Mixes'),
+                ],
+              ),
             ),
           ),
           const TabBar(
@@ -93,25 +107,61 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
   Widget _buildSongsTab(MusicRepository repo) {
     return FutureBuilder<List<Song>>(
+      // key the future on query + filter so switching the filter chip re-fires
+      key: ValueKey('${widget.query}_$_selectedSourceFilter'),
       future: repo.searchSongs(widget.query),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5F1F)),
+            ),
+          );
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
         var songs = snapshot.data ?? [];
-        
-        if (_selectedSourceFilter == 'YouTube Music') {
-          songs = songs.where((s) => s.source.toLowerCase().contains('youtube')).toList();
-        } else if (_selectedSourceFilter == 'JioSaavn') {
-          songs = songs.where((s) => s.source.toLowerCase().contains('jiosaavn')).toList();
+
+        if (_selectedSourceFilter == 'JioSaavn') {
+          songs = songs.where((s) =>
+              s.source.toLowerCase().contains('jiosaavn') ||
+              s.source.toLowerCase().contains('saavn') ||
+              s.id.startsWith('jiosaavn_')).toList();
+        } else if (_selectedSourceFilter == 'SoundCloud') {
+          songs = songs.where((s) =>
+              s.source.toLowerCase().contains('soundcloud') ||
+              s.id.startsWith('sc_')).toList();
+        } else if (_selectedSourceFilter == 'Spotify') {
+          songs = songs.where((s) =>
+              s.source.toLowerCase().contains('spotify') ||
+              s.id.startsWith('spotify_')).toList();
         }
 
-        if (songs.isEmpty) return const Center(child: Text('No songs found for selected filter'));
+        if (songs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.music_off_rounded, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                Text(
+                  _selectedSourceFilter == 'All'
+                      ? 'No songs found for "${widget.query}"'
+                      : 'No results for this filter. Try "All".',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
         return ListView.builder(
           padding: const EdgeInsets.only(bottom: 180),
           itemCount: songs.length,
-          itemBuilder: (context, index) => SongCard(song: songs[index]),
+          itemBuilder: (context, index) => SongCard(
+            song: songs[index],
+            queue: songs,
+            queueIndex: index,
+          ),
         );
       },
     );
@@ -120,18 +170,27 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
   Widget _buildAlbumsTab(MusicRepository repo) {
     return FutureBuilder<List<Album>>(
+      key: ValueKey('albums_${widget.query}_$_selectedSourceFilter'),
       future: repo.searchAlbums(widget.query),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5F1F)),
+            ),
+          );
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
         var albums = snapshot.data ?? [];
-        if (_selectedSourceFilter == 'YouTube Music') {
-          albums = albums.where((a) => a.source.toLowerCase().contains('youtube')).toList();
-        } else if (_selectedSourceFilter == 'JioSaavn') {
+        if (_selectedSourceFilter == 'JioSaavn') {
           albums = albums.where((a) => a.source.toLowerCase().contains('jiosaavn')).toList();
+        } else if (_selectedSourceFilter == 'SoundCloud') {
+          albums = albums.where((a) => a.source.toLowerCase().contains('soundcloud')).toList();
+        } else if (_selectedSourceFilter == 'Spotify') {
+          albums = albums.where((a) => a.source.toLowerCase().contains('spotify')).toList();
         }
+
+
 
         if (albums.isEmpty) return const Center(child: Text('No albums found for selected filter'));
         return GridView.builder(
@@ -154,57 +213,118 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
   Widget _buildArtistsTab(MusicRepository repo) {
     return FutureBuilder<List<Artist>>(
+      // Artists tab: source filter doesn't apply (Artist has no source field),
+      // so always use 'All' for the future key to avoid wiping results.
+      key: ValueKey('artists_${widget.query}'),
       future: repo.searchArtists(widget.query),
-
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5F1F)),
+            ),
+          );
         }
         if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-        final rawArtists = snapshot.data ?? [];
-        final artists = rawArtists.where((artist) {
-          final name = artist.name.trim().toLowerCase();
-          final url = artist.artworkUrl.trim();
-          if (name.contains('muhammad atif aslam') && (url.isEmpty || url.contains('default') || url.contains('avatar') || url.contains('jiosaavn'))) {
-            return false;
-          }
-          return url.isNotEmpty && !url.contains('blank');
-        }).toList();
+        final artists = snapshot.data ?? [];
 
-
-        if (artists.isEmpty) return const Center(child: Text('No artists found'));
+        if (artists.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person_search_rounded, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                Text(
+                  'No artists found for "${widget.query}"',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
 
         return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 180),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 180),
           itemCount: artists.length,
           itemBuilder: (context, index) {
             final artist = artists[index];
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundImage: CachedNetworkImageProvider(artist.artworkUrl),
+            final theme = Theme.of(context);
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
               ),
-              title: Text(artist.name),
-              subtitle: const Text('Artist'),
-              trailing: artist.isVerified ? const Icon(Icons.verified, color: Colors.blue, size: 18) : null,
-
-              onTap: () {
-
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) => DetailsScreen(
-                      id: artist.id,
-                      title: artist.name,
-                      artworkUrl: artist.artworkUrl,
-                      type: 'artist',
-                    ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF5F1F).withOpacity(0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                );
-              },
+                  child: ClipOval(
+                    child: artist.artworkUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: artist.artworkUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child: Center(
+                                child: Text(
+                                  artist.name.isNotEmpty ? artist.name[0].toUpperCase() : '?',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFFFF5F1F)),
+                                ),
+                              ),
+                            ),
+                          )
+                        : Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: Center(
+                              child: Text(
+                                artist.name.isNotEmpty ? artist.name[0].toUpperCase() : '?',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFFFF5F1F)),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                title: Text(
+                  artist.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+                subtitle: Text(
+                  artist.subscribers ?? 'Verified Artist',
+                  style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 13),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => DetailsScreen(
+                        id: artist.id,
+                        title: artist.name,
+                        artworkUrl: artist.artworkUrl,
+                        type: 'artist',
+                      ),
+                    ),
+                  );
+                },
+              ),
             );
           },
         );
       },
     );
   }
+
 }
 

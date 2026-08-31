@@ -735,6 +735,13 @@ class SettingsScreen extends ConsumerWidget {
   void _handleClearCache(BuildContext context) async {
     await CachedNetworkImageManager.clearCache();
     DurationCachingService().clearCache();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith('home_feed_cache_') || k.startsWith('artist_cache_')).toList();
+      for (final k in keys) {
+        await prefs.remove(k);
+      }
+    } catch (_) {}
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -745,6 +752,7 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
   }
+
 
   // ───────────────────────────────────────────────────────────────────────────
   // Dialog Actions
@@ -789,20 +797,32 @@ class SettingsScreen extends ConsumerWidget {
         builder: (ctx, setInner) {
           final selected = ref.read(homeLanguageProvider);
           return AlertDialog(
-            title: const Text('Music Language'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: kLanguageOptions.map((lang) {
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.language_rounded, color: Color(0xFFFF5F1F)),
+                SizedBox(width: 10),
+                Text('Music Languages'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 400,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: kLanguageOptions.length,
+                itemBuilder: (context, index) {
+                  final lang = kLanguageOptions[index];
                   final isChecked = lang == 'All'
                       ? (selected.contains('All') || selected.isEmpty)
                       : selected.contains(lang);
                   return CheckboxListTile(
                     title: Text(lang),
                     value: isChecked,
-                    activeColor: const Color(0xFFFF4500),
+                    activeColor: const Color(0xFFFF5F1F),
                     controlAffinity: ListTileControlAffinity.leading,
                     dense: true,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onChanged: (_) {
                       final notifier = ref.read(homeLanguageProvider.notifier);
                       final prev = Set<String>.from(ref.read(homeLanguageProvider));
@@ -820,13 +840,13 @@ class SettingsScreen extends ConsumerWidget {
                       setInner(() {});
                     },
                   );
-                }).toList(),
+                },
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Done'),
+                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -834,6 +854,7 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+
 
   void _showThemeSelectionDialog(BuildContext context, WidgetRef ref, AppThemeMode currentMode) {
     showDialog<void>(

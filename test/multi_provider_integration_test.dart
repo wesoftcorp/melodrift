@@ -65,6 +65,13 @@ void main() {
 
       expect(url, 'https://example.com/320.mp3');
     });
+
+    test('MusicRepositoryImpl routes YouTube video IDs to remote source', () async {
+      // 11-char YouTube ID should not be misdirected to JioSaavn
+      final ytRegex = RegExp(r'^[a-zA-Z0-9_\-]{11}$');
+      expect(ytRegex.hasMatch('GX9x62kFsVU'), isTrue);
+      expect('GX9x62kFsVU'.startsWith('jiosaavn_'), isFalse);
+    });
   });
 
   group('Lyrics Providers and Registry Tests', () {

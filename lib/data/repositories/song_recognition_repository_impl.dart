@@ -50,14 +50,16 @@ class SongRecognitionRepositoryImpl implements SongRecognitionRepository {
 
     // Return a premium mock identified song
     return const Song(
-      id: 'dQw4w9WgXcQ',
-      title: 'Never Gonna Give You Up',
-      artist: 'Rick Astley',
-      album: 'Whenever You Need Somebody',
-      duration: Duration(minutes: 3, seconds: 32),
-      artworkUrl: 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-      videoId: 'dQw4w9WgXcQ',
+      id: 'jiosaavn_GO_qN_Hd',
+      title: 'Vaaste',
+      artist: 'Dhvani Bhanushali',
+      album: 'Vaaste',
+      duration: Duration(minutes: 3, seconds: 15),
+      artworkUrl: 'https://c.saavncdn.com/426/Vaaste-Hindi-2019-20190406080351-500x500.jpg',
+      videoId: 'GO_qN_Hd',
+      source: 'JioSaavn',
     );
+
   }
 
   @override

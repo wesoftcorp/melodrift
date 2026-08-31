@@ -15,8 +15,8 @@ import '../../core/theme/theme_provider.dart';
 
 import 'home_screen.dart';
 import '../../domain/entities/home_data.dart';
-import '../../domain/entities/artist.dart';
 import '../providers/player_notifier.dart';
+
 
 @RoutePage()
 class SearchScreen extends ConsumerStatefulWidget {
@@ -30,6 +30,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final FocusNode _keyboardListenerNode = FocusNode(skipTraversal: true);
   String _submittedQuery = '';
   List<String> _suggestions = [];
   List<String> _history = [];
@@ -51,6 +52,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _debounce?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _keyboardListenerNode.dispose();
     super.dispose();
   }
 
@@ -61,9 +63,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         _highlightedIndex = -1;
       }
     });
-    if (_focusNode.hasFocus && _submittedQuery.isNotEmpty) {
-      setState(() => _submittedQuery = '');
-    }
+    // Do NOT clear _submittedQuery here — that clears results while the user
+    // is still tapping the bar to refine. Results are cleared by _onSearchChanged
+    // when the user actually edits the text.
   }
 
   void _onSearchChanged() {
@@ -74,6 +76,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         setState(() {
           _suggestions = [];
           _highlightedIndex = -1;
+          // User deleted everything — clear the stale results view
+          _submittedQuery = '';
         });
         return;
       }
@@ -147,7 +151,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: KeyboardListener(
-          focusNode: FocusNode(skipTraversal: true),
+          focusNode: _keyboardListenerNode,
           onKeyEvent: _handleKeyEvent,
           child: Column(
             children: [
@@ -187,7 +191,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   Widget _buildBody(ThemeData theme, bool isDark) {
     // 1. Results after submit
     if (_submittedQuery.isNotEmpty && !_isFocused) {
-      return SearchResultsView(query: _submittedQuery);
+      return SearchResultsViewKeyed(query: _submittedQuery);
     }
 
     // 2. Live suggestions while typing
@@ -452,12 +456,23 @@ class _SearchHomePage extends ConsumerWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
 
-        // ── Trending Now (Real Artists — live feed or curated fallback) ──────
+        // ── Trending Artists (Real Artists — live feed or curated fallback) ──────
         SliverToBoxAdapter(
           child: _TrendingNowSection(onTap: onTap, feedAsync: feedAsync),
         ),
 
+        // ── Trending Songs (JioSaavn 320kbps Lossless Tracks) ───────────────
+        SliverToBoxAdapter(
+          child: _TrendingSongsSection(feedAsync: feedAsync),
+        ),
+
+        // ── Spotify Global Top Hits ──────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: _SpotifyTopHitsSearchSection(feedAsync: feedAsync),
+        ),
+
         // ── Browse All (Bento Grid) ──────────────────────────────────────
+
         feedAsync.when<Widget>(
           loading: () => const SliverToBoxAdapter(
             child: Padding(
@@ -523,58 +538,208 @@ class _SearchHomePage extends ConsumerWidget {
   }
 }
 
-
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Trending Now Section — always visible (live feed or curated fallback)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Curated fallback: real globally trending artists with stable image URLs
+// Curated fallback: real globally trending artists with authentic JioSaavn CDN portrait URLs
 const List<Map<String, dynamic>> _kFallbackArtists = [
   {
     'name': 'Arijit Singh',
-    'image': 'https://c.saavncdn.com/artists/Arijit_Singh_004_20230808082952_500x500.jpg',
-    'glow': Color(0x59FF4500),
+    'image': 'https://c.saavncdn.com/artists/Arijit_Singh_004_20241118063717_500x500.jpg',
+    'glow': Color(0x598B5CF6),
   },
   {
-    'name': 'Taylor Swift',
-    'image': 'https://i.scdn.co/image/ab6761610000e5eb5a00969a4698c3132a15fbb0',
+    'name': 'Shreya Ghoshal',
+    'image': 'https://c.saavncdn.com/artists/Shreya_Ghoshal_007_20241101074144_500x500.jpg',
     'glow': Color(0x3DFF69B4),
   },
   {
+    'name': 'A R Rahman',
+    'image': 'https://c.saavncdn.com/artists/AR_Rahman_002_20210120084455_500x500.jpg',
+    'glow': Color(0x3DFFD700),
+  },
+  {
+    'name': 'Anirudh Ravichander',
+    'image': 'https://c.saavncdn.com/artists/Anirudh_Ravichander_003_20260121134149_500x500.jpg',
+    'glow': Color(0x59FF5F1F),
+  },
+  {
+    'name': 'Diljit Dosanjh',
+    'image': 'https://c.saavncdn.com/artists/Diljit_Dosanjh_005_20231025073054_500x500.jpg',
+    'glow': Color(0x3D32CD32),
+  },
+  {
+    'name': 'Atif Aslam',
+    'image': 'https://c.saavncdn.com/artists/Atif_Aslam_500x500.jpg',
+    'glow': Color(0x3D00FFFF),
+  },
+  {
+    'name': 'Pritam',
+    'image': 'https://c.saavncdn.com/artists/Pritam_Chakraborty-20170711073326_500x500.jpg',
+    'glow': Color(0x598B5CF6),
+  },
+  {
+    'name': 'Yo Yo Honey Singh',
+    'image': 'https://c.saavncdn.com/artists/Yo_Yo_Honey_Singh_004_20260811095253_500x500.jpg',
+    'glow': Color(0x59FF5F1F),
+  },
+  {
+    'name': 'Neha Kakkar',
+    'image': 'https://c.saavncdn.com/artists/Neha_Kakkar_007_20241212115832_500x500.jpg',
+    'glow': Color(0x3DFF69B4),
+  },
+  {
+    'name': 'Badshah',
+    'image': 'https://c.saavncdn.com/artists/Badshah_006_20241118064015_500x500.jpg',
+    'glow': Color(0x59FF5F1F),
+  },
+  {
+    'name': 'Sid Sriram',
+    'image': 'https://c.saavncdn.com/artists/Sid_Sriram_005_20240425180600_500x500.jpg',
+    'glow': Color(0x3D32CD32),
+  },
+  {
+    'name': 'Jubin Nautiyal',
+    'image': 'https://c.saavncdn.com/artists/Jubin_Nautiyal_003_20231130204020_500x500.jpg',
+    'glow': Color(0x3D00FFFF),
+  },
+  {
+    'name': 'Armaan Malik',
+    'image': 'https://c.saavncdn.com/artists/Armaan_Malik_006_20260813132832_500x500.jpg',
+    'glow': Color(0x598B5CF6),
+  },
+  {
+    'name': 'Sonu Nigam',
+    'image': 'https://c.saavncdn.com/artists/Sonu_Nigam_003_20260813182013_500x500.jpg',
+    'glow': Color(0x3DFFD700),
+  },
+  {
+    'name': 'Karan Aujla',
+    'image': 'https://c.saavncdn.com/artists/Karan_Aujla_004_20260810121947_500x500.jpg',
+    'glow': Color(0x59FF5F1F),
+  },
+  {
+    'name': 'AP Dhillon',
+    'image': 'https://c.saavncdn.com/artists/AP_Dhillon_004_20251023102150_500x500.jpg',
+    'glow': Color(0x3DFFD700),
+  },
+  {
+    'name': 'Sunidhi Chauhan',
+    'image': 'https://c.saavncdn.com/artists/Sunidhi_Chauhan_005_20250515061617_500x500.jpg',
+    'glow': Color(0x3DFF69B4),
+  },
+  {
+    'name': 'Darshan Raval',
+    'image': 'https://c.saavncdn.com/artists/Darshan_Raval_006_20250807060352_500x500.jpg',
+    'glow': Color(0x3D00FFFF),
+  },
+  {
+    'name': 'Vishal Mishra',
+    'image': 'https://c.saavncdn.com/artists/Vishal_Mishra_005_20251120085316_500x500.jpg',
+    'glow': Color(0x598B5CF6),
+  },
+  {
+    'name': 'Akhil Sachdeva',
+    'image': 'https://c.saavncdn.com/artists/Akhil_Sachdeva_001_20260811094044_500x500.jpg',
+    'glow': Color(0x3D00FFFF),
+  },
+  {
+    'name': 'Taylor Swift',
+    'image': 'https://c.saavncdn.com/artists/Taylor_Swift_003_20200226074119_500x500.jpg',
+    'glow': Color(0x3DFF69B4),
+  },
+
+  {
     'name': 'The Weeknd',
-    'image': 'https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26ffbb',
+    'image': 'https://c.saavncdn.com/artists/The_Weeknd_002_20241003071400_500x500.jpg',
     'glow': Color(0x3D8A2BE2),
   },
   {
     'name': 'Dua Lipa',
-    'image': 'https://i.scdn.co/image/ab6761610000e5eb3f2cca81f1fa3b2a0d3c38b3',
+    'image': 'https://c.saavncdn.com/artists/Dua_Lipa_004_20231120090922_500x500.jpg',
     'glow': Color(0x3D00FFFF),
   },
   {
-    'name': 'A.R. Rahman',
-    'image': 'https://c.saavncdn.com/artists/A_R_Rahman_001_20230808082754_500x500.jpg',
-    'glow': Color(0x3DFFD700),
-  },
-  {
-    'name': 'Bad Bunny',
-    'image': 'https://i.scdn.co/image/ab6761610000e5eb5be01f90a5571c9b5ca5ad6d',
-    'glow': Color(0x3D32CD32),
-  },
-  {
-    'name': 'Shreya Ghoshal',
-    'image': 'https://c.saavncdn.com/artists/Shreya_Ghoshal_002_20230808082952_500x500.jpg',
-    'glow': Color(0x3DFF69B4),
-  },
-  {
     'name': 'Ed Sheeran',
-    'image': 'https://i.scdn.co/image/ab6761610000e5eb3bcef85e105dfc42399ef0ba',
+    'image': 'https://c.saavncdn.com/artists/Ed_Sheeran_002_20250625073038_500x500.jpg',
     'glow': Color(0x59FF4500),
+  },
+  {
+    'name': 'Billie Eilish',
+    'image': 'https://c.saavncdn.com/artists/Billie_Eilish_20190211151539_500x500.jpg',
+    'glow': Color(0x3D32CD32),
   },
 ];
 
+
+
+
+const List<Song> _kFallbackTrendingSongs = [
+  Song(
+    id: 'jiosaavn_kesariya',
+    title: 'Kesariya',
+    artist: 'Arijit Singh, Pritam',
+    album: 'Brahmastra',
+    duration: Duration(minutes: 4, seconds: 28),
+    artworkUrl: 'https://c.saavncdn.com/978/Brahmastra-Hindi-2022-20220717092820-500x500.jpg',
+    videoId: 'kesariya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_vaaste',
+    title: 'Vaaste',
+    artist: 'Dhvani Bhanushali, Nikhil D\'Souza',
+    album: 'Vaaste',
+    duration: Duration(minutes: 3, seconds: 15),
+    artworkUrl: 'https://c.saavncdn.com/191/Vaaste-Hindi-2019-20190406085521-500x500.jpg',
+    videoId: 'GO_qN_Hd',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_chaleya',
+    title: 'Chaleya',
+    artist: 'Arijit Singh, Shilpa Rao, Anirudh Ravichander',
+    album: 'Jawan',
+    duration: Duration(minutes: 3, seconds: 20),
+    artworkUrl: 'https://c.saavncdn.com/026/Chaleya-From-Jawan-Hindi-2023-20230814014339-500x500.jpg',
+    videoId: 'chaleya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_heeriye',
+    title: 'Heeriye',
+    artist: 'Jasleen Royal, Arijit Singh',
+    album: 'Heeriye',
+    duration: Duration(minutes: 3, seconds: 14),
+    artworkUrl: 'https://c.saavncdn.com/022/Heeriye-feat-Arijit-Singh-Hindi-2023-20230724123537-500x500.jpg',
+    videoId: 'heeriye',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_apna_bana_le',
+    title: 'Apna Bana Le',
+    artist: 'Arijit Singh, Sachin-Jigar',
+    album: 'Bhediya',
+    duration: Duration(minutes: 4, seconds: 21),
+    artworkUrl: 'https://c.saavncdn.com/815/Bhediya-Hindi-2022-20221105073004-500x500.jpg',
+    videoId: 'apna_bana_le',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_raataan_lambiyan',
+    title: 'Raataan Lambiyan',
+    artist: 'Tanishk Bagchi, Jubin Nautiyal, Asees Kaur',
+    album: 'Shershaah',
+    duration: Duration(minutes: 3, seconds: 50),
+    artworkUrl: 'https://c.saavncdn.com/238/Shershaah-Original-Motion-Picture-Soundtrack--Hindi-2021-20210815181610-500x500.jpg',
+    videoId: 'raataan_lambiyan',
+    source: 'JioSaavn',
+  ),
+];
+
 const List<Color> _kGlowColors = [
-  Color(0x59FF4500),
+  Color(0x598B5CF6),
   Color(0x3D00FFFF),
   Color(0x3DFF69B4),
   Color(0x3D32CD32),
@@ -590,45 +755,71 @@ class _TrendingNowSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use live artists from feed if available, else show curated fallback
+    final List<Map<String, dynamic>> finalArtists = [];
+    final Set<String> seenArtistKeys = {};
+
+    // 1. Guaranteed verified CDN portraits catalog
+    for (final a in _kFallbackArtists) {
+      final rawName = a['name'] as String;
+      final key = getCleanArtistKey(rawName);
+      if (key.isNotEmpty && !seenArtistKeys.contains(key)) {
+        seenArtistKeys.add(key);
+        final canonicalName = getCleanArtistName(rawName);
+        final portrait = getArtistPortrait(rawName, a['image'] as String);
+        final glow = a['glow'] as Color? ?? _kGlowColors[canonicalName.hashCode.abs() % _kGlowColors.length];
+        finalArtists.add({
+          'name': canonicalName,
+          'image': portrait,
+          'glow': glow,
+        });
+      }
+    }
+
+    // 2. Append any live artists from feed if available and verified
     final liveArtists = feedAsync.valueOrNull?.recommendedArtists;
-    final bool useLive = liveArtists != null && liveArtists.isNotEmpty;
-    final artists = liveArtists ?? <Artist>[];
+    if (liveArtists != null && liveArtists.isNotEmpty) {
+      for (final a in liveArtists) {
+        final key = getCleanArtistKey(a.name);
+        if (key.isNotEmpty && !seenArtistKeys.contains(key)) {
+          final canonicalName = getCleanArtistName(a.name);
+          final portrait = getArtistPortrait(a.name, a.artworkUrl);
+          if (portrait.isNotEmpty) {
+            seenArtistKeys.add(key);
+            final glowColor = _kGlowColors[canonicalName.hashCode.abs() % _kGlowColors.length];
+            finalArtists.add({
+              'name': canonicalName,
+              'image': portrait,
+              'glow': glowColor,
+            });
+          }
+        }
+      }
+    }
+
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _SectionTitle(
-          title: 'Trending Now',
+          title: 'Trending Artists',
           icon: Icons.local_fire_department_rounded,
-          iconColor: Color(0xFFFF4500),
+          iconColor: Color(0xFFFF5F1F),
         ),
         SizedBox(
           height: 124,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: useLive ? artists.length : _kFallbackArtists.length,
+            itemCount: finalArtists.length,
             separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (_, i) {
-              if (useLive) {
-                final artist = artists[i];
-                final glowColor = _kGlowColors[artist.name.hashCode.abs() % _kGlowColors.length];
-                return _TrendingArtistTile(
-                  name: artist.name,
-                  artworkUrl: artist.artworkUrl,
-                  glowColor: glowColor,
-                  onTap: () => onTap(artist.name),
-                );
-              } else {
-                final entry = _kFallbackArtists[i];
-                return _TrendingArtistTile(
-                  name: entry['name'] as String,
-                  artworkUrl: entry['image'] as String,
-                  glowColor: entry['glow'] as Color,
-                  onTap: () => onTap(entry['name'] as String),
-                );
-              }
+              final artist = finalArtists[i];
+              return _TrendingArtistTile(
+                name: artist['name'] as String,
+                artworkUrl: artist['image'] as String,
+                glowColor: artist['glow'] as Color,
+                onTap: () => onTap(artist['name'] as String),
+              );
             },
           ),
         ),
@@ -637,6 +828,214 @@ class _TrendingNowSection extends ConsumerWidget {
     );
   }
 }
+
+
+class _TrendingSongsSection extends ConsumerWidget {
+  final AsyncValue<HomeData> feedAsync;
+
+  const _TrendingSongsSection({required this.feedAsync});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveSongs = feedAsync.valueOrNull?.trendingSongs ??
+        feedAsync.valueOrNull?.quickPicks ??
+        feedAsync.valueOrNull?.charts;
+    final songs = (liveSongs != null && liveSongs.isNotEmpty)
+        ? liveSongs.take(8).toList()
+        : _kFallbackTrendingSongs;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _SectionTitle(
+                title: 'Trending Songs',
+                icon: Icons.trending_up_rounded,
+                iconColor: Color(0xFF8B5CF6),
+              ),
+              if (songs.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    ref.read(playerStateProvider.notifier).playQueue(songs);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18, color: Color(0xFFFF5F1F)),
+                  label: const Text(
+                    'Play All',
+                    style: TextStyle(color: Color(0xFFFF5F1F), fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            final song = songs[index];
+            return SongCard(
+              song: song,
+              queue: songs,
+              queueIndex: index,
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+const List<Song> _kFallbackSpotifySongs = [
+  Song(
+    id: 'spotify_espresso',
+    title: 'Espresso',
+    artist: 'Sabrina Carpenter',
+    album: 'Short n\' Sweet',
+    duration: Duration(minutes: 2, seconds: 55),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273659d0e7e174092b67f1396a9',
+    videoId: 'espresso',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_birds_of_a_feather',
+    title: 'BIRDS OF A FEATHER',
+    artist: 'Billie Eilish',
+    album: 'HIT ME HARD AND SOFT',
+    duration: Duration(minutes: 3, seconds: 30),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b27371d62ea7ea8a5be92d3c1f62',
+    videoId: 'birds_of_a_feather',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_greedy',
+    title: 'greedy',
+    artist: 'Tate McRae',
+    album: 'THINK LATER',
+    duration: Duration(minutes: 2, seconds: 11),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b27322fd80276f3c15d796db630e',
+    videoId: 'greedy',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_cruel_summer',
+    title: 'Cruel Summer',
+    artist: 'Taylor Swift',
+    album: 'Lover',
+    duration: Duration(minutes: 2, seconds: 58),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273e787cffec20aa2a396a61647',
+    videoId: 'cruel_summer',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_blinding_lights',
+    title: 'Blinding Lights',
+    artist: 'The Weeknd',
+    album: 'After Hours',
+    duration: Duration(minutes: 3, seconds: 20),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36',
+    videoId: 'blinding_lights',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_levitating',
+    title: 'Levitating',
+    artist: 'Dua Lipa',
+    album: 'Future Nostalgia',
+    duration: Duration(minutes: 3, seconds: 23),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273bd26ede1ae69327010d49946',
+    videoId: 'levitating',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_shape_of_you',
+    title: 'Shape of You',
+    artist: 'Ed Sheeran',
+    album: 'Divide',
+    duration: Duration(minutes: 3, seconds: 53),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96',
+    videoId: 'shape_of_you',
+    source: 'Spotify',
+  ),
+  Song(
+    id: 'spotify_starboy',
+    title: 'Starboy',
+    artist: 'The Weeknd',
+    album: 'Starboy',
+    duration: Duration(minutes: 3, seconds: 50),
+    artworkUrl: 'https://i.scdn.co/image/ab67616d0000b2734718e2b124f79258be7bc452',
+    videoId: 'starboy',
+    source: 'Spotify',
+  ),
+];
+
+
+class _SpotifyTopHitsSearchSection extends ConsumerWidget {
+  final AsyncValue<HomeData> feedAsync;
+
+  const _SpotifyTopHitsSearchSection({required this.feedAsync});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveSongs = feedAsync.valueOrNull?.spotifyTopHits;
+    final songs = (liveSongs != null && liveSongs.isNotEmpty)
+        ? liveSongs.take(6).toList()
+        : _kFallbackSpotifySongs;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _SectionTitle(
+                title: 'Melodrift Global Top Hits',
+                icon: Icons.graphic_eq_rounded,
+                iconColor: Color(0xFF1DB954),
+              ),
+
+              if (songs.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    ref.read(playerStateProvider.notifier).playQueue(songs);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18, color: Color(0xFF1DB954)),
+                  label: const Text(
+                    'Play All',
+                    style: TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            final song = songs[index];
+            return SongCard(
+              song: song,
+              queue: songs,
+              queueIndex: index,
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section title
@@ -728,14 +1127,28 @@ class _TrendingArtistTileState extends State<_TrendingArtistTile> {
                 ],
               ),
               child: ClipOval(
-                child: widget.artworkUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: widget.artworkUrl,
+                child: Builder(
+                  builder: (context) {
+                    var imgUrl = getArtistPortrait(widget.name, widget.artworkUrl);
+                    if (imgUrl.isEmpty) {
+                      imgUrl = widget.artworkUrl;
+                    }
+                    imgUrl = imgUrl
+                        .replaceAll('150x150', '500x500')
+                        .replaceAll('50x50', '500x500');
+
+                    if (imgUrl.isNotEmpty) {
+                      return CachedNetworkImage(
+                        imageUrl: imgUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => _ArtistFallback(name: widget.name),
-                      )
-                    : _ArtistFallback(name: widget.name),
+                      );
+                    }
+                    return _ArtistFallback(name: widget.name);
+                  },
+                ),
               ),
+
             ),
             const SizedBox(height: 10),
             SizedBox(

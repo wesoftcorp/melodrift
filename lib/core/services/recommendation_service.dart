@@ -1,13 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/song.dart';
-import '../../data/datasources/youtube_music_remote_source.dart';
+import '../../domain/repositories/music_repository.dart';
+import '../../data/repositories/music_repository_impl.dart';
 import 'taste_profiler_service.dart';
 import '../../core/utils/logger.dart';
 
 final recommendationServiceProvider = Provider<RecommendationService>((ref) {
   final tasteProfiler = ref.watch(tasteProfilerServiceProvider);
-  final remoteSource = ref.watch(youtubeMusicRemoteSourceProvider);
-  return RecommendationService(tasteProfiler, remoteSource);
+  final repository = ref.watch(musicRepositoryProvider);
+  return RecommendationService(tasteProfiler, repository);
 });
 
 final personalizedRecommendationsProvider = FutureProvider<PersonalizedFeed>((ref) async {
@@ -29,10 +30,10 @@ class PersonalizedFeed {
 
 class RecommendationService {
   final TasteProfilerService _tasteProfiler;
-  final YouTubeMusicRemoteSource _remoteSource;
+  final MusicRepository _repository;
   final _log = AppLogger('RecommendationService');
 
-  RecommendationService(this._tasteProfiler, this._remoteSource);
+  RecommendationService(this._tasteProfiler, this._repository);
 
   /// Fetch a personalized feed based on user's taste profile
   Future<PersonalizedFeed> getPersonalizedFeed() async {
@@ -43,7 +44,7 @@ class RecommendationService {
       if (seeds.isNotEmpty) {
         final seed = seeds.first;
         final title = 'Because you listened to ${seed['artist']}';
-        final songs = await _remoteSource.getRelatedSongs(seed['id'] as String);
+        final songs = await _repository.getRelatedSongs(seed['id'] as String);
         
         if (songs.isNotEmpty) {
           return PersonalizedFeed(
@@ -54,44 +55,50 @@ class RecommendationService {
         }
       } else if (topArtists.isNotEmpty) {
         final artist = topArtists.first;
-        final songs = await _remoteSource.searchSongs('$artist radio mix');
+        final songs = await _repository.searchSongs('$artist songs');
         if (songs.isNotEmpty) {
           return PersonalizedFeed(
             title: 'More from $artist & Similar Artists',
-            subtitle: 'Curated mix based on your favorites',
+            subtitle: 'Curated based on your most played artists',
             songs: songs.take(15).toList(),
           );
         }
       }
+    } catch (e, s) {
+      _log.error('Failed to generate personalized feed: $e', e, s);
+    }
 
-      // Fallback for new users
-      final charts = await _remoteSource.getCharts();
+    // Default fallback feed
+    try {
+      final defaultSongs = await _repository.searchSongs('trending hits');
       return PersonalizedFeed(
-        title: 'Quick Picks & Trending',
-        subtitle: 'Popular hits right now',
-        songs: charts.topSongs.take(15).toList(),
+        title: 'Fresh Picks For You',
+        subtitle: 'Trending global and Indian tracks',
+        songs: defaultSongs.take(15).toList(),
       );
-    } catch (e) {
-      _log.error('Failed to generate personalized feed: $e');
+    } catch (_) {
       return const PersonalizedFeed(
         title: 'Recommended For You',
-        subtitle: 'Music discovery',
+        subtitle: 'Start listening to see personalized recommendations',
         songs: [],
       );
     }
   }
 
-  /// Generate continuous autoplay recommendations when queue finishes
-  Future<List<Song>> getAutoplayQueue(Song lastPlayedSong) async {
+  /// Returns seamless autoplay recommendations when queue ends
+  Future<List<Song>> getAutoplayQueue(Song? currentSong) async {
+    if (currentSong == null) return const [];
     try {
-      final related = await _remoteSource.getRelatedSongs(lastPlayedSong.id);
-      if (related.isNotEmpty) {
-        return related.where((Song s) => s.id != lastPlayedSong.id).take(10).toList();
-      }
-      return await _remoteSource.searchSongs('${lastPlayedSong.artist} top tracks');
+      final related = await _repository.getRelatedSongs(currentSong.id);
+      if (related.isNotEmpty) return related;
+
+      final artistQuery = '${currentSong.artist} songs';
+      final artistSongs = await _repository.searchSongs(artistQuery);
+      return artistSongs.where((s) => s.id != currentSong.id).toList();
     } catch (e) {
-      _log.error('Failed to get autoplay queue: $e');
+      _log.error('Autoplay queue generation error: $e');
       return const [];
     }
   }
 }
+

@@ -127,20 +127,19 @@ class SongCard extends ConsumerWidget {
                 ],
               ),
             ),
+            if (isCurrentlyPlaying)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.equalizer_rounded, color: theme.colorScheme.primary, size: 20),
+              ),
             IconButton(
-              icon: isCurrentlyPlaying
-                  ? Icon(Icons.equalizer, color: theme.colorScheme.primary)
-                  : Icon(Icons.play_arrow_outlined, color: isCurrent ? theme.colorScheme.primary : null),
-              color: isCurrent ? theme.colorScheme.primary : null,
-              onPressed: onPlay,
-            ),
-            IconButton(
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(Icons.more_vert_rounded),
               onPressed: () => showSongOptionsMenu(context, ref, song, onPlay: onPlay),
             ),
           ],
         ),
       ),
     );
+
   }
 }

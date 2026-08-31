@@ -321,7 +321,7 @@ class _MoodSongsDialogState extends ConsumerState<_MoodSongsDialog> {
                                       color: Color(0xFFFF5F1F),
                                     ),
                                     onPressed: () {
-                                      ref.read(playerStateProvider.notifier).playSong(song);
+                                      ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
                                       Navigator.of(context).pop();
                                     },
                                   ),
@@ -332,7 +332,7 @@ class _MoodSongsDialogState extends ConsumerState<_MoodSongsDialog> {
                                 ],
                               ),
                               onTap: () {
-                                ref.read(playerStateProvider.notifier).playSong(song);
+                                ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
                                 Navigator.of(context).pop();
                               },
                             );

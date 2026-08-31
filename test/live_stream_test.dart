@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:melodrift/core/services/jiosaavn_service.dart';
-import 'package:melodrift/data/datasources/youtube_music_remote_source.dart';
+import 'package:melodrift/core/services/soundcloud_service.dart';
 import 'package:melodrift/core/utils/logger.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
       receiveTimeout: const Duration(seconds: 15),
     ));
 
-    test('JioSaavn Live Search & Stream Resolution & Connection', () async {
+    test('JioSaavn Live Search & Stream Resolution & Connection (320kbps CD Quality)', () async {
       final service = JioSaavnService(dio);
       
       log.info('Calling JioSaavn search...');
@@ -37,50 +37,27 @@ void main() {
       expect(response.statusCode, 200);
     });
 
-    test('YouTube Live Stream Resolution & Connection (Vercel)', () async {
-      final remoteSource = YouTubeMusicRemoteSource();
-      final streamUrl = await remoteSource.getStreamUrl('dQw4w9WgXcQ', 'High', preferLocal: false);
-      expect(streamUrl, isNotEmpty);
-      
-      log.info('Connecting to Vercel resolved YouTube stream: $streamUrl');
-      try {
-        final response = await dio.head<dynamic>(
-          streamUrl,
-          options: Options(headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          }),
-        );
-        log.info('YouTube Vercel stream status: ${response.statusCode}');
-        expect(response.statusCode, 200);
-      } catch (e) {
-        if (e is DioException && e.response?.statusCode == 403) {
-          log.info('YouTube Vercel stream returned 403 (Expected due to YouTube IP-locking).');
-        } else {
-          log.error('YouTube Vercel stream connection failed: $e');
-          fail('Vercel resolved stream is not playable: $e');
-        }
-      }
-    });
+    test('SoundCloud Live Search & Stream Resolution & Connection', () async {
+      final soundCloud = SoundCloudService(dio);
+      log.info('Calling SoundCloud search...');
+      final tracks = await soundCloud.search('chill hip hop');
+      expect(tracks, isNotEmpty);
 
-    test('YouTube Live Stream Resolution & Connection (Local Client Racing)', () async {
-      final remoteSource = YouTubeMusicRemoteSource();
-      final streamUrl = await remoteSource.getStreamUrl('dQw4w9WgXcQ', 'High', preferLocal: true);
-      expect(streamUrl, isNotEmpty);
-      
-      log.info('Connecting to locally resolved YouTube stream: $streamUrl');
-      try {
-        final response = await dio.head<dynamic>(
-          streamUrl,
-          options: Options(headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          }),
-        );
-        log.info('YouTube locally resolved stream status: ${response.statusCode}');
-        expect(response.statusCode, 200);
-      } catch (e) {
-        log.error('YouTube locally resolved stream connection failed: $e');
-        fail('Locally resolved stream is not playable: $e');
-      }
+      final firstTrack = tracks.first;
+      log.info('Resolving SoundCloud stream URL for track: ${firstTrack.id}...');
+      final streamUrl = await soundCloud.getStreamUrl(firstTrack.id);
+      expect(streamUrl, isNotNull);
+
+      log.info('Connecting to SoundCloud stream: $streamUrl');
+      final response = await dio.get<ResponseBody>(
+        streamUrl!,
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: {'Range': 'bytes=0-1024'},
+        ),
+      );
+      log.info('SoundCloud stream status code: ${response.statusCode}');
+      expect(response.statusCode, inInclusiveRange(200, 206));
     });
   });
 }

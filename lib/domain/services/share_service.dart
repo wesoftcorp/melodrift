@@ -1,8 +1,8 @@
 abstract class ShareService {
-  /// Fetches a unified sharing link from Odesli (song.link) and triggers the native share sheet.
+  /// Triggers the native share sheet for a song.
   Future<void> shareSong({
     required String title,
     required String artist,
-    required String youtubeId,
+    String? songId,
   });
 }

@@ -17,11 +17,21 @@ class HomeData {
   /// Top 50 trending songs for the Melodrift Trending Music cascade.
   final List<Song> trendingSongs;
 
-  // New Rich Sections
+  // Curated Multi-Service Sections
   final List<Album> featuredPlaylistsForYou;
   final List<Song> indianMusic;
   final List<Song> forgottenFavorites;
   final List<Album> albumsForYou;
+  final List<Song> soundCloudLounge;
+  final List<Song> spotifyTopHits;
+
+  // New Rich Home Screen Segments
+  final List<Song> top100India;
+  final List<Song> top100International;
+  final List<Song> internationalHits;
+  final List<Song> punjabiHits;
+  final List<Song> romanticMelodies;
+  final List<Song> partyDanceMix;
 
   const HomeData({
     required this.quickPicks,
@@ -36,5 +46,14 @@ class HomeData {
     this.indianMusic = const [],
     this.forgottenFavorites = const [],
     this.albumsForYou = const [],
+    this.soundCloudLounge = const [],
+    this.spotifyTopHits = const [],
+    this.top100India = const [],
+    this.top100International = const [],
+    this.internationalHits = const [],
+    this.punjabiHits = const [],
+    this.romanticMelodies = const [],
+    this.partyDanceMix = const [],
   });
+
 }

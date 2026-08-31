@@ -4,8 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
-import 'service_locator.dart';
-import 'audio_proxy.dart';
+
 
 final audioHandlerProvider = Provider<MelodriftAudioHandler>((ref) {
   throw UnimplementedError('MelodriftAudioHandler is not initialized yet. Override audioHandlerProvider in ProviderScope.');
@@ -275,6 +274,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   // --- Queue Management ---
 
+
+
   @override
   Future<void> addQueueItem(MediaItem mediaItem) async {
     final currentQueue = queue.value;
@@ -353,30 +354,14 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
             lowerUrl.contains('codecs=opus')) {
           _log.warning('⚠️ WebM/Opus URL detected for "${item.title}" — WMF (Windows) cannot decode this. Stream filter may need updating.');
         }
-        final isYouTube = streamUrl.contains('googlevideo.com') || streamUrl.contains('youtube.com');
-
-        // On Windows, WMF makes its own HTTP request. YouTube's User-Agent check blocks it.
-        // Route ONLY YouTube streams through the local proxy.
-        // JioSaavn CDN links can be played natively by WMF when given a desktop User-Agent.
-        if (isYouTube && Platform.isWindows) {
-          final proxy = getIt<AudioProxy>();
-          if (proxy.port > 0) {
-            final encodedUrl = Uri.encodeComponent(streamUrl);
-            final proxyUrl = 'http://127.0.0.1:${proxy.port}/stream/$encodedUrl';
-            _log.info('Routing YouTube stream through local proxy (port ${proxy.port})');
-            return AudioSource.uri(Uri.parse(proxyUrl), tag: item);
-          }
-        }
-
+        // Direct audio streaming for JioSaavn CDN and SoundCloud streams
         return AudioSource.uri(
           Uri.parse(streamUrl),
           tag: item,
-          headers: {
-            'User-Agent': isYouTube
-                ? 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; US)'
-                : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
         );
+
+
+
       } else {
         // Local file path
         return AudioSource.file(streamUrl, tag: item);
@@ -507,11 +492,11 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         _currentQueue.addAll(newQueue);
         _queueHash = newHash;
 
-        // Force UI update
+        // Preserve currently playing media item or update to resolved active index
         final index = _queueIndexForPlayerIndex(_player.currentIndex);
         if (index != null && index < newQueue.length) {
           mediaItem.add(newQueue[index]);
-        } else if (newQueue.isNotEmpty) {
+        } else if (mediaItem.value == null && newQueue.isNotEmpty) {
           mediaItem.add(newQueue.first);
         }
         
@@ -541,19 +526,19 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
         initialPosition: Duration.zero,
-        preload: false,
+        preload: true,
       );
       
       _currentQueue.clear();
       _currentQueue.addAll(newQueue);
       _queueHash = newHash; // Cache the new hash
 
-      // Force update mediaItem to ensure UI gets the new track metadata in real-time
+      // Update mediaItem to active track
       final index = _queueIndexForPlayerIndex(_player.currentIndex);
       if (index != null && index < newQueue.length) {
         _log.debug('Post-sync: Pushing active MediaItem at index $index: ${newQueue[index].title}');
         mediaItem.add(newQueue[index]);
-      } else if (newQueue.isNotEmpty) {
+      } else if (mediaItem.value == null && newQueue.isNotEmpty) {
         _log.debug('Post-sync: Pushing first MediaItem in queue: ${newQueue.first.title}');
         mediaItem.add(newQueue.first);
       }

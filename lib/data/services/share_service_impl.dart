@@ -1,49 +1,34 @@
-import 'package:dio/dio.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../core/utils/logger.dart';
 import '../../domain/services/share_service.dart';
 
 final shareServiceProvider = Provider<ShareService>((ref) {
-  final dio = Dio(); // Reuse/create Dio client
-  return ShareServiceImpl(dio);
+  return ShareServiceImpl();
 });
 
 class ShareServiceImpl implements ShareService {
-  final Dio _dio;
+  final _log = AppLogger('ShareService');
 
-  ShareServiceImpl(this._dio);
+  ShareServiceImpl();
 
   @override
   Future<void> shareSong({
     required String title,
     required String artist,
-    required String youtubeId,
+    String? songId,
   }) async {
-    final youtubeUrl = 'https://www.youtube.com/watch?v=$youtubeId';
-    String shareUrl = youtubeUrl;
+    final cleanTitle = title.trim();
+    final cleanArtist = artist.trim();
+    final text = 'Listening to "$cleanTitle" by $cleanArtist on Melodrift 🎵';
 
     try {
-      // Query Odesli API for a premium song.link page
-      final response = await _dio.get<Map<String, dynamic>>(
-        'https://api.odesli.co/v1.1/links',
-        queryParameters: {'url': youtubeUrl},
+      await Share.share(
+        text,
+        subject: '$cleanTitle - $cleanArtist',
       );
-
-      if (response.statusCode == 200 && response.data != null) {
-        final data = response.data as Map<String, dynamic>;
-        final pageUrl = data['pageUrl'] as String?;
-        if (pageUrl != null && pageUrl.isNotEmpty) {
-          shareUrl = pageUrl;
-        }
-      }
-    } catch (_) {
-      // Fallback silently to direct YouTube link if network or Odesli API fails
+    } catch (e, s) {
+      _log.error('Failed to trigger native share: $e', e, s);
     }
-
-    // Launch native platform share sheet
-    await Share.share(
-      'Check out "$title" by $artist: $shareUrl',
-      subject: 'Share Song',
-    );
   }
 }

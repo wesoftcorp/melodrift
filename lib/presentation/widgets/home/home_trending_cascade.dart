@@ -13,7 +13,8 @@ class HomeTrendingCascade extends StatefulWidget {
   State<HomeTrendingCascade> createState() => HomeTrendingCascadeState();
 }
 
-class HomeTrendingCascadeState extends State<HomeTrendingCascade> {
+class HomeTrendingCascadeState extends State<HomeTrendingCascade>
+    with WidgetsBindingObserver {
   int _currentPage = 0;
   Timer? _timer;
   double _dragDx = 0;
@@ -21,6 +22,7 @@ class HomeTrendingCascadeState extends State<HomeTrendingCascade> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startTimer();
   }
 
@@ -36,8 +38,21 @@ class HomeTrendingCascadeState extends State<HomeTrendingCascade> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _timer?.cancel();
+      _timer = null;
+    } else if (state == AppLifecycleState.resumed && _timer == null) {
+      _startTimer();
+    }
   }
 
   @override
@@ -332,15 +347,17 @@ class HomeTrendingCascadeTile extends StatelessWidget {
   Color _getSourceColor(String source) {
     switch (source.toLowerCase()) {
       case 'jiosaavn':
-        return const Color(0xFF00E676); // JioSaavn Green Dot
+        return const Color(0xFF8B5CF6); // JioSaavn Violet Dot
       case 'spotify':
-        return const Color(0xFF1DB954);
+        return const Color(0xFF1DB954); // Spotify Green
       case 'soundcloud':
-        return const Color(0xFF9B5DE5);
+        return const Color(0xFFFF5500); // SoundCloud Orange
       default:
-        return const Color(0xFFFF3333); // YouTube Music Red Dot
+        return const Color(0xFF8B5CF6);
     }
   }
+
+
 
 }
 

@@ -18,6 +18,7 @@ class Song {
     required this.artworkUrl,
     required this.videoId,
     this.streamUrl,
-    this.source = 'YouTube Music',
+    this.source = 'JioSaavn',
   });
 }
+

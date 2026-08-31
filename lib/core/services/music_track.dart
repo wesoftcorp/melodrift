@@ -6,8 +6,9 @@ class MusicTrack {
   final Duration duration;
   final String artworkUrl;
   final String? streamUrl;
-  final String source; // 'youtube' or 'jiosaavn'
+  final String source; // 'jiosaavn', 'soundcloud', 'spotify'
   final Map<String, dynamic> extras;
+
 
   const MusicTrack({
     required this.id,

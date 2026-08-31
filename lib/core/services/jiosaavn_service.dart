@@ -118,31 +118,79 @@ class JioSaavnService implements MusicProvider {
   }
 
   @override
-  Future<List<MusicTrack>> search(String query) async {
+  Future<List<MusicTrack>> search(String query, {int limit = 50}) async {
     final baseUrl = await _getEffectiveBaseUrl();
     final url = '$baseUrl/api/search/songs';
     try {
-      _log.info('Searching JioSaavn for: $query');
+      _log.info('Searching JioSaavn for: $query (limit $limit)');
       final response = await _dio.get<Map<String, dynamic>>(
         url,
-        queryParameters: {'query': query},
+        queryParameters: {'query': query, 'limit': limit},
       ).timeout(const Duration(seconds: 8));
 
       return _parseSearchResponse(response);
-    } catch (e, s) {
-      _log.error('JioSaavn search failed: $e', e, s);
-      if (baseUrl != _baseUrl) {
-        try {
-          _log.info('Falling back to default JioSaavn base URL for search: $_baseUrl');
-          final response = await _dio.get<Map<String, dynamic>>(
-            '$_baseUrl/api/search/songs',
-            queryParameters: {'query': query},
-          ).timeout(const Duration(seconds: 8));
-          return _parseSearchResponse(response);
-        } catch (e2) {
-          _log.error('JioSaavn search fallback failed: $e2');
+    } catch (e) {
+      // 1. If custom/primary base URL failed or timed out, try official direct JioSaavn API
+      try {
+        _log.info('Falling back to official direct JioSaavn API for: $query');
+        final directResponse = await _dio.get<dynamic>(
+          'https://www.jiosaavn.com/api.php',
+          queryParameters: {
+            '__call': 'autocomplete.get',
+            '_format': 'json',
+            '_marker': '0',
+            'cc': 'in',
+            'includeMetaTags': '1',
+            'query': query,
+          },
+        ).timeout(const Duration(seconds: 4));
+
+        if (directResponse.statusCode == 200 && directResponse.data != null) {
+          final data = directResponse.data;
+          if (data is Map && data['songs'] != null && data['songs']['data'] != null) {
+
+            final list = data['songs']['data'] as List;
+            final List<MusicTrack> directTracks = [];
+            for (final item in list) {
+              final id = item['id']?.toString() ?? '';
+              final title = item['title']?.toString() ?? '';
+              final image = item['image']?.toString() ?? '';
+              final artworkUrl = image.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
+
+              String artist = '';
+              if (item['more_info'] != null) {
+                final moreInfo = item['more_info'];
+                if (moreInfo['singers'] != null && moreInfo['singers'].toString().isNotEmpty) {
+                  artist = moreInfo['singers'].toString();
+                } else if (moreInfo['primary_artists'] != null && moreInfo['primary_artists'].toString().isNotEmpty) {
+                  artist = moreInfo['primary_artists'].toString();
+                }
+              }
+              if (artist.isEmpty && item['description'] != null) {
+                final desc = item['description'].toString();
+                final parts = desc.split('·');
+                artist = parts.length > 1 ? parts[1].trim() : desc.trim();
+              }
+
+              if (id.isNotEmpty && title.isNotEmpty) {
+                directTracks.add(MusicTrack(
+                  id: id,
+                  title: title,
+                  artist: artist.isNotEmpty ? artist : 'Unknown Artist',
+                  album: 'JioSaavn Single',
+                  duration: const Duration(minutes: 3, seconds: 30),
+                  artworkUrl: artworkUrl,
+                  source: 'jiosaavn',
+                ));
+              }
+            }
+            if (directTracks.isNotEmpty) return directTracks;
+          }
         }
+      } catch (e2) {
+        _log.error('Official direct JioSaavn fallback failed: $e2');
       }
+
       return [];
     }
   }
@@ -150,7 +198,8 @@ class JioSaavnService implements MusicProvider {
 
 
 
-  String? _parseStreamUrlResponse(Response<Map<String, dynamic>> response) {
+
+  Future<String?> _parseStreamUrlResponse(Response<Map<String, dynamic>> response) async {
     if (response.statusCode != 200 || response.data == null) {
       _log.error('JioSaavn song details returned status code: ${response.statusCode}');
       return null;
@@ -176,10 +225,24 @@ class JioSaavnService implements MusicProvider {
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
 
-    // Extract 320kbps quality if available, otherwise fall back to highest
+    String targetQuality = '320kbps';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final qualityIdx = prefs.getInt('streaming_quality') ?? 3;
+      if (qualityIdx == 1) {
+        targetQuality = '96kbps';
+      } else if (qualityIdx == 2) {
+        targetQuality = '160kbps';
+      }
+    } catch (_) {}
+
+    // Extract preferred quality if available, otherwise fall back to 320kbps / highest
     final urlObj = downloadUrls.firstWhere(
-      (e) => e['quality'] == '320kbps',
-      orElse: () => downloadUrls.last,
+      (e) => e['quality'] == targetQuality,
+      orElse: () => downloadUrls.firstWhere(
+        (e) => e['quality'] == '320kbps',
+        orElse: () => downloadUrls.last,
+      ),
     );
 
     return urlObj['link'] as String? ?? urlObj['url'] as String?;
@@ -197,8 +260,9 @@ class JioSaavnService implements MusicProvider {
         queryParameters: {'ids': cleanId},
       ).timeout(const Duration(seconds: 15));
 
-      return _parseStreamUrlResponse(response);
+      return await _parseStreamUrlResponse(response);
     } catch (e, s) {
+
       _log.error('Failed to get JioSaavn stream URL: $e', e, s);
       if (baseUrl != _baseUrl) {
         try {

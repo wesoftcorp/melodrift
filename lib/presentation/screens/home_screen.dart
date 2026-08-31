@@ -9,22 +9,85 @@ import '../../data/repositories/music_repository_impl.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/album.dart';
 import '../../domain/entities/home_data.dart';
-
-import '../providers/player_notifier.dart';
-import '../providers/home_discovery_notifier.dart';
-import '../widgets/song_card.dart';
 import '../widgets/album_card.dart';
+import '../providers/player_notifier.dart';
+
+import '../widgets/song_card.dart';
 import '../widgets/mood_card.dart'; // exports MoodCard + HorizontalMoodRow
-import '../widgets/song_download_button.dart';
 import 'details_screen.dart';
+
 import '../widgets/home/home_trending_cascade.dart';
 import '../../data/repositories/history_repository_impl.dart';
 import '../../core/services/recommendation_service.dart';
 import '../../core/theme/tokens.dart';
 
 
+const List<Song> _kDefaultTrendingSongs = [
+  Song(
+    id: 'jiosaavn_kesariya',
+    title: 'Kesariya',
+    artist: 'Arijit Singh, Pritam',
+    album: 'Brahmastra',
+    duration: Duration(minutes: 4, seconds: 28),
+    artworkUrl: 'https://c.saavncdn.com/978/Brahmastra-Hindi-2022-20220717092820-500x500.jpg',
+    videoId: 'kesariya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_chaleya',
+    title: 'Chaleya',
+    artist: 'Arijit Singh, Shilpa Rao, Anirudh Ravichander',
+    album: 'Jawan',
+    duration: Duration(minutes: 3, seconds: 20),
+    artworkUrl: 'https://c.saavncdn.com/026/Chaleya-From-Jawan-Hindi-2023-20230814014339-500x500.jpg',
+    videoId: 'chaleya',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_vaaste',
+    title: 'Vaaste',
+    artist: 'Dhvani Bhanushali, Nikhil D\'Souza',
+    album: 'Vaaste',
+    duration: Duration(minutes: 3, seconds: 15),
+    artworkUrl: 'https://c.saavncdn.com/191/Vaaste-Hindi-2019-20190406085521-500x500.jpg',
+    videoId: 'GO_qN_Hd',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_heeriye',
+    title: 'Heeriye',
+    artist: 'Jasleen Royal, Arijit Singh',
+    album: 'Heeriye',
+    duration: Duration(minutes: 3, seconds: 14),
+    artworkUrl: 'https://c.saavncdn.com/022/Heeriye-feat-Arijit-Singh-Hindi-2023-20230724123537-500x500.jpg',
+    videoId: 'heeriye',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_apna_bana_le',
+    title: 'Apna Bana Le',
+    artist: 'Arijit Singh, Sachin-Jigar',
+    album: 'Bhediya',
+    duration: Duration(minutes: 4, seconds: 21),
+    artworkUrl: 'https://c.saavncdn.com/815/Bhediya-Hindi-2022-20221105073004-500x500.jpg',
+    videoId: 'apna_bana_le',
+    source: 'JioSaavn',
+  ),
+  Song(
+    id: 'jiosaavn_raataan_lambiyan',
+    title: 'Raataan Lambiyan',
+    artist: 'Tanishk Bagchi, Jubin Nautiyal, Asees Kaur',
+    album: 'Shershaah',
+    duration: Duration(minutes: 3, seconds: 50),
+    artworkUrl: 'https://c.saavncdn.com/238/Shershaah-Original-Motion-Picture-Soundtrack--Hindi-2021-20210815181610-500x500.jpg',
+    videoId: 'raataan_lambiyan',
+    source: 'JioSaavn',
+  ),
+];
+
 // ---------------------------------------------------------------------------
 // Providers
+
 // ---------------------------------------------------------------------------
 
 
@@ -39,35 +102,72 @@ class HomeLanguageNotifier extends StateNotifier<Set<String>> {
   final SharedPreferences _prefs;
   static const _key = 'home_language_filter';
 
-  HomeLanguageNotifier(this._prefs)
-      : super(_load(_prefs));
+  HomeLanguageNotifier(this._prefs) : super(_loadInitial(_prefs));
 
-  static Set<String> _load(SharedPreferences prefs) {
-    final saved = prefs.getStringList(_key);
-    if (saved == null || saved.isEmpty) return {'All'};
-    return Set<String>.from(saved);
+  static Set<String> _loadInitial(SharedPreferences prefs) {
+    final list = prefs.getStringList(_key);
+    if (list == null || list.isEmpty) return {'All'};
+    return list.toSet();
+  }
+
+  void toggle(String lang) {
+    if (lang == 'All') {
+      state = {'All'};
+    } else {
+      final next = Set<String>.from(state)..remove('All');
+      if (next.contains(lang)) {
+        next.remove(lang);
+        if (next.isEmpty) next.add('All');
+      } else {
+        next.add(lang);
+      }
+      state = next;
+    }
+    _prefs.setStringList(_key, state.toList());
   }
 
   void setLanguages(Set<String> langs) {
     state = langs.isEmpty ? {'All'} : langs;
     _prefs.setStringList(_key, state.toList());
   }
+
+  bool isSelected(String lang) => state.contains(lang);
 }
 
-/// Public list of language options (also consumed by SettingsScreen).
+
+/// Public list of all available song language options.
 // ignore: constant_identifier_names
-const kLanguageOptions = ['All', 'English', 'Hindi', 'Nepali'];
+const kLanguageOptions = [
+  'All',
+  'Hindi',
+  'English',
+  'Punjabi',
+  'Tamil',
+  'Telugu',
+  'Malayalam',
+  'Kannada',
+  'Bengali',
+  'Marathi',
+  'Gujarati',
+  'Bhojpuri',
+  'Haryanvi',
+  'Rajasthani',
+  'Urdu',
+  'Assamese',
+  'Odia',
+  'Nepali',
+  'Spanish',
+  'Korean',
+  'Japanese',
+];
+
 
 final homeFeedProvider = FutureProvider<HomeData>((ref) async {
-  final repository = ref.watch(musicRepositoryProvider);
-  final languages = ref.watch(homeLanguageProvider);
-
-  // Pass null when "All" is selected — API returns everything
-  final lang = (languages.contains('All') || languages.isEmpty)
+  final langSet = ref.watch(homeLanguageProvider);
+  final langParam = (langSet.contains('All') || langSet.isEmpty)
       ? null
-      : languages.join(' ');
-
-  return repository.getHomeFeed(language: lang);
+      : langSet.join(',');
+  return ref.watch(musicRepositoryProvider).getHomeFeed(language: langParam);
 });
 
 
@@ -86,24 +186,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
-  bool _registeredInitialSongs = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollController.hasClients &&
-        _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 600) {
-      ref.read(homeDiscoveryProvider.notifier).loadMore();
-    }
-  }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -115,27 +200,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          try {
-            final prefs = await SharedPreferences.getInstance();
-            // Clear all home feed cache keys so a fresh feed is fetched
-            await prefs.remove('home_feed_cache_date_v8');
-            await prefs.remove('home_feed_cache_data_all');
-            await prefs.remove('home_feed_cache_data_English');
-            await prefs.remove('home_feed_cache_data_Hindi');
-            await prefs.remove('home_feed_cache_data_Nepali');
-            await prefs.remove('home_feed_cache_data_English Hindi');
-            await prefs.remove('home_feed_cache_data_English Nepali');
-            await prefs.remove('home_feed_cache_data_Hindi Nepali');
-            await prefs.remove('home_feed_cache_data_English Hindi Nepali');
-          } catch (_) {}
-          _registeredInitialSongs = false;
-          await ref.read(homeDiscoveryProvider.notifier).refresh();
-          return ref.refresh(homeFeedProvider.future);
-        },
-        child: feedAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+      body: feedAsync.when(
+          loading: () => Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset('assets/images/melodrift.png', width: 64, height: 64),
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5F1F)),
+                    strokeWidth: 2.5,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading your feed…',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           error: (err, stack) => Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -149,7 +236,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '$err',
+                  'Check your connection and try again.',
                   style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
@@ -163,22 +250,69 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           data: (feed) {
-            if (!_registeredInitialSongs) {
-              _registeredInitialSongs = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  ref.read(homeDiscoveryProvider.notifier).registerExistingSongs([
-                    ...feed.quickPicks,
-                    ...feed.trendingSongs,
-                    ...feed.charts,
-                    ...feed.listenAgain,
-                    ...feed.indianMusic,
-                    ...feed.forgottenFavorites,
-                  ]);
-                }
-              });
-            }
-            return Stack(
+            bool isSingleTrack(Song s) => s.title.isNotEmpty && (s.duration == Duration.zero || s.duration.inMinutes <= 20);
+            final availableTrending = [
+              ...feed.trendingSongs,
+              ...feed.quickPicks,
+              ...feed.charts,
+              ...feed.indianMusic,
+              ...feed.spotifyTopHits,
+            ].where(isSingleTrack).toList();
+
+            final trendingSingleSongs = availableTrending.isNotEmpty
+                ? availableTrending
+                : _kDefaultTrendingSongs;
+
+            final quickPickSongs = feed.quickPicks
+                .where(isSingleTrack)
+                .toList();
+
+            final indianSongs = feed.indianMusic
+                .where(isSingleTrack)
+                .toList();
+            final chartSongs = feed.charts
+                .where(isSingleTrack)
+                .toList();
+            final forgottenSongs = feed.forgottenFavorites
+                .where(isSingleTrack)
+                .toList();
+            final spotifySongs = feed.spotifyTopHits
+
+                .where(isSingleTrack)
+                .toList();
+            final soundCloudSongs = feed.soundCloudLounge
+                .where(isSingleTrack)
+                .toList();
+            final top100IndiaSongs = feed.top100India
+                .where(isSingleTrack)
+                .toList();
+            final top100InternationalSongs = feed.top100International
+                .where(isSingleTrack)
+                .toList();
+            final internationalSongs = feed.internationalHits
+                .where(isSingleTrack)
+                .toList();
+            final punjabiSongs = feed.punjabiHits
+                .where(isSingleTrack)
+                .toList();
+            final romanticSongs = feed.romanticMelodies
+                .where(isSingleTrack)
+                .toList();
+            final partySongs = feed.partyDanceMix
+                .where(isSingleTrack)
+                .toList();
+
+            return RefreshIndicator(
+              color: const Color(0xFFFF5F1F),
+              onRefresh: () async {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final keys = prefs.getKeys().where((k) => k.startsWith('home_feed_cache_')).toList();
+                  for (final k in keys) { await prefs.remove(k); }
+                } catch (_) {}
+                return ref.refresh(homeFeedProvider.future);
+              },
+              child: Stack(
               children: [
                 if (isDark)
                   Positioned(
@@ -223,7 +357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 
                 // ── Melodrift Trending Music ─────────────────────────────
-                if (feed.trendingSongs.isNotEmpty) ...[
+                if (trendingSingleSongs.isNotEmpty) ...[
                   _buildSectionHeader(
                     'Melodrift Trending Music',
                     onSeeAll: () => _openDetails(
@@ -232,7 +366,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         id: 'trending_songs',
                         title: 'Melodrift Trending Music',
                         type: 'songList',
-                        preloadedSongs: feed.trendingSongs,
+                        preloadedSongs: trendingSingleSongs,
                       ),
                     ),
                   ),
@@ -240,13 +374,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(top: 8.0),
                       child: Builder(builder: (context) {
-                        final trendingSongs = feed.trendingSongs.take(30).toList();
+                        final topTrending = trendingSingleSongs.take(30).toList();
                         return HomeTrendingCascade(
-                          songs: trendingSongs,
+                          songs: topTrending,
                           onSongTap: (song) {
-                            final index = trendingSongs.indexWhere((s) => s.id == song.id);
+                            final index = topTrending.indexWhere((s) => s.id == song.id);
                             ref.read(playerStateProvider.notifier).playQueue(
-                              trendingSongs,
+                              topTrending,
                               initialIndex: index >= 0 ? index : 0,
                             );
                           },
@@ -259,8 +393,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // ── Listen Again (User History) ─────────────────────────
                 Builder(builder: (context) {
                   final historyAsync = ref.watch(listeningHistoryProvider);
-                  final userHistory = historyAsync.value ?? [];
-                  final listenAgainSongs = userHistory.isNotEmpty ? userHistory : feed.listenAgain;
+                  final userHistory = (historyAsync.value ?? [])
+                      .where(isSingleTrack)
+                      .toList();
+                  final feedListenAgain = feed.listenAgain
+                      .where(isSingleTrack)
+                      .toList();
+                  final listenAgainSongs = userHistory.isNotEmpty ? userHistory : feedListenAgain;
                   if (listenAgainSongs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
                   return SliverMainAxisGroup(
                     slivers: [
@@ -283,27 +422,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 
                 // ── Quick Picks ──────────────────────────────────────────
-                _buildSectionHeader(
-                  'Quick Picks',
-                  onSeeAll: () => _openDetails(
-                    context,
-                    DetailsScreen(
-                      id: 'quick_picks',
-                      title: 'Quick Picks',
-                      type: 'songList',
-                      preloadedSongs: feed.quickPicks,
+                if (quickPickSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Quick Picks',
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'quick_picks',
+                        title: 'Quick Picks',
+                        type: 'songList',
+                        preloadedSongs: quickPickSongs,
+                      ),
                     ),
                   ),
-                ),
-                _buildMultiRowSongList(context, ref, feed.quickPicks),
+                  _buildMultiRowSongList(context, ref, quickPickSongs),
+                ],
 
                 // ── Personalized Recommendations (YouTube-style) ─────────
                 ref.watch(personalizedRecommendationsProvider).when(
                   data: (rec) {
-                    if (rec.songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    final recSongs = rec.songs
+                        .where(isSingleTrack)
+                        .toList();
+                    if (recSongs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
                     return SliverMainAxisGroup(
                       slivers: [
                         _buildSectionHeader(
+
                           rec.title,
                           onSeeAll: () => _openDetails(
                             context,
@@ -311,11 +456,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               id: 'personalized_rec',
                               title: rec.title,
                               type: 'songList',
-                              preloadedSongs: rec.songs,
+                              preloadedSongs: recSongs,
                             ),
                           ),
                         ),
-                        _buildMultiRowSongList(context, ref, rec.songs),
+                        _buildMultiRowSongList(context, ref, recSongs),
                       ],
                     );
                   },
@@ -323,38 +468,134 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
                 ),
 
-                // ── Featured Playlists for You ───────────────────────────
-                if (feed.featuredPlaylistsForYou.isNotEmpty) ...[
+                // ── Fresh Releases ───────────────────────────────────────
+                if (feed.newReleases.isNotEmpty) ...[
                   _buildSectionHeader(
-                    'Featured playlists for you',
+                    'Fresh Releases',
                     onSeeAll: () => _openDetails(
                       context,
                       DetailsScreen(
-                        id: 'featured_playlists',
-                        title: 'Featured playlists for you',
+                        id: 'fresh_releases',
+                        title: 'Fresh Releases',
                         type: 'albumList',
-                        preloadedAlbums: feed.featuredPlaylistsForYou,
+                        preloadedAlbums: feed.newReleases,
                       ),
                     ),
                   ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 215,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: feed.featuredPlaylistsForYou.length,
-                        itemBuilder: (context, index) => AlbumCard(
-                          album: feed.featuredPlaylistsForYou[index],
-                          size: 140.0,
-                        ),
+                  _buildAlbumRow(context, feed.newReleases),
+                ],
+
+
+                // ── Top 100 India ────────────────────────────────────────
+                if (top100IndiaSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Top 100 India',
+                    textColor: const Color(0xFFFF9933),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'top_100_india',
+                        title: 'Top 100 India',
+                        type: 'songList',
+                        preloadedSongs: top100IndiaSongs,
                       ),
                     ),
                   ),
+                  _buildMultiRowSongList(context, ref, top100IndiaSongs),
+                ],
+
+                // ── Top 100 International ──────────────────────────────────
+                if (top100InternationalSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Top 100 International',
+                    textColor: const Color(0xFF00D2FF),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'top_100_international',
+                        title: 'Top 100 International',
+                        type: 'songList',
+                        preloadedSongs: top100InternationalSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, top100InternationalSongs),
+                ],
+
+                // ── International Pop & Hits ─────────────────────────────
+                if (internationalSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'International Hits',
+                    textColor: const Color(0xFF9B51E0),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'international_hits',
+                        title: 'International Hits',
+                        type: 'songList',
+                        preloadedSongs: internationalSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, internationalSongs),
+                ],
+
+                // ── Punjabi Hits & Bangers ───────────────────────────────
+                if (punjabiSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Punjabi Hits & Bangers',
+                    textColor: const Color(0xFFFF5F1F),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'punjabi_hits',
+                        title: 'Punjabi Hits & Bangers',
+                        type: 'songList',
+                        preloadedSongs: punjabiSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, punjabiSongs),
+                ],
+
+                // ── Romantic Melodies ────────────────────────────────────
+                if (romanticSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Romantic Melodies',
+                    textColor: const Color(0xFFFF69B4),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'romantic_melodies',
+                        title: 'Romantic Melodies',
+                        type: 'songList',
+                        preloadedSongs: romanticSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, romanticSongs),
+                ],
+
+                // ── Party & Dance Club Mix ───────────────────────────────
+                if (partySongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Party & Dance Mix',
+                    textColor: const Color(0xFFFFD700),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'party_dance_mix',
+                        title: 'Party & Dance Mix',
+                        type: 'songList',
+                        preloadedSongs: partySongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, partySongs),
                 ],
 
                 // ── Indian Music ─────────────────────────────────────────
-                if (feed.indianMusic.isNotEmpty) ...[
+                if (indianSongs.isNotEmpty) ...[
                   _buildSectionHeader(
                     'Indian Music',
                     onSeeAll: () => _openDetails(
@@ -363,58 +604,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         id: 'indian_music',
                         title: 'Indian Music',
                         type: 'songList',
-                        preloadedSongs: feed.indianMusic,
+                        preloadedSongs: indianSongs,
                       ),
                     ),
                   ),
-                  _buildMultiRowSongList(context, ref, feed.indianMusic),
+                  _buildMultiRowSongList(context, ref, indianSongs),
                 ],
 
-                // ── New Releases ─────────────────────────────────────────
-                _buildSectionHeader(
-                  'New Releases',
-                  onSeeAll: () => _openDetails(
-                    context,
-                    DetailsScreen(
-                      id: 'new_releases',
-                      title: 'New Releases',
-                      type: 'albumList',
-                      preloadedAlbums: feed.newReleases,
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 215,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: feed.newReleases.length,
-                      itemBuilder: (context, index) => AlbumCard(
-                        album: feed.newReleases[index],
-                        size: 140.0,
+                // ── Trending Charts ──────────────────────────────────────
+                if (chartSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Trending Charts',
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'charts',
+                        title: 'Trending Charts',
+                        type: 'songList',
+                        preloadedSongs: chartSongs,
                       ),
                     ),
                   ),
-                ),
-
-                // ── Trending Charts ──────────────────────────────────────
-                _buildSectionHeader(
-                  'Trending Charts',
-                  onSeeAll: () => _openDetails(
-                    context,
-                    DetailsScreen(
-                      id: 'charts',
-                      title: 'Trending Charts',
-                      type: 'songList',
-                      preloadedSongs: feed.charts,
-                    ),
-                  ),
-                ),
-                _buildMultiRowSongList(context, ref, feed.charts),
+                  _buildMultiRowSongList(context, ref, chartSongs),
+                ],
 
                 // ── Forgotten Favorites ──────────────────────────────────
-                if (feed.forgottenFavorites.isNotEmpty) ...[
+                if (forgottenSongs.isNotEmpty) ...[
                   _buildSectionHeader(
                     'Forgotten favorites',
                     onSeeAll: () => _openDetails(
@@ -423,109 +638,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         id: 'forgotten_favorites',
                         title: 'Forgotten favorites',
                         type: 'songList',
-                        preloadedSongs: feed.forgottenFavorites,
+                        preloadedSongs: forgottenSongs,
                       ),
                     ),
                   ),
-                  _buildMultiRowSongList(context, ref, feed.forgottenFavorites),
+                  _buildMultiRowSongList(context, ref, forgottenSongs),
                 ],
 
-                // ── Albums for You (Personalized for User Repeated Listens) ──
-                Builder(builder: (context) {
-                  final historyAsync = ref.watch(listeningHistoryProvider);
-                  final userHistory = historyAsync.value ?? [];
-                  
-                  // Extract top repeated artists from history
-                  final Map<String, int> artistCounts = {};
-                  for (final s in userHistory) {
-                    final firstArtist = s.artist.split(',').first.trim();
-                    if (firstArtist.isNotEmpty) {
-                      artistCounts[firstArtist] = (artistCounts[firstArtist] ?? 0) + 1;
-                    }
-                  }
-                  
-                  final topArtists = artistCounts.entries.toList()
-                    ..sort((a, b) => b.value.compareTo(a.value));
-                  
-                  final topArtistName = topArtists.isNotEmpty ? topArtists.first.key : '';
+                // ── Melodrift Global Top Hits ────────────────────────────
+                if (spotifySongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Melodrift Global Top Hits',
+                    textColor: const Color(0xFF1DB954),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'global_top_hits',
+                        title: 'Melodrift Global Top Hits',
+                        type: 'songList',
+                        preloadedSongs: spotifySongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, spotifySongs),
+                ],
 
-                  if (topArtistName.isEmpty) {
-                    if (feed.albumsForYou.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-                    return SliverMainAxisGroup(
-                      slivers: [
-                        _buildSectionHeader(
-                          'Albums for you',
-                          onSeeAll: () => _openDetails(
-                            context,
-                            DetailsScreen(
-                              id: 'albums_for_you',
-                              title: 'Albums for you',
-                              type: 'albumList',
-                              preloadedAlbums: feed.albumsForYou,
-                            ),
-                          ),
-                        ),
-                        SliverToBoxAdapter(
-                          child: SizedBox(
-                            height: 215,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: feed.albumsForYou.length,
-                              itemBuilder: (context, index) => AlbumCard(
-                                album: feed.albumsForYou[index],
-                                size: 140.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return FutureBuilder<List<Album>>(
-                    future: ref.read(musicRepositoryProvider).searchAlbums(topArtistName),
-                    builder: (context, snapshot) {
-                      final albums = (snapshot.data?.isNotEmpty == true) ? snapshot.data! : feed.albumsForYou;
-                      if (albums.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-                      return SliverMainAxisGroup(
-                        slivers: [
-                          _buildSectionHeader(
-                            'Albums for you ($topArtistName & more)',
-                            onSeeAll: () => _openDetails(
-                              context,
-                              DetailsScreen(
-                                id: 'albums_for_you',
-                                title: 'Albums for you',
-                                type: 'albumList',
-                                preloadedAlbums: albums,
-                              ),
-                            ),
-                          ),
-                          SliverToBoxAdapter(
-                            child: SizedBox(
-                              height: 215,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                itemCount: albums.length,
-                                itemBuilder: (context, index) => AlbumCard(
-                                  album: albums[index],
-                                  size: 140.0,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                }),
+                // ── Lo-Fi Lounge & Chill Beats ───────────────────────────
+                if (soundCloudSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Lo-Fi Lounge & Chill Beats',
+                    textColor: const Color(0xFFFF5500),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'lofi_lounge',
+                        title: 'Lo-Fi Lounge & Chill Beats',
+                        type: 'songList',
+                        preloadedSongs: soundCloudSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, soundCloudSongs),
+                ],
 
 
+                // ── Featured Playlists ───────────────────────────────────
+                if (feed.featuredPlaylistsForYou.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Featured Playlists',
+                    textColor: const Color(0xFF00E5FF),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'featured_playlists',
+                        title: 'Featured Playlists',
+                        type: 'albumList',
+                        preloadedAlbums: feed.featuredPlaylistsForYou,
+                      ),
+                    ),
+                  ),
+                  _buildAlbumRow(context, feed.featuredPlaylistsForYou),
+                ],
 
+                // ── Albums For You ───────────────────────────────────────
+                if (feed.albumsForYou.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Albums For You',
+                    textColor: const Color(0xFF9B51E0),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'albums_for_you',
+                        title: 'Albums For You',
+                        type: 'albumList',
+                        preloadedAlbums: feed.albumsForYou,
+                      ),
+                    ),
+                  ),
+                  _buildAlbumRow(context, feed.albumsForYou),
+                ],
 
-                // ── Moods & Genres ───────────────────────────────────────
                 _buildSectionHeader(
                   'Moods & Genres',
                   textColor: const Color(0xFFFF5F1F),
@@ -546,20 +738,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
 
-                // ── Endless Discovery (Echo-Music Style Infinite Scroll) ─────
-                _buildSectionHeader(
-                  'Endless Discovery',
-                  textColor: const Color(0xFFFF5F1F),
-                ),
-                _buildEndlessDiscoveryList(context, ref),
+
 
                 const SliverToBoxAdapter(child: SizedBox(height: 180)),
               ],
             ),
-              ],
-            );
-          },
+          ],
         ),
+        );
+          },
       ),
     );
   }
@@ -635,7 +822,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             color: Color(0xFFFF5F1F),
                             size: 22,
                           ),
-                          onPressed: () {},
+                          tooltip: 'Notifications',
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Notifications coming soon 🔔'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -653,9 +848,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // ── Compact Song Row (Listen Again) ───────────────────────────────────────
   Widget _buildCompactSongRow(BuildContext context, WidgetRef ref, List<Song> songs) {
+
+
     return SliverToBoxAdapter(
       child: SizedBox(
-        height: 72,
+        height: 76,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -748,7 +945,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return SliverToBoxAdapter(
       child: SizedBox(
-        height: 270,
+        height: 276,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -766,7 +963,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   final globalIndex = colIndex * 4 + rowIndex;
                   final song = colSongs[rowIndex];
                   return SizedBox(
-                    height: 64,
+                    height: 66,
                     child: SongCard(
                       song: song,
                       size: 48,
@@ -783,7 +980,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _buildAlbumRow(BuildContext context, List<Album> albums) {
+    return SliverToBoxAdapter(
+      child: SizedBox(
+        height: 185,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: albums.length,
+          itemBuilder: (context, index) {
+            return AlbumCard(album: albums[index], size: 120);
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, {VoidCallback? onSeeAll, Color? textColor}) {
+
     return SliverToBoxAdapter(
       child: Builder(
         builder: (context) {
@@ -824,272 +1038,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ── Endless Discovery Infinite Scroll List (Echo-Music Style) ────────────
-  Widget _buildEndlessDiscoveryList(BuildContext context, WidgetRef ref) {
-    final discoveryState = ref.watch(homeDiscoveryProvider);
-    final songs = discoveryState.songs;
-
-    if (songs.isEmpty && discoveryState.isLoading) {
-      return const SliverToBoxAdapter(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
-        ),
-      );
-    }
-
-    if (songs.isEmpty && discoveryState.hasError) {
-      return SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Center(
-            child: TextButton.icon(
-              onPressed: () => ref.read(homeDiscoveryProvider.notifier).loadMore(),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Load More Songs'),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (index == songs.length) {
-              // Loading bottom spinner for endless scroll
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: discoveryState.isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
-                        )
-                      : TextButton.icon(
-                          onPressed: () => ref.read(homeDiscoveryProvider.notifier).loadMore(),
-                          icon: const Icon(Icons.expand_more_rounded),
-                          label: const Text('Discover More'),
-                        ),
-                ),
-              );
-            }
-
-            final song = songs[index];
-            return _buildEchoMusicSongTile(context, ref, song, songs, index);
-          },
-          childCount: songs.length + 1,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEchoMusicSongTile(
-    BuildContext context,
-    WidgetRef ref,
-    Song song,
-    List<Song> allSongs,
-    int index,
-  ) {
-    final theme = Theme.of(context);
-    final (:currentId, :isPlaying) = ref.watch(
-      playerStateProvider.select((s) => (currentId: s.currentSong?.id, isPlaying: s.isPlaying)),
-    );
-    final isCurrent = currentId == song.id;
-
-    final cardBg = isCurrent
-        ? theme.colorScheme.primary.withOpacity(0.14)
-        : theme.colorScheme.surfaceContainerHighest.withOpacity(0.35);
-
-    final borderColor = isCurrent
-        ? theme.colorScheme.primary.withOpacity(0.5)
-        : theme.colorScheme.outlineVariant.withOpacity(0.12);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            ref.read(playerStateProvider.notifier).playQueue(allSongs, initialIndex: index);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                // 1. Squircle Artwork with Live Playing Overlay
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: song.artworkUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: song.artworkUrl,
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
-                                width: 48,
-                                height: 48,
-                                color: theme.colorScheme.surfaceContainerHighest,
-                                child: const Icon(Icons.music_note, size: 24),
-                              ),
-                            )
-                          : Container(
-                              width: 48,
-                              height: 48,
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              child: const Icon(Icons.music_note, size: 24),
-                            ),
-                    ),
-                    if (isCurrent)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          isPlaying ? Icons.equalizer_rounded : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-
-                // 2. Song Metadata (Title, Artist & Source badge)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
-                          color: isCurrent ? theme.colorScheme.primary : theme.colorScheme.onSurface,
-                          fontSize: 14,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              song.artist,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.8),
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            margin: const EdgeInsets.only(left: 6, right: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: _getSongSourceColor(song.source).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              song.source == 'JioSaavn' ? 'JioSaavn' : 'YT Music',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w600,
-                                color: _getSongSourceColor(song.source),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 3. Actions: Download & 3-Dots Menu
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (song.duration > Duration.zero)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: Text(
-                          _formatDuration(song.duration),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-                          ),
-                        ),
-                      ),
-                    SongDownloadButton(
-                      song: song,
-                      size: 20,
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.more_vert_rounded,
-                        size: 20,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      tooltip: 'More Options',
-                      onPressed: () => showSongOptionsMenu(
-                        context,
-                        ref,
-                        song,
-                        onPlay: () => ref.read(playerStateProvider.notifier).playQueue(allSongs, initialIndex: index),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatDuration(Duration d) {
-    final m = d.inMinutes;
-    final s = d.inSeconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
-  Color _getSongSourceColor(String source) {
-    switch (source.toLowerCase()) {
-      case 'jiosaavn':
-        return const Color(0xFF00E676);
-      case 'spotify':
-        return const Color(0xFF1DB954);
-      case 'soundcloud':
-        return const Color(0xFF9B5DE5);
-      default:
-        return const Color(0xFFFF3B30);
-    }
-  }
-
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 5)  return 'Good Night 🌙';
+    if (hour < 12) return 'Good Morning ☀️';
+    if (hour < 17) return 'Good Afternoon ⛅';
+    if (hour < 21) return 'Good Evening 🌇';
+    return 'Good Night 🌙';
   }
 }
 

@@ -42,8 +42,10 @@ class _DownloadsListState extends ConsumerState<DownloadsList> {
           return const Center(child: Text('No downloaded songs yet'));
         }
         return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 120),
           itemCount: songs.length,
           itemBuilder: (context, index) {
+
             final song = songs[index];
             return ListTile(
               leading: ClipRRect(

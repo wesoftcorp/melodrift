@@ -293,7 +293,7 @@ class SongOptionsSheet extends ConsumerWidget {
                               ref.read(shareServiceProvider).shareSong(
                                 title: song.title,
                                 artist: song.artist,
-                                youtubeId: song.id.replaceAll('jiosaavn_', ''),
+                                songId: song.id,
                               );
                             },
                           ),
@@ -542,15 +542,17 @@ class SongOptionsSheet extends ConsumerWidget {
 Color getSongSourceColor(String source) {
   switch (source.toLowerCase()) {
     case 'jiosaavn':
-      return const Color(0xFF00E676);
+      return const Color(0xFF8B5CF6); // JioSaavn Violet
     case 'spotify':
-      return const Color(0xFF1DB954);
+      return const Color(0xFF1DB954); // Spotify Green
     case 'soundcloud':
-      return const Color(0xFF9B5DE5);
+      return const Color(0xFFFF5500); // SoundCloud Orange
     default:
-      return const Color(0xFFFF3B30); // YouTube Music
+      return const Color(0xFF8B5CF6);
   }
 }
+
+
 
 void showAddToPlaylistDialog(BuildContext context, WidgetRef ref, Song song) {
   final playlistRepo = ref.read(playlistRepositoryProvider);

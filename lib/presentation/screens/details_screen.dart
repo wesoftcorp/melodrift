@@ -78,18 +78,44 @@ class DetailsScreen extends ConsumerWidget {
                           SliverToBoxAdapter(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  ref.read(playerStateProvider.notifier).playQueue(tracks);
-                                },
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Play All'),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: () {
+                                        ref.read(playerStateProvider.notifier).playQueue(tracks);
+                                      },
+                                      icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                                      label: const Text(
+                                        'Play All',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      ),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFF5F1F),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      final shuffled = List<Song>.from(tracks)..shuffle();
+                                      ref.read(playerStateProvider.notifier).playQueue(shuffled);
+                                    },
+                                    icon: const Icon(Icons.shuffle_rounded, size: 20),
+                                    label: const Text('Shuffle'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -99,7 +125,11 @@ class DetailsScreen extends ConsumerWidget {
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
                                 final song = tracks[index];
-                                return SongCard(song: song);
+                                return SongCard(
+                                  song: song,
+                                  queue: tracks,
+                                  queueIndex: index,
+                                );
                               },
                               childCount: tracks.length,
                             ),
@@ -124,15 +154,65 @@ class DetailsScreen extends ConsumerWidget {
     if (songs.isEmpty) {
       return const Center(child: Text('No songs available'));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: songs.length,
-      itemBuilder: (context, index) {
-        final song = songs[index];
-        return SongCard(song: song);
-      },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    ref.read(playerStateProvider.notifier).playQueue(songs);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                  label: const Text('Play All', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF5F1F),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  final shuffled = List<Song>.from(songs)..shuffle();
+                  ref.read(playerStateProvider.notifier).playQueue(shuffled);
+                },
+                icon: const Icon(Icons.shuffle_rounded, size: 20),
+                label: const Text('Shuffle'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: songs.length,
+            itemBuilder: (context, index) {
+              final song = songs[index];
+              return SongCard(
+                song: song,
+                queue: songs,
+                queueIndex: index,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
+
 
   Widget _buildAlbumGrid(BuildContext context, List<Album> albums) {
     if (albums.isEmpty) {

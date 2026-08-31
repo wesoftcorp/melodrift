@@ -117,9 +117,9 @@ class AuthRepositoryImpl implements AuthRepository {
           final GoogleAuthProvider googleProvider = GoogleAuthProvider();
           googleProvider.addScope('email');
           googleProvider.addScope('profile');
-          googleProvider.addScope('https://www.googleapis.com/auth/youtube.readonly');
 
           final UserCredential userCredential = await FirebaseAuth.instance.signInWithPopup(googleProvider);
+
           final firebaseUser = userCredential.user;
 
           if (firebaseUser != null) {

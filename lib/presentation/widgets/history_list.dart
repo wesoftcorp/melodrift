@@ -25,8 +25,10 @@ class HistoryList extends ConsumerWidget {
           return const Center(child: Text('Listening history is empty'));
         }
         return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 120),
           itemCount: songs.length,
           itemBuilder: (context, index) {
+
             final song = songs[index];
             return ListTile(
               leading: ClipRRect(
@@ -48,7 +50,7 @@ class HistoryList extends ConsumerWidget {
                 onPressed: () => showSongOptionsMenu(context, ref, song),
               ),
               onTap: () {
-                ref.read(playerStateProvider.notifier).playSong(song);
+                ref.read(playerStateProvider.notifier).playQueue(songs, initialIndex: index);
               },
             );
           },

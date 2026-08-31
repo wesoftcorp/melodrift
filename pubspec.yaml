@@ -1,6 +1,7 @@
 name: melodrift
-description: "Let the music drift - Premium YouTube Music client"
+description: "Let the music drift - Premium lossless music streaming client"
 publish_to: 'none'
+
 
 version: 1.2.0+120
 
@@ -26,8 +27,6 @@ dependencies:
   just_audio_windows: ^0.2.3
   audio_service: ^0.18.12
 
-  # YouTube Music Backend
-  youtube_explode_dart: ^3.1.0
 
   # Network
   dio: ^5.4.1

@@ -13,7 +13,7 @@ import '../../data/models/local_models.dart';
 import '../../core/services/audio_handler.dart';
 import '../../core/utils/logger.dart';
 import '../../core/services/service_locator.dart';
-import '../../core/services/jiosaavn_service.dart';
+import '../../core/services/unified_stream_resolver.dart';
 import '../../core/services/taste_profiler_service.dart';
 import '../../core/services/recommendation_service.dart';
 import '../../core/services/analytics_service.dart';
@@ -287,6 +287,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       extras: {
         'streamUrl': streamUrl ?? song.streamUrl,
         'videoId': song.videoId,
+        'source': song.source,
       },
     );
   }
@@ -299,9 +300,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       album: item.album ?? '',
       duration: item.duration ?? Duration.zero,
       artworkUrl: item.artUri?.toString() ?? '',
-      streamUrl: item.extras?['streamUrl'] as String?,
       videoId: item.extras?['videoId'] as String? ?? item.id,
+      streamUrl: item.extras?['streamUrl'] as String?,
+      source: item.extras?['source'] as String? ?? 'JioSaavn',
     );
+
   }
 
 
@@ -326,61 +329,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      // 3. Direct Fast Resolution for YouTube Tracks (< 300ms)
-      final String targetVideoId = (song?.videoId != null && song!.videoId.isNotEmpty) ? song.videoId : videoId;
-      final isValidYouTubeId = RegExp(r'^[a-zA-Z0-9_\-]{11}$').hasMatch(targetVideoId);
-
-      if (isValidYouTubeId) {
-        try {
-          final url = await _repository
-              .getStreamUrl(targetVideoId, quality: 'High')
-              .timeout(const Duration(seconds: 8));
-          if (url.isNotEmpty) {
-            _streamUrlCache[lookupId] = url;
-            _log.info('Direct YouTube stream resolved in <300ms for $targetVideoId');
-            return url;
-          }
-        } catch (e) {
-          _log.warning('Direct YouTube resolution failed ($e), attempting fallback...');
-        }
+      // 3. Unified Stream Resolver (Tier 1 JioSaavn Matcher -> Tier 2 YouTube Direct -> Tier 3 Piped -> Tier 4 Vercel)
+      final resolver = getIt<UnifiedStreamResolver>();
+      final result = await resolver.resolve(song: song, videoId: videoId, quality: 'High');
+      if (result != null && result.url.isNotEmpty) {
+        _streamUrlCache[lookupId] = result.url;
+        _log.info('Resolved stream via ${result.source} (${result.bitrate ?? 128}kbps) for $lookupId');
+        return result.url;
       }
 
-      // 4. JioSaavn Track Resolution (if source is JioSaavn)
-      if (song != null && song.source.toLowerCase().contains('jiosaavn')) {
-        try {
-          final jioSaavn = getIt<JioSaavnService>();
-          final url = await jioSaavn.getStreamUrl(song.id).timeout(const Duration(seconds: 6));
-          if (url != null && url.isNotEmpty) {
-            _streamUrlCache[lookupId] = url;
-            return url;
-          }
-        } catch (e) {
-          _log.warning('JioSaavn direct stream fetch failed: $e');
-        }
-      }
-
-      // 5. Fallback Search by Clean Title & Artist
-      if (song != null) {
-        String cleanTitle = song.title;
-        final colonIdx = cleanTitle.indexOf(':');
-        if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-        final pipeIdx = cleanTitle.indexOf('|');
-        if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-        final cleanArtist = song.artist.split(',').first.trim();
-        final queryId = '$cleanTitle $cleanArtist'.trim();
-
-        _log.info('Searching active mirror for "$queryId"...');
-        try {
-          final url = await _repository
-              .getStreamUrl(queryId, quality: 'High')
-              .timeout(const Duration(seconds: 10));
-          if (url.isNotEmpty) {
-            _streamUrlCache[lookupId] = url;
-            return url;
-          }
-        } catch (e) {
-          _log.error('Search fallback failed: $e');
-        }
+      // 4. Final repository fallback
+      final repoUrl = await _repository.getStreamUrl(videoId, quality: 'High').timeout(const Duration(seconds: 6), onTimeout: () => '');
+      if (repoUrl.isNotEmpty) {
+        _streamUrlCache[lookupId] = repoUrl;
+        return repoUrl;
       }
 
       return '';
@@ -456,7 +418,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       if (results.isNotEmpty) {
-        await _handler.updateQueue(updatedQueue);
+        final currentPlayingIndex = state.queue.indexWhere((s) => s.id == currentSong.id);
+        await _handler.updateQueue(
+          updatedQueue,
+          initialIndex: currentPlayingIndex >= 0 ? currentPlayingIndex : 0,
+        );
       }
     } catch (e, st) {
       _log.error('Error during prefetch', e, st);

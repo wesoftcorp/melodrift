@@ -83,22 +83,50 @@ class ItemDetailsSheet extends ConsumerWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(playerStateProvider.notifier).playQueue(tracks);
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Play All'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              ref.read(playerStateProvider.notifier).playQueue(tracks);
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                            label: const Text(
+                              'Play All',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF5F1F),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            final shuffled = List<Song>.from(tracks)..shuffle();
+                            ref.read(playerStateProvider.notifier).playQueue(shuffled);
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.shuffle_rounded, size: 20),
+                          label: const Text('Shuffle'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+
               SliverPadding(
                 padding: const EdgeInsets.only(bottom: 24),
                 sliver: SliverList(

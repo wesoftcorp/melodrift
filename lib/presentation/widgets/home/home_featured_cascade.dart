@@ -331,15 +331,17 @@ class _CascadeTile extends StatelessWidget {
   Color _getSourceColor(String source) {
     switch (source.toLowerCase()) {
       case 'jiosaavn':
-        return const Color(0xFF00E676); // JioSaavn Green Dot
+        return const Color(0xFF8B5CF6); // JioSaavn Violet Dot
       case 'spotify':
-        return const Color(0xFF1DB954);
+        return const Color(0xFF1DB954); // Spotify Green
       case 'soundcloud':
-        return const Color(0xFF9B5DE5);
+        return const Color(0xFFFF5500); // SoundCloud Orange
       default:
-        return const Color(0xFFFF3333); // YouTube Music Red Dot
+        return const Color(0xFF8B5CF6);
     }
   }
+
+
 
 }
 

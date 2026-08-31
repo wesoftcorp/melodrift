@@ -13,22 +13,17 @@ import '../../domain/entities/song.dart';
 import '../../domain/repositories/download_repository.dart';
 import '../../core/services/download_manager.dart';
 import '../../core/services/service_locator.dart';
-import '../../core/services/jiosaavn_service.dart';
-import '../../core/services/music_track.dart';
-import '../../core/utils/matching_engine.dart';
+import '../../core/services/unified_stream_resolver.dart';
 import 'package:melodrift/data/datasources/local_music_source.dart';
-import 'package:melodrift/data/datasources/youtube_music_remote_source.dart';
 import 'package:melodrift/data/models/local_models.dart';
 import 'package:melodrift/data/repositories/lyrics_repository_impl.dart'; // import dioProvider
 
 final downloadRepositoryProvider = Provider<DownloadRepository>((ref) {
   final localSource = ref.watch(localMusicSourceProvider);
-  final remoteSource = ref.watch(youtubeMusicRemoteSourceProvider);
   final dio = ref.watch(dioProvider);
   final downloadManager = ref.watch(downloadManagerProvider);
   return DownloadRepositoryImpl(
     localSource,
-    remoteSource,
     dio,
     downloadManager,
   );
@@ -42,7 +37,6 @@ final downloadTasksProvider = StreamProvider<List<DownloadTask>>((ref) {
 class DownloadRepositoryImpl implements DownloadRepository {
   final _log = AppLogger('DownloadRepository');
   final LocalMusicSource _localSource;
-  final YouTubeMusicRemoteSource _remoteSource;
   final Dio _dio;
   final DownloadManager _downloadManager;
 
@@ -51,7 +45,6 @@ class DownloadRepositoryImpl implements DownloadRepository {
 
   DownloadRepositoryImpl(
     this._localSource,
-    this._remoteSource,
     this._dio,
     this._downloadManager,
   );
@@ -128,79 +121,14 @@ class DownloadRepositoryImpl implements DownloadRepository {
         record.status = LocalDownloadStatus.downloading;
         await _localSource.saveDownloadRecord(record);
 
-        // Resolve Audio Stream URL
-        // IMPORTANT: Always resolve fresh — pre-cached song.streamUrl may be expired.
-        // JioSaavn CDN URLs are time-limited signed links (expire in minutes).
-        String? resolvedUrl;
-        try {
-          final jioSaavn = getIt<JioSaavnService>();
-            if (song.source.toLowerCase() == 'jiosaavn') {
-              resolvedUrl = await jioSaavn.getStreamUrl(song.id);
-            } else {
-              String cleanTitle = song.title;
-              final colonIdx = cleanTitle.indexOf(':');
-              if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-              final pipeIdx = cleanTitle.indexOf('|');
-              if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-
-              final cleanArtist = song.artist.split(',').first.trim();
-              final searchQuery = cleanTitle.trim();
-
-              final candidates = await jioSaavn.search(searchQuery);
-              if (candidates.isNotEmpty) {
-                final ytTrack = MusicTrack(
-                  id: song.videoId,
-                  title: cleanTitle,
-                  artist: cleanArtist,
-                  album: song.album,
-                  duration: song.duration,
-                  artworkUrl: song.artworkUrl,
-                  source: 'youtube',
-                );
-                final match = findMatchingSaavnTrack(ytTrack, candidates);
-                if (match != null) {
-                  resolvedUrl = await jioSaavn.getStreamUrl(match.id);
-                }
-              }
-            }
-          } catch (err) {
-            _log.warning('JioSaavn resolver lookup threw exception: $err');
-          }
-
-        if (resolvedUrl == null || resolvedUrl.isEmpty) {
-          final isYouTube = song.source.toLowerCase().contains('youtube');
-          final String ytSearchId = (isYouTube || song.videoId.length == 11) ? song.videoId : '${song.title} ${song.artist}';
-          try {
-            resolvedUrl = await _remoteSource
-                .getStreamUrl(ytSearchId, quality, preferLocal: true)
-                .timeout(const Duration(seconds: 20));
-          } catch (e) {
-            if (isYouTube) {
-              String cleanTitle = song.title;
-              final colonIdx = cleanTitle.indexOf(':');
-              if (colonIdx > 0) cleanTitle = cleanTitle.substring(0, colonIdx).trim();
-              final pipeIdx = cleanTitle.indexOf('|');
-              if (pipeIdx > 0) cleanTitle = cleanTitle.substring(0, pipeIdx).trim();
-
-              final cleanArtist = song.artist.split(',').first.trim();
-              final queryId = '$cleanTitle $cleanArtist'.trim();
-
-              resolvedUrl = await _remoteSource
-                  .getStreamUrl(queryId, quality, preferLocal: true)
-                  .timeout(const Duration(seconds: 20));
-            } else {
-              rethrow;
-            }
-          }
-        }
-
-
-
-
-        if (resolvedUrl.isEmpty) {
+        // Resolve Audio Stream URL via UnifiedStreamResolver (Spotiflac & Echo Music Hybrid Engine)
+        final resolver = getIt<UnifiedStreamResolver>();
+        final res = await resolver.resolve(song: song, quality: quality);
+        if (res == null || res.url.isEmpty) {
           throw StateError('Unable to resolve a playable stream URL for downloading "${song.title}"');
         }
-        final String streamUrl = resolvedUrl;
+        final String streamUrl = res.url;
+        _log.info('Download stream resolved via ${res.source} (${res.bitrate ?? 128}kbps) for ${song.title}');
 
         final tempDir = await getTemporaryDirectory();
         final cleanTitle = song.title.replaceAll(RegExp(r'[^\w\s\-\.]'), '_');
@@ -209,14 +137,9 @@ class DownloadRepositoryImpl implements DownloadRepository {
         // Perform download to a temporary file before app-only storage.
         bool isWritingProgress = false;
 
-        final isYouTube = song.source.toLowerCase().contains('youtube') || 
-                          streamUrl.contains('googlevideo.com') || 
-                          streamUrl.contains('youtube.com');
-
         void updateProgress(int received, int total) async {
           if (total != -1) {
             final progress = received / total;
-            // Throttle database writes
             final currentProgressPercent = (progress * 100).round() / 100;
             if (currentProgressPercent - record.progress >= 0.02) {
               record.progress = currentProgressPercent;
@@ -234,55 +157,25 @@ class DownloadRepositoryImpl implements DownloadRepository {
           }
         }
 
-        if (isYouTube) {
-          final String ytSearchId = (song.source.toLowerCase().contains('youtube') || song.videoId.length == 11) 
-              ? song.videoId 
-              : '${song.title} ${song.artist}';
-          _log.info('Downloading YouTube track using native streamsClient: $ytSearchId');
-          try {
-            await _remoteSource.downloadVideo(
-              ytSearchId,
-              quality,
-              tempFile.path,
-              onProgress: updateProgress,
-            );
-          } catch (ytError) {
-            _log.warning('Native downloadVideo failed for YouTube track ($ytSearchId): $ytError. Retrying via Dio stream URL...');
-            await _dio.download(
-              streamUrl,
-              tempFile.path,
-              cancelToken: cancelToken,
-              options: Options(
-                followRedirects: true,
-                maxRedirects: 5,
-                receiveTimeout: const Duration(minutes: 5),
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                },
-              ),
-              onReceiveProgress: updateProgress,
-            );
-          }
-        } else {
-          _log.info('Downloading JioSaavn track using Dio: $streamUrl');
-          await _dio.download(
-            streamUrl,
-            tempFile.path,
-            cancelToken: cancelToken,
-            options: Options(
-              followRedirects: true,
-              maxRedirects: 5,
-              receiveTimeout: const Duration(minutes: 5),
-              headers: {
-                // Use Android User-Agent for JioSaavn CDN
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                'Accept': 'audio/*, */*',
-                'Accept-Encoding': 'identity',
-              },
-            ),
-            onReceiveProgress: updateProgress,
-          );
-        }
+        _log.info('Downloading track using Dio: $streamUrl');
+
+        await _dio.download(
+          streamUrl,
+          tempFile.path,
+          cancelToken: cancelToken,
+          options: Options(
+            followRedirects: true,
+            maxRedirects: 5,
+            receiveTimeout: const Duration(minutes: 5),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+              'Accept': 'audio/*, */*',
+              'Accept-Encoding': 'identity',
+            },
+          ),
+          onReceiveProgress: updateProgress,
+        );
+
 
 
         final storedPath = await _downloadManager.storeDownloadedFile(

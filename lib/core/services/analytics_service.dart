@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +28,7 @@ class AnalyticsService {
       final currentPlays = _prefs.getInt(_totalPlaysKey) ?? 0;
       await _prefs.setInt(_totalPlaysKey, currentPlays + 1);
 
-      if (F.isFull && !kIsWeb) {
+      if (F.isFull && !kIsWeb && Firebase.apps.isNotEmpty) {
         await FirebaseAnalytics.instance.logEvent(
           name: 'song_play_started',
           parameters: {
@@ -50,7 +51,7 @@ class AnalyticsService {
       final currentMins = _prefs.getInt(_totalMinutesKey) ?? 0;
       await _prefs.setInt(_totalMinutesKey, currentMins + minutes);
 
-      if (F.isFull && !kIsWeb) {
+      if (F.isFull && !kIsWeb && Firebase.apps.isNotEmpty) {
         await FirebaseAnalytics.instance.logEvent(
           name: 'listening_session',
           parameters: {'duration_minutes': minutes},
@@ -62,7 +63,7 @@ class AnalyticsService {
   /// Log search queries for trend analysis
   Future<void> logSearch(String query) async {
     try {
-      if (F.isFull && !kIsWeb) {
+      if (F.isFull && !kIsWeb && Firebase.apps.isNotEmpty) {
         await FirebaseAnalytics.instance.logSearch(searchTerm: query);
       }
     } catch (_) {}
