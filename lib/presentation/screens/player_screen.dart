@@ -364,8 +364,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
   Widget _buildTopAppBar(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final playerState = ref.watch(playerStateProvider);
-    final hasActiveTimer = playerState.sleepTimeRemaining != null;
+    // Fine-grained: only rebuild when sleepTimer or currentSong changes,
+    // NOT on every position tick
+    final hasActiveTimer = ref.watch(
+      playerStateProvider.select((s) => s.sleepTimeRemaining != null),
+    );
+    final hasSong = ref.watch(
+      playerStateProvider.select((s) => s.currentSong != null),
+    );
+    final currentSong = hasSong
+        ? ref.watch(playerStateProvider.select((s) => s.currentSong))
+        : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -409,7 +418,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                       isDark ? AppThemeMode.light : AppThemeMode.dark);
                 },
               ),
-              if (playerState.currentSong != null)
+              if (hasSong && currentSong != null)
                 IconButton(
                   icon: Icon(
                     Icons.more_vert_rounded,
@@ -419,7 +428,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                   onPressed: () => showSongOptionsMenu(
                     context,
                     ref,
-                    playerState.currentSong!,
+                    currentSong,
                   ),
                 ),
             ],
@@ -431,7 +440,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
 
   void _showSleepTimerDialog(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final playerState = ref.watch(playerStateProvider);
+    // Use .read here since this is a one-shot dialog open, not a reactive watch
+    final sleepRemaining = ref.read(playerStateProvider).sleepTimeRemaining;
 
     showModalBottomSheet<void>(
       context: context,
@@ -459,10 +469,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                     ),
                   ],
                 ),
-                if (playerState.sleepTimeRemaining != null) ...[
+                if (sleepRemaining != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Active: ${playerState.sleepTimeRemaining!.inMinutes} min remaining',
+                    '${sleepRemaining.inMinutes} min remaining',
                     style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -479,7 +489,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
                   ],
                 ),
                 const SizedBox(height: 16),
-                if (playerState.sleepTimeRemaining != null)
+                if (sleepRemaining != null)
                   TextButton.icon(
                     onPressed: () {
                       ref.read(playerStateProvider.notifier).cancelSleepTimer();

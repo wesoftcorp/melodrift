@@ -125,6 +125,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _lastSavedSongId;
   DateTime? _lastSkipTime;
   final Map<String, String> _streamUrlCache = {};
+  // Keys in insertion order for LRU eviction
+  final List<String> _streamUrlCacheKeys = [];
+  static const int _kMaxCacheSize = 100;
+  static const int _kCacheEvictCount = 20;
 
   PlayerNotifier(
     this._handler,
@@ -133,6 +137,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     this._ref,
   ) : super(const PlayerState()) {
     _subscribe();
+  }
+
+  /// Adds a URL to the LRU cache, evicting oldest entries when over capacity.
+  void _cacheUrl(String key, String url) {
+    if (!_streamUrlCache.containsKey(key)) {
+      _streamUrlCacheKeys.add(key);
+      // Evict oldest entries if over capacity
+      if (_streamUrlCacheKeys.length > _kMaxCacheSize) {
+        final toEvict = _streamUrlCacheKeys.take(_kCacheEvictCount).toList();
+        for (final k in toEvict) {
+          _streamUrlCache.remove(k);
+        }
+        _streamUrlCacheKeys.removeRange(0, _kCacheEvictCount);
+        _log.debug('Stream URL cache evicted $_kCacheEvictCount old entries');
+      }
+    } else {
+      // Move to end (most recently used)
+      _streamUrlCacheKeys.remove(key);
+      _streamUrlCacheKeys.add(key);
+    }
+    _streamUrlCache[key] = url;
   }
 
   void _updatePlaybackQueue() {
@@ -224,10 +249,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _updatePlaybackQueue();
     });
 
-    // 4. Real-time Streams for player timeline
+    // 4. Position stream — throttled to 500ms so position ticks cause at most
+    //    2 rebuilds/sec instead of ~5-10, with no perceptible UX difference.
+    DateTime lastPositionUpdate = DateTime.fromMillisecondsSinceEpoch(0);
     _positionSubscription = _handler.positionStream
       .listen((pos) {
-        state = state.copyWith(position: pos);
+        final now = DateTime.now();
+        if (now.difference(lastPositionUpdate).inMilliseconds >= 500) {
+          lastPositionUpdate = now;
+          state = state.copyWith(position: pos);
+        }
       });
 
     // 5. Duration
@@ -315,6 +346,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // 1. Instant Cache Hit (0ms playback)
       if (_streamUrlCache.containsKey(lookupId) && _streamUrlCache[lookupId]!.isNotEmpty) {
         _log.info('Instant stream resolution from memory cache for $lookupId');
+        // Move to end (most recently used)
+        _streamUrlCacheKeys.remove(lookupId);
+        _streamUrlCacheKeys.add(lookupId);
         return _streamUrlCache[lookupId]!;
       }
       
@@ -324,7 +358,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
           _log.info('Playing local download: ${localSong.filePath}');
-          _streamUrlCache[lookupId] = localSong.filePath!;
+          _cacheUrl(lookupId, localSong.filePath!);
           return localSong.filePath!;
         }
       }
@@ -333,7 +367,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final resolver = getIt<UnifiedStreamResolver>();
       final result = await resolver.resolve(song: song, videoId: videoId, quality: 'High');
       if (result != null && result.url.isNotEmpty) {
-        _streamUrlCache[lookupId] = result.url;
+        _cacheUrl(lookupId, result.url);
         _log.info('Resolved stream via ${result.source} (${result.bitrate ?? 128}kbps) for $lookupId');
         return result.url;
       }
@@ -341,7 +375,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // 4. Final repository fallback
       final repoUrl = await _repository.getStreamUrl(videoId, quality: 'High').timeout(const Duration(seconds: 6), onTimeout: () => '');
       if (repoUrl.isNotEmpty) {
-        _streamUrlCache[lookupId] = repoUrl;
+        _cacheUrl(lookupId, repoUrl);
         return repoUrl;
       }
 
@@ -354,9 +388,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // Pre-resolve next song in queue
   Future<void> _resolveNextInQueue() async {
-    // Removed gapless early return to ensure stream URLs are always fetched
-
-
     final currentSong = state.currentSong;
     if (currentSong == null || state.queue.isEmpty) return;
 
@@ -744,16 +775,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (streamUrl.isEmpty) {
         throw StateError('Unable to resolve a playable stream for ${song.title}');
       }
-      if (streamUrl.isNotEmpty) {
-        final updatedQueue = List<MediaItem>.from(_handler.queue.value);
-        if (originalIndex < updatedQueue.length) {
-          final extras = Map<String, dynamic>.from(updatedQueue[originalIndex].extras ?? {});
-          extras['streamUrl'] = streamUrl;
-          updatedQueue[originalIndex] = updatedQueue[originalIndex].copyWith(extras: extras);
-          await _handler.updateQueue(updatedQueue, initialIndex: originalIndex);
-        }
-      }
-
       await _handler.skipToQueueItem(originalIndex);
       await _handler.play();
     } catch (e) {
@@ -849,6 +870,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _bufferedPositionSubscription?.cancel();
+    _streamUrlCache.clear();
+    _streamUrlCacheKeys.clear();
     super.dispose();
   }
 }

@@ -63,11 +63,6 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
 
     _syncAnimation(isPlaying);
 
-    // Progress values: rebuild only within seek bar — use fine-grained providers
-    final progress = ref.watch(progressRatioProvider);
-    final position = ref.watch(currentPositionProvider);
-    final duration = ref.watch(currentDurationProvider);
-
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -199,52 +194,69 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
         ),
 
         const SizedBox(height: 24),
-        // ── Seek Bar ───────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            children: [
-              SquigglySeeker(
-                progress: progress,
-                isPlaying: isPlaying,
-                onChangeEnd: (val) {
-                  final targetMs = (val * duration.inMilliseconds).toInt();
-                  ref.read(playerStateProvider.notifier).seek(
-                        Duration(milliseconds: targetMs),
-                      );
-                },
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _formatDuration(position),
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  Text(
-                    _formatDuration(duration, isNegative: false),
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+        // ── Seek Bar — isolated in its own Consumer so position ticks
+        //    NEVER rebuild the artwork, glow, or animation tree above ────────
+        const _PlayerSeekBar(),
       ],
     );
   }
+}
 
-  String _formatDuration(Duration d, {bool isNegative = false}) {
+/// Isolated seek bar widget — watches position/progress providers independently
+/// so only this widget rebuilds on every ~100ms position tick.
+class _PlayerSeekBar extends ConsumerWidget {
+  const _PlayerSeekBar();
+
+  String _fmt(Duration d) {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
-    final prefix = isNegative ? '-' : '';
-    return '$prefix$m:${s.toString().padLeft(2, '0')}';
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(progressRatioProvider);
+    final position = ref.watch(currentPositionProvider);
+    final duration = ref.watch(currentDurationProvider);
+    final isPlaying = ref.watch(playbackStateProvider).isPlaying;
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        children: [
+          SquigglySeeker(
+            progress: progress,
+            isPlaying: isPlaying,
+            onChangeEnd: (val) {
+              final targetMs = (val * duration.inMilliseconds).toInt();
+              ref.read(playerStateProvider.notifier).seek(
+                    Duration(milliseconds: targetMs),
+                  );
+            },
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _fmt(position),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              Text(
+                _fmt(duration),
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
