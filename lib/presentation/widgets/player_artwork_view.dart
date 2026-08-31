@@ -9,7 +9,6 @@ import '../../core/theme/tokens.dart';
 import '../../core/services/service_locator.dart';
 import '../../core/services/apple_music_service.dart';
 import 'premium_player_components.dart';
-import 'song_download_button.dart';
 import 'song_options_sheet.dart';
 
 /// Artwork card with breathing scale animation when playing.
@@ -161,31 +160,12 @@ class _PlayerArtworkViewState extends ConsumerState<PlayerArtworkView>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Action Buttons Row (Download, Info, More Options)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 1. Download Action
-                      SongDownloadButton(
-                        song: song,
-                        size: 22,
-                      ),
-                      // 2. Song Info Action
-                      IconButton(
-                        icon: const Icon(Icons.info_outline_rounded, size: 22),
-                        tooltip: 'Song Details',
-                        color: theme.colorScheme.onSurfaceVariant,
-                        onPressed: () => showSongInfoDialog(context, song),
-                      ),
-                      // 3. 3-Dots More Options
-                      IconButton(
-                        icon: const Icon(Icons.more_vert_rounded, size: 22),
-                        tooltip: 'More Options',
-                        color: theme.colorScheme.onSurfaceVariant,
-                        onPressed: () => showSongOptionsMenu(context, ref, song),
-                      ),
-                    ],
+                  // 3-dot menu — Download & Info are inside the sheet
+                  IconButton(
+                    icon: const Icon(Icons.more_vert_rounded, size: 26),
+                    tooltip: 'More Options',
+                    color: theme.colorScheme.onSurfaceVariant,
+                    onPressed: () => showSongOptionsMenu(context, ref, song),
                   ),
                 ],
               ),
