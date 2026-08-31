@@ -46,14 +46,29 @@ export default async function handler(req, res) {
     if (!format) format = info.chooseFormat({ type: 'audio', quality: 'best' });
     if (!format) return res.status(404).json({ success: false, error: 'No audio format found' });
 
-    // Download stream using Innertube's format.download() which handles deciphering + proxy
-    const webStream = await format.download(yt.session);
+    const streamUrl = format.url || format.decipher(yt.session.player);
+    if (!streamUrl) return res.status(500).json({ success: false, error: 'Could not decipher stream URL' });
 
-    res.setHeader('Content-Type', 'audio/mp4');
+    // Fetch the audio stream through the proxy session
+    const upstream = await yt.session.http.fetch(streamUrl, {
+      headers: {
+        ...(req.headers['range'] ? { 'Range': req.headers['range'] } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+      }
+    });
+
+    res.status(upstream.status);
+    const ct = upstream.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    const cl = upstream.headers.get('content-length');
+    if (cl) res.setHeader('Content-Length', cl);
+    const cr = upstream.headers.get('content-range');
+    if (cr) res.setHeader('Content-Range', cr);
     res.setHeader('Accept-Ranges', 'bytes');
 
     const { Readable } = await import('stream');
-    const nodeStream = Readable.fromWeb(webStream);
+    const nodeStream = Readable.fromWeb(upstream.body);
     nodeStream.pipe(res);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
