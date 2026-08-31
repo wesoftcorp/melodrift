@@ -1,5 +1,9 @@
 import { Innertube, UniversalCache } from 'youtubei.js';
 
+export const config = {
+  api: { responseLimit: false, bodyParser: false },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -13,16 +17,18 @@ export default async function handler(req, res) {
   try {
     const options = { cache: new UniversalCache(false) };
     if (process.env.YOUTUBE_COOKIE) options.cookie = process.env.YOUTUBE_COOKIE;
+    
+    let proxyDispatcher = null;
     if (process.env.YOUTUBE_PROXY) {
       const { ProxyAgent } = await import('undici');
       const { Platform } = await import('youtubei.js');
-      const proxyAgent = new ProxyAgent(process.env.YOUTUBE_PROXY);
+      proxyDispatcher = new ProxyAgent(process.env.YOUTUBE_PROXY);
       options.fetch = async (input, init) =>
-        Platform.shim.fetch(input, { ...init, dispatcher: proxyAgent });
+        Platform.shim.fetch(input, { ...init, dispatcher: proxyDispatcher });
     }
 
     const yt = await Innertube.create(options);
-
+    
     let info = null;
     for (const client of ['MWEB', 'IOS', 'TV_EMBEDDED']) {
       try {
@@ -30,25 +36,46 @@ export default async function handler(req, res) {
         if (info?.streaming_data?.adaptive_formats?.length > 0) break;
       } catch (_) {}
     }
-    if (!info) throw new Error('Could not fetch video info from any client');
+    if (!info) throw new Error('Could not fetch video info');
 
     const formats = info.streaming_data?.adaptive_formats || [];
     let format = formats
       .filter(f => f.mime_type && f.mime_type.includes('audio/mp4'))
       .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
     if (!format) format = info.chooseFormat({ type: 'audio', quality: 'best' });
     if (!format) return res.status(404).json({ success: false, error: 'No audio format found' });
 
     const streamUrl = format.url || format.decipher(yt.session.player);
     if (!streamUrl) return res.status(500).json({ success: false, error: 'Could not decipher stream URL' });
 
-    return res.status(200).json({
-      success: true,
-      url: streamUrl,
-      bitrate: format.bitrate,
-      mimeType: format.mime_type,
+    // Fetch the audio stream through the residential proxy (IP match = 200 OK)
+    const { fetch: undiciFetch } = await import('undici');
+    const rangeHeader = req.headers['range'];
+    
+    const upstreamResponse = await undiciFetch(streamUrl, {
+      dispatcher: proxyDispatcher,
+      headers: {
+        ...(rangeHeader ? { 'Range': rangeHeader } : {}),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+      },
     });
+
+    res.status(upstreamResponse.status);
+    const ct = upstreamResponse.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    const cl = upstreamResponse.headers.get('content-length');
+    if (cl) res.setHeader('Content-Length', cl);
+    const cr = upstreamResponse.headers.get('content-range');
+    if (cr) res.setHeader('Content-Range', cr);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // Pipe the audio stream directly to the Flutter app
+    const { Readable } = await import('stream');
+    const stream = Readable.fromWeb(upstreamResponse.body);
+    stream.pipe(res);
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
+    if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
   }
 }
