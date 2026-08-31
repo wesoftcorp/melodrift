@@ -1,8 +1,0 @@
-{
-  "name": "youtube-music-resolver",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "youtubei.js": "^12.2.0"
-  }
-}
