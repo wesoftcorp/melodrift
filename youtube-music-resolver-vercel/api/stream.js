@@ -29,18 +29,31 @@ export default async function handler(req, res) {
 
     const yt = await Innertube.create(options);
     
-    // Download audio stream directly through Innertube (inherits proxy automatically)
-    const stream = await yt.download(videoId, {
-      type: 'audio',
-      quality: 'best',
-      format: 'mp4',
-    });
+    let info = null;
+    for (const client of ['MWEB', 'IOS', 'ANDROID', 'TV_EMBEDDED']) {
+      try {
+        info = await yt.getInfo(videoId, client);
+        if (info?.streaming_data?.adaptive_formats?.length > 0) break;
+      } catch (_) {}
+    }
+    if (!info) throw new Error('Could not fetch video info');
+
+    const formats = info.streaming_data?.adaptive_formats || [];
+    let format = formats
+      .filter(f => f.mime_type && f.mime_type.includes('audio/mp4'))
+      .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+    if (!format) format = info.chooseFormat({ type: 'audio', quality: 'best' });
+    if (!format) return res.status(404).json({ success: false, error: 'No audio format found' });
+
+    // Download stream using Innertube's format.download() which handles deciphering + proxy
+    const webStream = await format.download(yt.session);
 
     res.setHeader('Content-Type', 'audio/mp4');
     res.setHeader('Accept-Ranges', 'bytes');
-    
+
     const { Readable } = await import('stream');
-    const nodeStream = Readable.fromWeb(stream);
+    const nodeStream = Readable.fromWeb(webStream);
     nodeStream.pipe(res);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
