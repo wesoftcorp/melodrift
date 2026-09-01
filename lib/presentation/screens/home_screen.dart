@@ -309,9 +309,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             final top100InternationalSongs = feed.top100International
                 .where(isSingleTrack)
                 .toList();
-            final internationalSongs = feed.internationalHits
-                .where(isSingleTrack)
-                .toList();
             final punjabiSongs = feed.punjabiHits
                 .where(isSingleTrack)
                 .toList();
@@ -619,24 +616,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   _buildMultiRowSongList(context, ref, top100InternationalSongs),
-                ],
-
-                // ── International Pop & Hits ─────────────────────────────
-                if (internationalSongs.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'International Hits',
-                    textColor: const Color(0xFF9B51E0),
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'international_hits',
-                        title: 'International Hits',
-                        type: 'songList',
-                        preloadedSongs: internationalSongs,
-                      ),
-                    ),
-                  ),
-                  _buildMultiRowSongList(context, ref, internationalSongs),
                 ],
 
                 // ── Punjabi Hits & Bangers ───────────────────────────────
