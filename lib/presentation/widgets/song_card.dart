@@ -158,15 +158,7 @@ class SongCard extends ConsumerWidget {
                         ),
                       ),
                       if (durationStr.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '•',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.28),
-                            fontSize: 10,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         Text(
                           durationStr,
                           style: theme.textTheme.bodySmall?.copyWith(
