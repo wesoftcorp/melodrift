@@ -261,24 +261,86 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Album>> searchAlbums(String query) async {
-    final jioSaavn = getIt<JioSaavnService>();
-    final tracks = await jioSaavn.search(query, limit: 50).timeout(const Duration(seconds: 6), onTimeout: () => []);
     final Map<String, Album> uniqueAlbums = {};
-    for (final t in tracks) {
-      final albumName = t.album.isNotEmpty ? t.album : t.title;
-      final albumId = t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}';
-      if (!uniqueAlbums.containsKey(albumName) && t.artworkUrl.isNotEmpty) {
-        uniqueAlbums[albumName] = Album(
-          id: albumId,
-          title: albumName,
-          artist: t.artist,
-          artworkUrl: t.artworkUrl,
-          tracks: [],
-          songCount: 1,
-          source: 'JioSaavn',
-        );
+    final jioSaavn = getIt<JioSaavnService>();
+
+    // 1. Fetch real official albums matching query via dedicated album search
+    try {
+      final rawAlbums = await jioSaavn.searchAlbums(query).timeout(const Duration(seconds: 6), onTimeout: () => []);
+      for (final a in rawAlbums) {
+        final id = a['id']?.toString() ?? '';
+        final title = a['name']?.toString() ?? a['title']?.toString() ?? '';
+        if (id.isEmpty || title.isEmpty) continue;
+
+        String artist = a['primaryArtists']?.toString() ?? a['artist']?.toString() ?? '';
+        if (artist.isEmpty && a['artists'] is Map) {
+          final primaryList = (a['artists'] as Map)['primary'] as List<dynamic>?;
+          if (primaryList != null && primaryList.isNotEmpty) {
+            artist = primaryList.map((x) => ((x as Map)['name'] ?? '').toString()).where((n) => n.isNotEmpty).join(', ');
+          }
+        }
+        if (artist.isEmpty && a['more_info'] is Map) {
+          artist = a['more_info']['primary_artists']?.toString() ?? a['more_info']['music']?.toString() ?? '';
+        }
+        if (artist.isEmpty) artist = 'Various Artists';
+
+        String artworkUrl = '';
+        final imageVal = a['image'];
+        if (imageVal is List && imageVal.isNotEmpty) {
+          final last = imageVal.last;
+          if (last is Map) {
+            artworkUrl = last['url']?.toString() ?? last['link']?.toString() ?? '';
+          }
+        } else if (imageVal is String) {
+          artworkUrl = imageVal;
+        }
+        artworkUrl = artworkUrl.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
+
+        int songCount = 1;
+        if (a['songCount'] != null) {
+          songCount = int.tryParse(a['songCount'].toString()) ?? 1;
+        } else if (a['more_info'] is Map && a['more_info']['song_count'] != null) {
+          songCount = int.tryParse(a['more_info']['song_count'].toString()) ?? 1;
+        }
+
+        final albumId = id.startsWith('jiosaavn_') ? id : 'jiosaavn_$id';
+        final key = '${title.toLowerCase()}_${artist.toLowerCase()}';
+        if (!uniqueAlbums.containsKey(key)) {
+          uniqueAlbums[key] = Album(
+            id: albumId,
+            title: title,
+            artist: artist,
+            artworkUrl: artworkUrl,
+            tracks: [],
+            songCount: songCount,
+            source: 'JioSaavn',
+          );
+        }
       }
-    }
+    } catch (_) {}
+
+    // 2. Also check if searched songs contain distinct named albums
+    try {
+      final tracks = await jioSaavn.search(query, limit: 30).timeout(const Duration(seconds: 5), onTimeout: () => []);
+      for (final t in tracks) {
+        final albumName = t.album.isNotEmpty ? t.album : '';
+        if (albumName.isEmpty || albumName.toLowerCase() == 'single' || albumName.toLowerCase() == 'jiosaavn single') continue;
+
+        final key = '${albumName.toLowerCase()}_${t.artist.toLowerCase()}';
+        if (!uniqueAlbums.containsKey(key) && t.artworkUrl.isNotEmpty) {
+          uniqueAlbums[key] = Album(
+            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+            title: albumName,
+            artist: t.artist,
+            artworkUrl: t.artworkUrl,
+            tracks: [],
+            songCount: 1,
+            source: 'JioSaavn',
+          );
+        }
+      }
+    } catch (_) {}
+
     return uniqueAlbums.values.toList();
   }
 

@@ -480,4 +480,69 @@ class JioSaavnService implements MusicProvider {
       return [];
     }
   }
+
+  Future<List<Map<String, dynamic>>> searchAlbums(String query) async {
+    final baseUrl = await _getEffectiveBaseUrl();
+    final url = '$baseUrl/api/search/albums';
+    try {
+      _log.info('Searching JioSaavn albums for: $query');
+      final response = await _dio.get<Map<String, dynamic>>(
+        url,
+        queryParameters: {'query': query, 'limit': 30},
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200 && response.data != null) {
+        final body = response.data!;
+        final success = body['success'] as bool? ?? false;
+        if (success) {
+          final dataMap = body['data'] as Map<String, dynamic>?;
+          if (dataMap != null) {
+            final results = dataMap['results'] as List<dynamic>? ?? [];
+            return results.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+          }
+        }
+      }
+    } catch (e) {
+      _log.warning('JioSaavn primary album search failed: $e');
+    }
+
+    // Direct JioSaavn API fallback for album search
+    try {
+      _log.info('Falling back to official direct JioSaavn album search for: $query');
+      final directResponse = await _dio.get<dynamic>(
+        'https://www.jiosaavn.com/api.php',
+        queryParameters: {
+          '__call': 'search.getAlbumResults',
+          '_format': 'json',
+          '_marker': '0',
+          'api_version': '4',
+          'ctx': 'web6dot0',
+          'n': 30,
+          'p': '1',
+          'q': query,
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (directResponse.statusCode == 200 && directResponse.data != null) {
+        final data = directResponse.data;
+        List<dynamic>? list;
+        if (data is Map) {
+          if (data['results'] is List) {
+            list = data['results'] as List;
+          } else if (data['albums'] is Map && data['albums']['data'] is List) {
+            list = data['albums']['data'] as List;
+          } else if (data['data'] is Map && data['data']['results'] is List) {
+            list = data['data']['results'] as List;
+          }
+        }
+        if (list != null && list.isNotEmpty) {
+          return list.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+        }
+      }
+    } catch (e2) {
+      _log.error('Official JioSaavn album search fallback failed: $e2');
+    }
+
+    return [];
+  }
 }
