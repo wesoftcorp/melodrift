@@ -281,7 +281,45 @@ class SongOptionsSheet extends ConsumerWidget {
                             },
                           ),
 
-                          // 6. Playback Speed
+                          // 6. Play Next
+                          _buildPillOption(
+                            context: context,
+                            icon: Icons.queue_music_rounded,
+                            iconColor: const Color(0xFF30D158),
+                            title: 'Play Next',
+                            subtitle: 'Next in queue',
+                            onTap: () {
+                              Navigator.pop(context);
+                              ref.read(playerStateProvider.notifier).playNext(song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Playing "${song.title}" next'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                          ),
+
+                          // 7. Add to Queue
+                          _buildPillOption(
+                            context: context,
+                            icon: Icons.playlist_add_check_rounded,
+                            iconColor: const Color(0xFFFF9F0A),
+                            title: 'Add to Queue',
+                            subtitle: 'Append to end',
+                            onTap: () {
+                              Navigator.pop(context);
+                              ref.read(playerStateProvider.notifier).addToQueue(song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added "${song.title}" to queue'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                          ),
+
+                          // 8. Playback Speed
                           _buildPillOption(
                             context: context,
                             icon: Icons.speed_rounded,
@@ -294,11 +332,11 @@ class SongOptionsSheet extends ConsumerWidget {
                             },
                           ),
 
-                          // 7. Share Song
+                          // 9. Share Song
                           _buildPillOption(
                             context: context,
                             icon: Icons.share_rounded,
-                            iconColor: const Color(0xFF30D158),
+                            iconColor: const Color(0xFF5E5CE6),
                             title: 'Share Song',
                             subtitle: 'Send link to friends',
                             onTap: () {

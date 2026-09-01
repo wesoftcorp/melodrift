@@ -631,6 +631,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
 
+  Future<void> play() async {
+    state = state.copyWith(isPlaying: true);
+    try {
+      await _handler.play();
+    } catch (e) {
+      _log.error('Error in play(): $e', e);
+      state = state.copyWith(isPlaying: false);
+    }
+  }
+
+  Future<void> pause() async {
+    state = state.copyWith(isPlaying: false);
+    try {
+      await _handler.pause();
+    } catch (e) {
+      _log.error('Error in pause(): $e', e);
+    }
+  }
+
   Future<void> togglePlay() async {
     final nextPlaying = !state.isPlaying;
     state = state.copyWith(isPlaying: nextPlaying);
@@ -809,6 +828,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// Add a single song to the end of the current queue
   Future<void> addToQueue(Song song) async {
+    if (state.currentSong == null || state.queue.isEmpty) {
+      await playSong(song);
+      return;
+    }
     final mediaItem = _mapSongToMediaItem(song);
     final currentQueue = List<MediaItem>.from(_handler.queue.value);
     currentQueue.add(mediaItem);
@@ -818,6 +841,26 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     state = state.copyWith(
       queue: [...state.queue, song],
     );
+  }
+
+  /// Insert song right after the currently playing song in the queue
+  Future<void> playNext(Song song) async {
+    if (state.currentSong == null || state.queue.isEmpty) {
+      await playSong(song);
+      return;
+    }
+
+    final currentIndex = state.queue.indexWhere((s) => s.id == state.currentSong!.id);
+    final insertIndex = currentIndex >= 0 ? currentIndex + 1 : state.queue.length;
+
+    final updatedQueue = List<Song>.from(state.queue)..insert(insertIndex, song);
+    final mediaItems = updatedQueue.map((s) => _mapSongToMediaItem(s)).toList();
+
+    final currentPlayingIndex = currentIndex >= 0 ? currentIndex : 0;
+    await _handler.updateQueue(mediaItems, initialIndex: currentPlayingIndex);
+
+    state = state.copyWith(queue: updatedQueue);
+    _log.info('Inserted "${song.title}" to play next at index $insertIndex');
   }
 
   /// Add multiple songs to the end of the current queue
