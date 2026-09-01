@@ -1057,7 +1057,6 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<Album> getAlbumDetails(String albumId) async {
-
     final cleanId = albumId.startsWith('jiosaavn_') ? albumId.substring('jiosaavn_'.length) : albumId;
     final jioSaavn = getIt<JioSaavnService>();
     final tracks = await jioSaavn.browse(cleanId);
@@ -1071,6 +1070,25 @@ class MusicRepositoryImpl implements MusicRepository {
       videoId: t.id,
       source: 'JioSaavn',
     )).toList();
+
+    // Safety net: if ID browse returned 0, search for tracks matching album name
+    if (decoratedTracks.isEmpty) {
+      try {
+        final searchTracks = await jioSaavn.search(cleanId, limit: 30);
+        for (final t in searchTracks) {
+          decoratedTracks.add(Song(
+            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+            title: t.title,
+            artist: t.artist,
+            album: t.album.isNotEmpty ? t.album : cleanId,
+            duration: t.duration,
+            artworkUrl: t.artworkUrl,
+            videoId: t.id,
+            source: 'JioSaavn',
+          ));
+        }
+      } catch (_) {}
+    }
 
     return Album(
       id: albumId,
