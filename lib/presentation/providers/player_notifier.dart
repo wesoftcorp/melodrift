@@ -343,6 +343,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final lookupId = song?.id ?? videoId;
 
+      // 0. Direct Local File Check (e.g. from Downloads list)
+      if (song?.streamUrl != null && song!.streamUrl!.isNotEmpty) {
+        final rawPath = song.streamUrl!;
+        if (!rawPath.startsWith('http://') && !rawPath.startsWith('https://')) {
+          final file = File(rawPath);
+          if (await file.exists()) {
+            _log.info('Playing direct local file: $rawPath');
+            _cacheUrl(lookupId, rawPath);
+            return rawPath;
+          }
+        }
+      }
+
       // 1. Instant Cache Hit (0ms playback)
       if (_streamUrlCache.containsKey(lookupId) && _streamUrlCache[lookupId]!.isNotEmpty) {
         _log.info('Instant stream resolution from memory cache for $lookupId');
@@ -352,14 +365,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return _streamUrlCache[lookupId]!;
       }
       
-      // 2. Check local download
+      // 2. Check local download from Isar
       final localSong = await _localSource.getSong(lookupId);
       if (localSong != null && localSong.isDownloaded && localSong.filePath != null) {
         final file = File(localSong.filePath!);
         if (await file.exists()) {
-          _log.info('Playing local download: ${localSong.filePath}');
+          _log.info('Playing local download from LocalSong database: ${localSong.filePath}');
           _cacheUrl(lookupId, localSong.filePath!);
           return localSong.filePath!;
+        }
+      }
+
+      // 2.5 Check DownloadRecord table
+      final downloadRecord = await _localSource.getDownloadRecord(lookupId);
+      if (downloadRecord != null && downloadRecord.filePath != null && downloadRecord.filePath!.isNotEmpty) {
+        final file = File(downloadRecord.filePath!);
+        if (await file.exists()) {
+          _log.info('Playing local download from DownloadRecord: ${downloadRecord.filePath}');
+          _cacheUrl(lookupId, downloadRecord.filePath!);
+          return downloadRecord.filePath!;
         }
       }
 
