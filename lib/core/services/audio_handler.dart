@@ -517,7 +517,10 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       _playableQueueIndices
         ..clear()
         ..addAll(playable.queueIndices);
-      await _player.stop();
+
+      // NOTE: Do NOT call _player.stop() here — stop() transitions just_audio to idle state,
+      // which makes a subsequent play() a no-op (requires user to tap twice to start playback).
+      // setAudioSource() handles the full reset internally without going through idle.
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,

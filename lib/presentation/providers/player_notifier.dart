@@ -489,6 +489,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     _resolvingVideoId = song.videoId;
     final generation = ++_playGeneration; // stamp this request
+    // Cancel any pending debounce so stale isPlaying=false doesn't override new play
+    _playbackStateDebounceTimer?.cancel();
 
     // 1. Instantly update Riverpod state so UI (artwork, title, spinner) updates immediately
     state = state.copyWith(
@@ -523,11 +525,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _log.debug('updating queue with final media item: ${mediaItem.title}');
       await _handler.updateQueue([mediaItem], initialIndex: 0);
 
-      _resolvingVideoId = null;
       state = state.copyWith(isLoading: false, isPlaying: true);
 
       _log.debug('invoking handler.play()');
       await _handler.play();
+      // Clear resolving flag AFTER play() so playbackState listener keeps isPlaying=true
+      _resolvingVideoId = null;
       _log.debug('handler.play() completed successfully');
     } catch (e) {
       if (generation != _playGeneration) return; // stale, ignore
@@ -610,9 +613,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       await _handler.updateQueue(mItems, initialIndex: targetIndex);
-      _resolvingVideoId = null;
       state = state.copyWith(isLoading: false, isPlaying: true);
       await _handler.play();
+      // Clear resolving flag AFTER play() so playbackState listener keeps isPlaying=true
+      _resolvingVideoId = null;
     } catch (e) {
       if (generation != _playGeneration) return;
       _log.error('Error in playQueue: $e', e);
