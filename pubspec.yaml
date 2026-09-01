@@ -3,7 +3,7 @@ description: "Let the music drift - Premium lossless music streaming client"
 publish_to: 'none'
 
 
-version: 1.2.0+120
+version: 1.2.1+121
 
 
 environment:
@@ -160,12 +160,12 @@ msix_config:
   publisher_display_name: Rajeev Upadhyay
   identity_name: RajeevUpadhyay.Melodrift
   publisher: CN=B5B77226-98E6-49B2-8097-AE0D40E6D727
-  msix_version: 1.2.0.0
+  msix_version: 1.2.1.0
   logo_path: assets/logo/melodrift.png
   capabilities: internetClient, microphone
   languages: en-us
   architecture: x64
   output_path: build/windows/msix
-  output_name: Melodrift-Store-1.2.0.0-x64
+  output_name: Melodrift-Store-1.2.1.0-x64
   store: true
   install_certificate: false

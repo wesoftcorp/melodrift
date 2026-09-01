@@ -273,7 +273,7 @@ class SettingsScreen extends ConsumerWidget {
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('You are already on the latest version! (v1.2.0)'),
+                        content: Text('You are already on the latest version! (v1.2.1)'),
                         backgroundColor: Colors.green,
                         duration: Duration(seconds: 2),
                       ),
@@ -315,7 +315,7 @@ class SettingsScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '1.2.0 (Build 120)',
+                    '1.2.1 (Build 121)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
