@@ -313,19 +313,27 @@ class JioSaavnService implements MusicProvider {
     return await _browseEndpoint('$baseUrl/api/playlists', browseId);
   }
 
-  List<MusicTrack> _parseBrowseResponse(Response<Map<String, dynamic>> response) {
-    if (response.statusCode != 200 || response.data == null) {
-      return [];
+  List<MusicTrack> _parseBrowseResponse(dynamic responseData) {
+    if (responseData == null) return [];
+
+    List<dynamic> songs = [];
+    if (responseData is Map<String, dynamic>) {
+      if (responseData['data'] is Map) {
+        final dataMap = responseData['data'] as Map<String, dynamic>;
+        if (dataMap['songs'] is List) {
+          songs = dataMap['songs'] as List;
+        } else if (dataMap['list'] is List) {
+          songs = dataMap['list'] as List;
+        }
+      } else if (responseData['list'] is List) {
+        songs = responseData['list'] as List;
+      } else if (responseData['songs'] is List) {
+        songs = responseData['songs'] as List;
+      } else if (responseData['results'] is List) {
+        songs = responseData['results'] as List;
+      }
     }
 
-    final body = response.data!;
-    final success = body['success'] as bool? ?? false;
-    if (!success) return [];
-
-    final dataMap = body['data'] as Map<String, dynamic>?;
-    if (dataMap == null) return [];
-
-    final songs = dataMap['songs'] as List<dynamic>? ?? [];
     final List<MusicTrack> tracks = [];
 
     for (final song in songs) {
@@ -340,6 +348,10 @@ class JioSaavnService implements MusicProvider {
         String artist = 'Unknown';
         if (item['primaryArtists'] != null) {
           artist = item['primaryArtists'].toString();
+        } else if (item['subtitle'] != null && item['subtitle'].toString().isNotEmpty) {
+          final sub = item['subtitle'].toString();
+          // Subtitle often has "Artist1, Artist2 - Album"
+          artist = sub.contains(' - ') ? sub.split(' - ').first.trim() : sub.trim();
         } else if (item['artists'] is Map) {
           final artistsMap = item['artists'] as Map;
           final primaryList = artistsMap['primary'] as List<dynamic>?;
@@ -349,6 +361,20 @@ class JioSaavnService implements MusicProvider {
                 .where((name) => name.isNotEmpty)
                 .join(', ');
           }
+        } else if (item['more_info'] is Map) {
+          final moreInfo = item['more_info'] as Map;
+          if (moreInfo['music'] != null && moreInfo['music'].toString().isNotEmpty) {
+            artist = moreInfo['music'].toString();
+          } else if (moreInfo['artistMap'] is Map) {
+            final artistMap = moreInfo['artistMap'] as Map;
+            final primaryArtists = artistMap['primary_artists'] as List<dynamic>?;
+            if (primaryArtists != null && primaryArtists.isNotEmpty) {
+              artist = primaryArtists
+                  .map((a) => ((a as Map)['name'] ?? '').toString())
+                  .where((name) => name.isNotEmpty)
+                  .join(', ');
+            }
+          }
         }
 
         String album = 'Unknown';
@@ -356,10 +382,12 @@ class JioSaavnService implements MusicProvider {
           album = (item['album'] as Map)['name'] as String? ?? 'Unknown';
         } else if (item['album'] != null) {
           album = item['album'].toString();
+        } else if (item['more_info'] is Map && item['more_info']['album'] != null) {
+          album = item['more_info']['album'].toString();
         }
 
         Duration duration = Duration.zero;
-        final durationVal = item['duration'];
+        final durationVal = item['duration'] ?? (item['more_info'] is Map ? item['more_info']['duration'] : null);
         if (durationVal != null) {
           final seconds = int.tryParse(durationVal.toString());
           if (seconds != null) {
@@ -377,6 +405,12 @@ class JioSaavnService implements MusicProvider {
         } else if (imageVal is String) {
           artworkUrl = imageVal;
         }
+        artworkUrl = artworkUrl.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
+
+        final Map<String, dynamic> extras = {'id': id};
+        if (item['more_info'] is Map && item['more_info']['encrypted_media_url'] != null) {
+          extras['encrypted_media_url'] = item['more_info']['encrypted_media_url'].toString();
+        }
 
         tracks.add(MusicTrack(
           id: id,
@@ -386,9 +420,7 @@ class JioSaavnService implements MusicProvider {
           duration: duration,
           artworkUrl: artworkUrl,
           source: 'jiosaavn',
-          extras: {
-            'id': id,
-          },
+          extras: extras,
         ));
       } catch (e) {
         _log.warning('Failed to parse JioSaavn browse song: $e');
@@ -403,6 +435,7 @@ class JioSaavnService implements MusicProvider {
     final activeBaseUrl = url.startsWith(baseUrl) ? baseUrl : _baseUrl;
     final endpointPath = isAlbums ? 'api/albums' : 'api/playlists';
 
+    // 1. Try worker endpoint
     try {
       _log.info('Browsing JioSaavn endpoint $url for id: $id');
       final response = await _dio.get<Map<String, dynamic>>(
@@ -410,23 +443,38 @@ class JioSaavnService implements MusicProvider {
         queryParameters: {'id': id},
       ).timeout(const Duration(seconds: 8));
 
-      return _parseBrowseResponse(response);
+      final tracks = _parseBrowseResponse(response.data);
+      if (tracks.isNotEmpty) return tracks;
     } catch (e) {
       _log.warning('JioSaavn browse endpoint failed: $e');
-      if (activeBaseUrl != _baseUrl) {
-        try {
-          _log.info('Falling back to default JioSaavn base URL for browse: $_baseUrl');
-          final response = await _dio.get<Map<String, dynamic>>(
-            '$_baseUrl/$endpointPath',
-            queryParameters: {'id': id},
-          ).timeout(const Duration(seconds: 8));
-          return _parseBrowseResponse(response);
-        } catch (e2) {
-          _log.error('JioSaavn browse fallback failed: $e2');
-        }
-      }
-      return [];
     }
+
+    // 2. Direct Official JioSaavn content.getAlbumDetails / playlist.getDetails Fallback
+    try {
+      final callName = isAlbums ? 'content.getAlbumDetails' : 'playlist.getDetails';
+      final idParam = isAlbums ? 'albumid' : 'listid';
+      _log.info('Falling back to official direct JioSaavn $callName for id: $id');
+      final directResponse = await _dio.get<dynamic>(
+        'https://www.jiosaavn.com/api.php',
+        queryParameters: {
+          '__call': callName,
+          '_format': 'json',
+          '_marker': '0',
+          'api_version': '4',
+          'ctx': 'web6dot0',
+          idParam: id,
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (directResponse.statusCode == 200 && directResponse.data != null) {
+        final directTracks = _parseBrowseResponse(directResponse.data);
+        if (directTracks.isNotEmpty) return directTracks;
+      }
+    } catch (e2) {
+      _log.error('Official JioSaavn direct browse fallback failed: $e2');
+    }
+
+    return [];
   }
 
   Future<List<Map<String, dynamic>>> searchArtists(String query) async {
