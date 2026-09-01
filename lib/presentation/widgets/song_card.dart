@@ -127,7 +127,7 @@ class SongCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // ── Title & Rich Metadata ─────────────────────────────────
+            // ── Title & Artist ───────────────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,48 +143,54 @@ class SongCard extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          song.artist,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: isCurrent
-                                ? theme.colorScheme.primary.withOpacity(0.85)
-                                : theme.colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (durationStr.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          durationStr,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: 11,
-                            color: isCurrent
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface.withOpacity(0.55),
-                            fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ],
+                  Text(
+                    song.artist,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isCurrent
+                          ? theme.colorScheme.primary.withOpacity(0.85)
+                          : theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            // ── Live Animated Equalizer on Active Track ──────────────
-            if (isCurrentlyPlaying)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: _MiniAnimatedEqualizer(color: theme.colorScheme.primary),
-              ),
-            IconButton(
-              icon: const Icon(Icons.more_vert_rounded),
-              iconSize: 20,
-              onPressed: () => showSongOptionsMenu(context, ref, song, onPlay: onPlay),
+            const SizedBox(width: 8),
+            // ── Trailing: Live Equalizer, Duration & 3-Dot Menu ───────
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (isCurrentlyPlaying)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _MiniAnimatedEqualizer(color: theme.colorScheme.primary),
+                  ),
+                if (durationStr.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: Text(
+                      durationStr,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 12,
+                        color: isCurrent
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface.withOpacity(0.5),
+                        fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  iconSize: 20,
+                  splashRadius: 18,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  onPressed: () => showSongOptionsMenu(context, ref, song, onPlay: onPlay),
+                ),
+              ],
             ),
           ],
         ),
