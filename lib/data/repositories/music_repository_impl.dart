@@ -589,20 +589,47 @@ class MusicRepositoryImpl implements MusicRepository {
       fetchJioAlbums(albumsQuery).then((res) => albumsForYou = res),
       fetchJioAlbums(playlistsQuery).then((res) => featuredPlaylistsForYou = res),
       fetchSoundCloud(soundCloudQuery).then((res) => soundCloudLounge = res),
-      // Spotify: Global Top Hits (rotates among 3 playlists)
+      // Spotify: Global Top Hits (rotates among 3 global playlists)
       fetchSpotifyPlaylist(pick([
         '37i9dQZF1DXcBWIGoYBM5M', // Today's Top Hits Global
-        '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
-        '37i9dQZF1DX4JAvHpjipBk', // New Music Friday India
+        '37i9dQZEVXbMDoHDwVN2tF', // Top 50 - Global
+        '37i9dQZF1DX4Wsb4d7NKWh', // All Out 2010s
       ])).then((res) => spotifyTopHits = res),
-      // Spotify India Top 50 (rotates)
-      fetchSpotifyPlaylist(pick([
-        '37i9dQZEVXbMDoHDwVN2tF', // India Top 50
-        '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
-        '37i9dQZF1DXcBWIGoYBM5M', // Global Top Hits
-      ])).then((res) => spotifyIndiaTop50 = res),
-      // New Music Friday India (Spotify)
-      fetchSpotifyPlaylist('37i9dQZF1DX4JAvHpjipBk').then((res) => newMusicFridayIndia = res),
+      // India Top 50 — PURE INDIAN CHARTS (Spotify India + JioSaavn Indian Top 50)
+      Future(() async {
+        final spotTracks = await fetchSpotifyPlaylist(pick([
+          '37i9dQZEVXbMDoHDwVN2tF', // Top 50 - India Official Chart
+          '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
+          '37i9dQZF1DX0b1hHYQtJjp', // Hot Hits Hindi
+          '37i9dQZF1DX4JAvHpjipBk', // New Music Friday India
+        ]));
+        final jioIndia = await fetchMultiJio([
+          'top 50 hindi songs week 2024',
+          'bollywood top 50 songs india chart',
+          'hindi trending top hits bollywood',
+        ], limitEach: 30);
+        final combined = <String, Song>{};
+        for (final s in spotTracks) {
+          combined[s.id] = s;
+        }
+        for (final s in jioIndia) {
+          if (!combined.containsKey(s.id)) combined[s.id] = s;
+        }
+        spotifyIndiaTop50 = combined.values.toList();
+      }),
+      // New Music Friday India (Spotify + JioSaavn Indian new releases)
+      Future(() async {
+        final spotTracks = await fetchSpotifyPlaylist('37i9dQZF1DX4JAvHpjipBk');
+        final jioNew = await fetchJio('latest hindi songs 2024 new release', limit: 40);
+        final combined = <String, Song>{};
+        for (final s in spotTracks) {
+          combined[s.id] = s;
+        }
+        for (final s in jioNew) {
+          if (!combined.containsKey(s.id)) combined[s.id] = s;
+        }
+        newMusicFridayIndia = combined.values.toList();
+      }),
       // Hindi Hits — always Hindi/Bollywood, 6 diverse queries with 50 tracks each for 100+ songs
       fetchMultiJio([
         pick([
@@ -756,9 +783,24 @@ class MusicRepositoryImpl implements MusicRepository {
     if (devotionalBhakti.isEmpty) devotionalBhakti = [...forgottenFavorites.take(20)];
     if (retro90s.isEmpty) retro90s = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
     if (bhangraDhol.isEmpty) bhangraDhol = punjabiHits.isNotEmpty ? punjabiHits : indianMusic;
-    if (indieHindi.isEmpty) indieHindi = soundCloudLounge.isNotEmpty ? soundCloudLounge : quickPicks;
-    if (spotifyIndiaTop50.isEmpty) spotifyIndiaTop50 = [...top100India.take(30), ...hindiHits.take(20)];
-    if (newMusicFridayIndia.isEmpty) newMusicFridayIndia = [...hindiHits.take(20), ...trendingSongs.take(20)];
+    final indiaTop50Set = <String, Song>{for (final s in spotifyIndiaTop50) s.id: s};
+    for (final s in [...top100India, ...hindiHits, ...charts, ...indianMusic]) {
+      if (!indiaTop50Set.containsKey(s.id)) {
+        indiaTop50Set[s.id] = s;
+      }
+      if (indiaTop50Set.length >= 50) break;
+    }
+    spotifyIndiaTop50 = indiaTop50Set.values.toList();
+
+    final newMusicIndiaSet = <String, Song>{for (final s in newMusicFridayIndia) s.id: s};
+    for (final s in [...hindiHits, ...top100India, ...trendingSongs]) {
+      if (!newMusicIndiaSet.containsKey(s.id)) {
+        newMusicIndiaSet[s.id] = s;
+      }
+      if (newMusicIndiaSet.length >= 50) break;
+    }
+    newMusicFridayIndia = newMusicIndiaSet.values.toList();
+
     if (albumsForYou.isEmpty && newReleases.isNotEmpty) albumsForYou = newReleases;
     if (featuredPlaylistsForYou.isEmpty && albumsForYou.isNotEmpty) featuredPlaylistsForYou = albumsForYou;
     if (newReleases.isEmpty && albumsForYou.isNotEmpty) newReleases = albumsForYou;
