@@ -20,6 +20,13 @@ class SongCard extends ConsumerWidget {
     super.key,
   });
 
+  String _formatDuration(Duration d) {
+    if (d == Duration.zero) return '';
+    final m = d.inMinutes;
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -41,6 +48,8 @@ class SongCard extends ConsumerWidget {
       }
     }
 
+    final durationStr = _formatDuration(song.duration);
+
     return InkWell(
       onTap: onPlay,
       splashColor: theme.colorScheme.primary.withAlpha(50),
@@ -54,7 +63,7 @@ class SongCard extends ConsumerWidget {
                 border: Border.all(color: theme.colorScheme.primary.withAlpha(100)),
                 boxShadow: [
                   BoxShadow(
-                    color: theme.colorScheme.primary.withAlpha(20),
+                    color: theme.colorScheme.primary.withAlpha(25),
                     blurRadius: 12,
                     spreadRadius: -2,
                   ),
@@ -64,24 +73,61 @@ class SongCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: song.artworkUrl,
-                width: size,
-                height: size,
-                memCacheWidth: (size * 2).toInt(),
-                memCacheHeight: (size * 2).toInt(),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: size,
-                  height: size,
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.music_note),
-                ),
+            // ── Artwork with Ambient Glow & Play Overlay ──────────────
+            Container(
+              decoration: isCurrentlyPlaying
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withOpacity(0.45),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    )
+                  : null,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: song.artworkUrl,
+                      width: size,
+                      height: size,
+                      memCacheWidth: (size * 2).toInt(),
+                      memCacheHeight: (size * 2).toInt(),
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: size,
+                        height: size,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.music_note),
+                      ),
+                    ),
+                  ),
+                  if (isCurrent)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.38),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            isCurrentlyPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: size * 0.45,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
+            // ── Title & Rich Metadata ─────────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,17 +137,17 @@ class SongCard extends ConsumerWidget {
                     song.title,
                     style: theme.textTheme.titleSmall?.copyWith(
                       color: isCurrent ? theme.colorScheme.primary : null,
-                      fontWeight: isCurrent ? FontWeight.bold : null,
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Container(
-                        width: 7,
-                        height: 7,
+                        width: 6.5,
+                        height: 6.5,
                         margin: const EdgeInsets.only(right: 6),
                         decoration: BoxDecoration(
                           color: getSongSourceColor(song.source),
@@ -117,9 +163,55 @@ class SongCard extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           song.artist,
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: isCurrent
+                                ? theme.colorScheme.primary.withOpacity(0.85)
+                                : theme.colorScheme.onSurface.withOpacity(0.7),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (durationStr.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '•',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withOpacity(0.28),
+                            fontSize: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          durationStr,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            color: isCurrent
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface.withOpacity(0.55),
+                            fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? theme.colorScheme.primary.withOpacity(0.18)
+                              : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          'HQ',
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: isCurrent
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface.withOpacity(0.65),
+                          ),
                         ),
                       ),
                     ],
@@ -127,19 +219,89 @@ class SongCard extends ConsumerWidget {
                 ],
               ),
             ),
+            // ── Live Animated Equalizer on Active Track ──────────────
             if (isCurrentlyPlaying)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.equalizer_rounded, color: theme.colorScheme.primary, size: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _MiniAnimatedEqualizer(color: theme.colorScheme.primary),
               ),
             IconButton(
               icon: const Icon(Icons.more_vert_rounded),
+              iconSize: 20,
               onPressed: () => showSongOptionsMenu(context, ref, song, onPlay: onPlay),
             ),
           ],
         ),
       ),
     );
+  }
+}
 
+/// Dynamic 3-bar animated equalizer that moves smoothly while song is playing.
+class _MiniAnimatedEqualizer extends StatefulWidget {
+  final Color color;
+  const _MiniAnimatedEqualizer({required this.color});
+
+  @override
+  State<_MiniAnimatedEqualizer> createState() => _MiniAnimatedEqualizerState();
+}
+
+class _MiniAnimatedEqualizerState extends State<_MiniAnimatedEqualizer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = _controller.value;
+        return SizedBox(
+          width: 16,
+          height: 15,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildBar((4 + 10 * ((t + 0.15) % 1.0)).clamp(3.0, 15.0)),
+              _buildBar((5 + 10 * (1.0 - t)).clamp(3.0, 15.0)),
+              _buildBar((4 + 11 * ((t + 0.7) % 1.0)).clamp(3.0, 15.0)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBar(double height) {
+    return Container(
+      width: 3.2,
+      height: height,
+      decoration: BoxDecoration(
+        color: widget.color,
+        borderRadius: BorderRadius.circular(1.5),
+        boxShadow: [
+          BoxShadow(
+            color: widget.color.withOpacity(0.4),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+    );
   }
 }
