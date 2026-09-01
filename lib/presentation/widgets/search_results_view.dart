@@ -192,19 +192,42 @@ class _SearchResultsViewState extends ConsumerState<SearchResultsView> {
 
 
 
-        if (albums.isEmpty) return const Center(child: Text('No albums found for selected filter'));
+        if (albums.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.album_outlined, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                Text(
+                  _selectedSourceFilter == 'All'
+                      ? 'No albums found for "${widget.query}"'
+                      : 'No results for this filter. Try "All".',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isDesktop = screenWidth > 900;
+        final isTablet = screenWidth > 600 && screenWidth <= 900;
+        final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
+
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 180),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.8,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: 0.74,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
           ),
           itemCount: albums.length,
           itemBuilder: (context, index) {
             final album = albums[index];
-            return AlbumCard(album: album);
+            return AlbumCard(album: album, isGrid: true);
           },
         );
       },

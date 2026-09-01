@@ -262,12 +262,12 @@ class MusicRepositoryImpl implements MusicRepository {
   @override
   Future<List<Album>> searchAlbums(String query) async {
     final jioSaavn = getIt<JioSaavnService>();
-    final tracks = await jioSaavn.search(query, limit: 50).timeout(const Duration(seconds: 4), onTimeout: () => []);
+    final tracks = await jioSaavn.search(query, limit: 50).timeout(const Duration(seconds: 6), onTimeout: () => []);
     final Map<String, Album> uniqueAlbums = {};
     for (final t in tracks) {
-      final albumName = t.album.isNotEmpty ? t.album : 'Single';
+      final albumName = t.album.isNotEmpty ? t.album : t.title;
       final albumId = t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}';
-      if (!uniqueAlbums.containsKey(albumName)) {
+      if (!uniqueAlbums.containsKey(albumName) && t.artworkUrl.isNotEmpty) {
         uniqueAlbums[albumName] = Album(
           id: albumId,
           title: albumName,
@@ -279,25 +279,8 @@ class MusicRepositoryImpl implements MusicRepository {
         );
       }
     }
-    // Also include Spotify albums
-    for (final t in tracks.take(15)) {
-      final albumName = t.album.isNotEmpty ? t.album : 'Single';
-      final spKey = 'sp_$albumName';
-      if (!uniqueAlbums.containsKey(spKey)) {
-        uniqueAlbums[spKey] = Album(
-          id: 'spotify_${t.id.replaceAll('jiosaavn_', '')}',
-          title: albumName,
-          artist: t.artist,
-          artworkUrl: t.artworkUrl,
-          tracks: [],
-          songCount: 1,
-          source: 'Spotify',
-        );
-      }
-    }
     return uniqueAlbums.values.toList();
   }
-
 
   @override
   Future<List<Artist>> searchArtists(String query) async {
@@ -308,7 +291,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
     final Map<String, Artist> uniqueArtists = {};
 
-    // Check known verified artist portraits first
+    // 1. Check known verified artist portraits first
     kKnownArtistImages.forEach((artistKey, portraitUrl) {
       final canonicalName = kArtistCanonicalNames[artistKey] ?? artistKey;
       final cleanKey = getCleanArtistKey(cacheKey);
@@ -323,6 +306,7 @@ class MusicRepositoryImpl implements MusicRepository {
       }
     });
 
+    // 2. Query direct JioSaavn artist search endpoint
     try {
       final jioSaavn = getIt<JioSaavnService>();
       final jioArtists = await jioSaavn.searchArtists(query).timeout(const Duration(seconds: 5), onTimeout: () => []);
@@ -356,12 +340,42 @@ class MusicRepositoryImpl implements MusicRepository {
             subscribers: 'Verified Artist',
             isVerified: true,
           );
-
         }
       }
     } catch (_) {}
 
+    // 3. Extract all artists/singers/composers from songs matching the search query
+    try {
+      final matchingSongs = await searchSongs(query);
+      for (final song in matchingSongs) {
+        final rawArtists = song.artist
+            .replaceAll('feat.', ',')
+            .replaceAll('ft.', ',')
+            .replaceAll('&', ',')
+            .replaceAll('•', ',')
+            .split(',');
 
+        for (final raw in rawArtists) {
+          final trimmed = raw.trim();
+          if (trimmed.isEmpty || trimmed.toLowerCase() == 'unknown artist') continue;
+
+          final cleanKey = getCleanArtistKey(trimmed);
+          if (cleanKey.isEmpty || uniqueArtists.containsKey(cleanKey)) continue;
+
+          final canonicalName = getCleanArtistName(trimmed);
+          final portrait = getArtistPortrait(trimmed, song.artworkUrl);
+
+          uniqueArtists[cleanKey] = Artist(
+            id: 'artist_${song.id}_$cleanKey',
+            name: canonicalName,
+            artworkUrl: portrait,
+            subscribers: 'Artist',
+            isVerified: true,
+          );
+        }
+        if (uniqueArtists.length >= 30) break;
+      }
+    } catch (_) {}
 
     final result = uniqueArtists.values.toList();
     if (result.isNotEmpty) {

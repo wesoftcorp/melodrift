@@ -7,10 +7,12 @@ import '../../app/router/app_router.gr.dart';
 class AlbumCard extends StatelessWidget {
   final Album album;
   final double size;
+  final bool isGrid;
 
   const AlbumCard({
     required this.album,
     this.size = 120.0,
+    this.isGrid = false,
     super.key,
   });
 
@@ -31,75 +33,79 @@ class AlbumCard extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: size,
-        margin: const EdgeInsets.only(right: 16),
+        width: isGrid ? double.infinity : size,
+        margin: isGrid ? EdgeInsets.zero : const EdgeInsets.only(right: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
-                imageUrl: album.artworkUrl,
-                width: size,
-                height: size,
-                memCacheWidth: (size * 2).toInt(),
-                memCacheHeight: (size * 2).toInt(),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: size,
-                  height: size,
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.album, size: 48),
-                ),
-              ),
-            ),
+            // ── Album Cover Artwork ──────────────────────────────────
+            isGrid
+                ? AspectRatio(
+                    aspectRatio: 1.0,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: album.artworkUrl,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 400,
+                        memCacheHeight: 400,
+                        errorWidget: (_, __, ___) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Icon(Icons.album, size: 48),
+                        ),
+                      ),
+                    ),
+                  )
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: album.artworkUrl,
+                      width: size,
+                      height: size,
+                      memCacheWidth: (size * 2).toInt(),
+                      memCacheHeight: (size * 2).toInt(),
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: size,
+                        height: size,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.album, size: 48),
+                      ),
+                    ),
+                  ),
             const SizedBox(height: 8),
+            // ── Album Title & Artist Info ─────────────────────────────
             Container(
-              width: size,
+              width: isGrid ? double.infinity : size,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHigh.withAlpha(200),
+                color: theme.colorScheme.surfaceContainerHigh.withAlpha(180),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withAlpha(100),
+                  color: theme.colorScheme.outlineVariant.withAlpha(80),
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     album.title,
-                    style: theme.textTheme.labelLarge,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: _getSourceColor(album.source),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _getSourceColor(album.source).withOpacity(0.6),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          album.artist,
-                          style: theme.textTheme.bodySmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    album.artist,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -109,21 +115,4 @@ class AlbumCard extends StatelessWidget {
       ),
     );
   }
-
-  Color _getSourceColor(String source) {
-    switch (source.toLowerCase()) {
-      case 'jiosaavn':
-        return const Color(0xFF8B5CF6); // JioSaavn Violet Dot
-      case 'spotify':
-        return const Color(0xFF1DB954); // Spotify Green Dot
-      case 'soundcloud':
-        return const Color(0xFFFF5500); // SoundCloud Orange Dot
-      default:
-        return const Color(0xFF8B5CF6);
-    }
-  }
-
-
 }
-
-
