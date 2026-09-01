@@ -85,7 +85,7 @@ dev_dependencies:
 
   logging: ^1.2.0
 
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
   path_provider_platform_interface: ^2.1.2
 
   # Code Generation
