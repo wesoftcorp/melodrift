@@ -46,6 +46,7 @@ class TranslationServiceImpl implements TranslationService {
     required String targetLanguage,
   }) async {
     if (text.trim().isEmpty) return '';
+    if (sourceLanguage == targetLanguage) return text;
 
     final cacheKey = '$sourceLanguage-$targetLanguage-$text';
     if (_cache.containsKey(cacheKey)) {
@@ -75,9 +76,15 @@ class TranslationServiceImpl implements TranslationService {
   }
 
   String _mockTranslate(String text, String targetLang) {
-    // Basic mock dictionary for common song lyric phrases
     final lower = text.toLowerCase();
-    if (targetLang == 'es') {
+    if (targetLang == 'hi') {
+      if (lower.contains('love')) return text.replaceAll(RegExp('love', caseSensitive: false), 'प्यार');
+      if (lower.contains('heart')) return text.replaceAll(RegExp('heart', caseSensitive: false), 'दिल');
+      if (lower.contains('never')) return text.replaceAll(RegExp('never', caseSensitive: false), 'कभी नहीं');
+      return '$text (हिन्दी)';
+    } else if (targetLang == 'en') {
+      return text;
+    } else if (targetLang == 'es') {
       if (lower.contains('love')) return text.replaceAll(RegExp('love', caseSensitive: false), 'amor');
       if (lower.contains('never')) return text.replaceAll(RegExp('never', caseSensitive: false), 'nunca');
       if (lower.contains('give you up')) return text.replaceAll(RegExp('give you up', caseSensitive: false), 'dejarte');

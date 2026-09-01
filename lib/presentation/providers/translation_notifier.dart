@@ -48,7 +48,7 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
       : super(const TranslationState(
           isTranslating: false,
           isModelDownloading: false,
-          targetLanguage: 'es',
+          targetLanguage: 'en',
           translatedLines: {},
         ));
 
@@ -60,7 +60,7 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
   }
 
   void setTargetLanguage(String langCode, List<LyricLine> lines) {
-    if (state.targetLanguage == langCode) return;
+    if (state.targetLanguage == langCode && state.translatedLines.isNotEmpty) return;
     state = state.copyWith(
       targetLanguage: langCode,
       translatedLines: {},
@@ -90,15 +90,18 @@ class TranslationNotifier extends StateNotifier<TranslationState> {
 
     final newTranslations = Map<int, String>.from(state.translatedLines);
     
-    // Perform translations sequentially or concurrently. To avoid overloading, we translate sequentially.
+    // Perform translations sequentially to avoid overloading ML Kit
     for (final line in lines) {
       if (state.targetLanguage != lang || !state.isTranslating) break;
       if (line.text.trim().isEmpty) continue;
 
       try {
+        final isDevanagari = RegExp(r'[\u0900-\u097F]').hasMatch(line.text);
+        final sourceLang = isDevanagari ? 'hi' : (lang == 'hi' ? 'en' : 'en');
+
         final translated = await _service.translateText(
           text: line.text,
-          sourceLanguage: 'en', // Assuming source is English by default, fallback handles other cases
+          sourceLanguage: sourceLang,
           targetLanguage: lang,
         );
         newTranslations[line.timeMs] = translated;

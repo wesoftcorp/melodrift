@@ -220,15 +220,34 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               top: 16,
               right: 16,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   PopupMenuButton<String>(
-                    icon: Icon(Icons.language, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    tooltip: 'Select Translation Language',
+                    icon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.language, size: 20, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                        const SizedBox(width: 4),
+                        Text(
+                          transState.targetLanguage.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: transState.isTranslating ? Colors.amberAccent : theme.colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                    initialValue: transState.targetLanguage,
                     onSelected: (lang) => ref.read(translationProvider.notifier).setTargetLanguage(lang, lines),
                     itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'es', child: Text('Spanish')),
-                      const PopupMenuItem(value: 'fr', child: Text('French')),
-                      const PopupMenuItem(value: 'de', child: Text('German')),
-                      const PopupMenuItem(value: 'ja', child: Text('Japanese')),
+                      const PopupMenuItem(value: 'en', child: Text('English (EN)')),
+                      const PopupMenuItem(value: 'hi', child: Text('Hindi - हिन्दी (HI)')),
+                      const PopupMenuItem(value: 'es', child: Text('Spanish - Español (ES)')),
+                      const PopupMenuItem(value: 'fr', child: Text('French - Français (FR)')),
+                      const PopupMenuItem(value: 'de', child: Text('German - Deutsch (DE)')),
+                      const PopupMenuItem(value: 'ja', child: Text('Japanese - 日本語 (JA)')),
                     ],
                   ),
                   IconButton(
@@ -236,6 +255,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                       transState.isTranslating ? Icons.g_translate : Icons.translate,
                       color: transState.isTranslating ? Colors.amberAccent : theme.colorScheme.onSurface.withOpacity(0.7),
                     ),
+                    tooltip: transState.isTranslating ? 'Hide Translation' : 'Show Translation',
                     onPressed: () {
                       ref.read(translationProvider.notifier).toggleTranslation(!transState.isTranslating, lines);
                     },
