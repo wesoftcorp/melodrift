@@ -281,7 +281,20 @@ class SongOptionsSheet extends ConsumerWidget {
                             },
                           ),
 
-                          // 6. Share Song
+                          // 6. Playback Speed
+                          _buildPillOption(
+                            context: context,
+                            icon: Icons.speed_rounded,
+                            iconColor: const Color(0xFFFF453A),
+                            title: 'Playback Speed',
+                            subtitle: 'Tempo & Pitch',
+                            onTap: () {
+                              Navigator.pop(context);
+                              showSpeedSelectorDialog(context, ref);
+                            },
+                          ),
+
+                          // 7. Share Song
                           _buildPillOption(
                             context: context,
                             icon: Icons.share_rounded,
@@ -698,5 +711,72 @@ Widget _buildInfoRow(String label, String value, ThemeData theme) {
         ),
       ),
     ],
+  );
+}
+
+/// Modal bottom sheet to quickly toggle playback speed presets (0.5x to 2.0x).
+void showSpeedSelectorDialog(BuildContext context, WidgetRef ref) {
+  final currentSpeed = ref.read(playerStateProvider).speed;
+  final theme = Theme.of(context);
+  final speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: theme.colorScheme.surfaceContainerHigh,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setModalState) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Playback Speed',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: speeds.map((s) {
+                    final isSelected = (currentSpeed - s).abs() < 0.05;
+                    return ChoiceChip(
+                      label: Text(s == 1.0 ? '1.0x (Normal)' : '${s}x'),
+                      selected: isSelected,
+                      selectedColor: theme.colorScheme.primary,
+                      labelStyle: TextStyle(
+                        color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      onSelected: (selected) {
+                        if (selected) {
+                          ref.read(playerStateProvider.notifier).setSpeed(s);
+                          Navigator.pop(ctx);
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
   );
 }
