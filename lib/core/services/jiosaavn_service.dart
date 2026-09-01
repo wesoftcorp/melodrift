@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
@@ -316,22 +317,38 @@ class JioSaavnService implements MusicProvider {
   List<MusicTrack> _parseBrowseResponse(dynamic responseData) {
     if (responseData == null) return [];
 
-    List<dynamic> songs = [];
+    Map<String, dynamic>? dataMap;
     if (responseData is Map<String, dynamic>) {
-      if (responseData['data'] is Map) {
-        final dataMap = responseData['data'] as Map<String, dynamic>;
-        if (dataMap['songs'] is List) {
-          songs = dataMap['songs'] as List;
-        } else if (dataMap['list'] is List) {
-          songs = dataMap['list'] as List;
+      dataMap = responseData;
+    } else if (responseData is Map) {
+      dataMap = Map<String, dynamic>.from(responseData);
+    } else if (responseData is String) {
+      try {
+        final decoded = jsonDecode(responseData);
+        if (decoded is Map<String, dynamic>) {
+          dataMap = decoded;
+        } else if (decoded is Map) {
+          dataMap = Map<String, dynamic>.from(decoded);
         }
-      } else if (responseData['list'] is List) {
-        songs = responseData['list'] as List;
-      } else if (responseData['songs'] is List) {
-        songs = responseData['songs'] as List;
-      } else if (responseData['results'] is List) {
-        songs = responseData['results'] as List;
+      } catch (_) {}
+    }
+
+    if (dataMap == null) return [];
+
+    List<dynamic> songs = [];
+    if (dataMap['data'] is Map) {
+      final inner = dataMap['data'] as Map;
+      if (inner['songs'] is List) {
+        songs = inner['songs'] as List;
+      } else if (inner['list'] is List) {
+        songs = inner['list'] as List;
       }
+    } else if (dataMap['list'] is List) {
+      songs = dataMap['list'] as List;
+    } else if (dataMap['songs'] is List) {
+      songs = dataMap['songs'] as List;
+    } else if (dataMap['results'] is List) {
+      songs = dataMap['results'] as List;
     }
 
     final List<MusicTrack> tracks = [];

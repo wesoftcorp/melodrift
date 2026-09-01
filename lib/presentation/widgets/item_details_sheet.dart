@@ -181,7 +181,7 @@ class ItemDetailsSheet extends ConsumerWidget {
 
   Future<Map<String, dynamic>> _fetchData(MusicRepository repo) async {
     if (type == 'album') {
-      final album = await repo.getAlbumDetails(id);
+      final album = await repo.getAlbumDetails(id, fallbackTitle: title);
       return {
         'tracks': album.tracks,
         'subtitle': album.artist,

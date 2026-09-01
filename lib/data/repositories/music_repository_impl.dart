@@ -106,6 +106,7 @@ final musicRepositoryProvider = Provider<MusicRepository>((ref) {
 class MusicRepositoryImpl implements MusicRepository {
   final Map<String, List<Song>> _songSearchCache = {};
   final Map<String, List<Artist>> _artistSearchCache = {};
+  final Map<String, Album> _albumCache = {};
 
   MusicRepositoryImpl();
 
@@ -340,6 +341,12 @@ class MusicRepositoryImpl implements MusicRepository {
         }
       }
     } catch (_) {}
+
+    for (final album in uniqueAlbums.values) {
+      _albumCache[album.id] = album;
+      final clean = album.id.replaceAll('jiosaavn_', '');
+      _albumCache[clean] = album;
+    }
 
     return uniqueAlbums.values.toList();
   }
@@ -1056,8 +1063,9 @@ class MusicRepositoryImpl implements MusicRepository {
   }
 
   @override
-  Future<Album> getAlbumDetails(String albumId) async {
+  Future<Album> getAlbumDetails(String albumId, {String? fallbackTitle}) async {
     final cleanId = albumId.startsWith('jiosaavn_') ? albumId.substring('jiosaavn_'.length) : albumId;
+    final cachedAlbum = _albumCache[albumId] ?? _albumCache[cleanId];
     final jioSaavn = getIt<JioSaavnService>();
     final tracks = await jioSaavn.browse(cleanId);
     final List<Song> decoratedTracks = tracks.map((t) => Song(
@@ -1071,30 +1079,56 @@ class MusicRepositoryImpl implements MusicRepository {
       source: 'JioSaavn',
     )).toList();
 
-    // Safety net: if ID browse returned 0, search for tracks matching album name
+    // Safety net: if direct browse returned 0, search for songs belonging to this album
     if (decoratedTracks.isEmpty) {
+      final searchKey = fallbackTitle?.trim().isNotEmpty == true
+          ? fallbackTitle!.trim()
+          : (cachedAlbum?.title.isNotEmpty == true ? cachedAlbum!.title : cleanId);
+
       try {
-        final searchTracks = await jioSaavn.search(cleanId, limit: 30);
-        for (final t in searchTracks) {
-          decoratedTracks.add(Song(
-            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
-            title: t.title,
-            artist: t.artist,
-            album: t.album.isNotEmpty ? t.album : cleanId,
-            duration: t.duration,
-            artworkUrl: t.artworkUrl,
-            videoId: t.id,
-            source: 'JioSaavn',
-          ));
+        final searchTracks = await jioSaavn.search(searchKey, limit: 50);
+        final cleanKeyLower = searchKey.toLowerCase();
+        
+        final matched = searchTracks.where((t) {
+          final albLower = t.album.toLowerCase();
+          final titleLower = t.title.toLowerCase();
+          return albLower.contains(cleanKeyLower) ||
+              titleLower.contains(cleanKeyLower) ||
+              t.extras['album_id']?.toString() == cleanId;
+        }).toList();
+
+        final toAdd = matched.isNotEmpty ? matched : searchTracks.take(15).toList();
+        final Set<String> seenIds = {};
+        for (final t in toAdd) {
+          final songId = t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}';
+          if (!seenIds.contains(songId)) {
+            seenIds.add(songId);
+            decoratedTracks.add(Song(
+              id: songId,
+              title: t.title,
+              artist: t.artist,
+              album: t.album.isNotEmpty ? t.album : searchKey,
+              duration: t.duration,
+              artworkUrl: t.artworkUrl.isNotEmpty ? t.artworkUrl : (cachedAlbum?.artworkUrl ?? ''),
+              videoId: t.id,
+              source: 'JioSaavn',
+            ));
+          }
         }
       } catch (_) {}
     }
 
     return Album(
       id: albumId,
-      title: decoratedTracks.isNotEmpty ? decoratedTracks.first.album : 'JioSaavn Album',
-      artist: decoratedTracks.isNotEmpty ? decoratedTracks.first.artist : 'Various Artists',
-      artworkUrl: decoratedTracks.isNotEmpty ? decoratedTracks.first.artworkUrl : '',
+      title: decoratedTracks.isNotEmpty
+          ? decoratedTracks.first.album
+          : (cachedAlbum?.title ?? fallbackTitle ?? 'JioSaavn Album'),
+      artist: decoratedTracks.isNotEmpty
+          ? decoratedTracks.first.artist
+          : (cachedAlbum?.artist ?? 'Various Artists'),
+      artworkUrl: decoratedTracks.isNotEmpty
+          ? decoratedTracks.first.artworkUrl
+          : (cachedAlbum?.artworkUrl ?? ''),
       tracks: decoratedTracks,
       songCount: decoratedTracks.length,
       source: 'JioSaavn',

@@ -19,7 +19,7 @@ abstract class MusicRepository {
   Future<HomeData> getHomeFeed({String? language});
 
   /// Get details of an album, including its tracklist
-  Future<Album> getAlbumDetails(String albumId);
+  Future<Album> getAlbumDetails(String albumId, {String? fallbackTitle});
 
   /// Get details of an artist
   Future<Artist> getArtistDetails(String artistId);

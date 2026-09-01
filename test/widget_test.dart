@@ -133,7 +133,7 @@ class MockMusicRepository implements MusicRepository {
       );
 
   @override
-  Future<Album> getAlbumDetails(String albumId) async => const Album(
+  Future<Album> getAlbumDetails(String albumId, {String? fallbackTitle}) async => const Album(
         id: '',
         title: '',
         artist: '',
