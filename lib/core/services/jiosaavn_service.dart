@@ -136,34 +136,43 @@ class JioSaavnService implements MusicProvider {
         final directResponse = await _dio.get<dynamic>(
           'https://www.jiosaavn.com/api.php',
           queryParameters: {
-            '__call': 'autocomplete.get',
+            '__call': 'search.getResults',
             '_format': 'json',
             '_marker': '0',
-            'cc': 'in',
-            'includeMetaTags': '1',
-            'query': query,
+            'api_version': '4',
+            'ctx': 'web6dot0',
+            'n': limit > 50 ? 50 : limit,
+            'p': '1',
+            'q': query,
           },
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 6));
 
         if (directResponse.statusCode == 200 && directResponse.data != null) {
           final data = directResponse.data;
-          if (data is Map && data['songs'] != null && data['songs']['data'] != null) {
-
-            final list = data['songs']['data'] as List;
+          List<dynamic>? list;
+          if (data is Map) {
+            if (data['results'] is List) {
+              list = data['results'] as List;
+            } else if (data['songs'] is Map && data['songs']['data'] is List) {
+              list = data['songs']['data'] as List;
+            } else if (data['data'] is Map && data['data']['results'] is List) {
+              list = data['data']['results'] as List;
+            }
+          }
+          if (list != null && list.isNotEmpty) {
             final List<MusicTrack> directTracks = [];
             for (final item in list) {
+              if (item is! Map) continue;
               final id = item['id']?.toString() ?? '';
-              final title = item['title']?.toString() ?? '';
+              final title = item['title']?.toString() ?? item['song']?.toString() ?? item['name']?.toString() ?? '';
               final image = item['image']?.toString() ?? '';
               final artworkUrl = image.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
 
-              String artist = '';
-              if (item['more_info'] != null) {
+              String artist = item['primary_artists']?.toString() ?? item['singers']?.toString() ?? '';
+              if (artist.isEmpty && item['more_info'] != null) {
                 final moreInfo = item['more_info'];
-                if (moreInfo['singers'] != null && moreInfo['singers'].toString().isNotEmpty) {
-                  artist = moreInfo['singers'].toString();
-                } else if (moreInfo['primary_artists'] != null && moreInfo['primary_artists'].toString().isNotEmpty) {
-                  artist = moreInfo['primary_artists'].toString();
+                if (moreInfo is Map) {
+                  artist = moreInfo['primary_artists']?.toString() ?? moreInfo['singers']?.toString() ?? '';
                 }
               }
               if (artist.isEmpty && item['description'] != null) {
@@ -172,13 +181,26 @@ class JioSaavnService implements MusicProvider {
                 artist = parts.length > 1 ? parts[1].trim() : desc.trim();
               }
 
+              String album = item['album']?.toString() ?? '';
+              if (album.isEmpty && item['more_info'] != null && item['more_info'] is Map) {
+                album = item['more_info']['album']?.toString() ?? '';
+              }
+              if (album.isEmpty) album = 'JioSaavn Single';
+
+              Duration duration = const Duration(minutes: 3, seconds: 30);
+              final durVal = item['duration'] ?? (item['more_info'] is Map ? item['more_info']['duration'] : null);
+              if (durVal != null) {
+                final sec = int.tryParse(durVal.toString());
+                if (sec != null && sec > 0) duration = Duration(seconds: sec);
+              }
+
               if (id.isNotEmpty && title.isNotEmpty) {
                 directTracks.add(MusicTrack(
                   id: id,
                   title: title,
                   artist: artist.isNotEmpty ? artist : 'Unknown Artist',
-                  album: 'JioSaavn Single',
-                  duration: const Duration(minutes: 3, seconds: 30),
+                  album: album,
+                  duration: duration,
                   artworkUrl: artworkUrl,
                   source: 'jiosaavn',
                 ));

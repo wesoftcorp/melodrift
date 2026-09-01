@@ -386,7 +386,7 @@ class MusicRepositoryImpl implements MusicRepository {
     // ── Helper fetch methods ──────────────────────────────────────────────────
     Future<List<Song>> fetchJio(String q, {int limit = 30}) async {
       try {
-        final tracks = await jioSaavn.search(q, limit: limit).timeout(const Duration(seconds: 6), onTimeout: () => []);
+        final tracks = await jioSaavn.search(q, limit: limit).timeout(const Duration(seconds: 12), onTimeout: () => []);
         return tracks.map((t) => Song(
           id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
           title: t.title,
@@ -603,7 +603,7 @@ class MusicRepositoryImpl implements MusicRepository {
       ])).then((res) => spotifyIndiaTop50 = res),
       // New Music Friday India (Spotify)
       fetchSpotifyPlaylist('37i9dQZF1DX4JAvHpjipBk').then((res) => newMusicFridayIndia = res),
-      // Hindi Hits — always Hindi/Bollywood, rotates daily
+      // Hindi Hits — always Hindi/Bollywood, 6 diverse queries with 50 tracks each for 100+ songs
       fetchMultiJio([
         pick([
           'bollywood superhit songs 2024 hindi',
@@ -621,7 +621,9 @@ class MusicRepositoryImpl implements MusicRepository {
         ]),
         'hindi chartbuster top songs trending bollywood',
         'new hindi songs latest hits 2024',
-      ], limitEach: 40).then((res) => hindiHits = res),
+        'top 50 hindi weekly blockbuster hits',
+        'latest bollywood chartbusters popular',
+      ], limitEach: 50).then((res) => hindiHits = res),
       // Top 100 India
       fetchMultiJio([
         pick([
@@ -724,9 +726,25 @@ class MusicRepositoryImpl implements MusicRepository {
       ])).then((res) => indieHindi = res),
     ]);
 
-    // ── Fallback: ensure no section is empty ──────────────────────────────────
-    if (top100India.isEmpty) top100India = [...hindiHits, ...trendingSongs, ...quickPicks, ...charts, ...indianMusic];
-    if (hindiHits.isEmpty) hindiHits = [...top100India, ...indianMusic, ...charts, ...quickPicks];
+    // ── Guarantee 100+ songs in Hindi Hits & Top 100 India ──────────────────
+    final hindiSet = <String, Song>{for (final s in hindiHits) s.id: s};
+    for (final s in [...top100India, ...charts, ...indianMusic, ...quickPicks, ...trendingSongs, ...retro90s, ...sufiGhazals, ...romanticMelodies, ...partyDanceMix]) {
+      if (!hindiSet.containsKey(s.id)) {
+        hindiSet[s.id] = s;
+      }
+      if (hindiSet.length >= 100) break;
+    }
+    hindiHits = hindiSet.values.toList();
+
+    final indiaSet = <String, Song>{for (final s in top100India) s.id: s};
+    for (final s in [...hindiHits, ...trendingSongs, ...quickPicks, ...charts, ...indianMusic]) {
+      if (!indiaSet.containsKey(s.id)) {
+        indiaSet[s.id] = s;
+      }
+      if (indiaSet.length >= 100) break;
+    }
+    top100India = indiaSet.values.toList();
+
     if (top100International.isEmpty) top100International = [...spotifyTopHits, ...internationalHits];
     if (internationalHits.isEmpty) internationalHits = spotifyTopHits.isNotEmpty ? spotifyTopHits : quickPicks;
     if (punjabiHits.isEmpty) punjabiHits = indianMusic.isNotEmpty ? indianMusic : quickPicks;
