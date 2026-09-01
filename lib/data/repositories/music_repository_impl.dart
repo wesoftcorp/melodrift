@@ -475,25 +475,43 @@ class MusicRepositoryImpl implements MusicRepository {
     List<Song> punjabiHits = [];
     List<Song> romanticMelodies = [];
     List<Song> partyDanceMix = [];
+    List<Song> hindiHits = [];
 
     await Future.wait([
       fetchJio('trending top hits$langSuffix').then((res) => quickPicks = res),
       fetchJioAlbums('latest releases 2024$langSuffix').then((res) => newReleases = res),
-      fetchJio('top 50 hindi weekly$langSuffix').then((res) => charts = res),
-      fetchJio('romantic love songs$langSuffix').then((res) => listenAgain = res),
+      // Charts and Indian-music sections are always Hindi-pinned regardless of language filter
+      fetchJio('top 50 hindi weekly bollywood').then((res) => charts = res),
+      fetchJio('romantic love songs hindi$langSuffix').then((res) => listenAgain = res),
       fetchJio('viral songs trending$langSuffix').then((res) => trendingSongs = res),
-      fetchJio('punjabi bollywood blockbuster$langSuffix').then((res) => indianMusic = res),
-      fetchJio('retro 90s classic evergreen$langSuffix').then((res) => forgottenFavorites = res),
+      fetchJio('punjabi bollywood blockbuster hindi').then((res) => indianMusic = res),
+      fetchJio('retro 90s classic evergreen bollywood hindi').then((res) => forgottenFavorites = res),
       fetchJioAlbums('superhit album songs$langSuffix').then((res) => albumsForYou = res),
       fetchJioAlbums('party dance mix playlists$langSuffix').then((res) => featuredPlaylistsForYou = res),
       fetchSoundCloud('lofi chill remix beats').then((res) => soundCloudLounge = res),
       fetchSpotifyTop().then((res) => spotifyTopHits = res),
+      // Dedicated Hindi Hits — always Hindi regardless of language filter
       Future(() async {
         final responses = await Future.wait([
-          fetchJio('hindi trending top hits$langSuffix', limit: 30),
-          fetchJio('bollywood blockbuster chartbusters$langSuffix', limit: 30),
-          fetchJio('latest bollywood superhit songs$langSuffix', limit: 30),
-          fetchJio('top 50 hindi weekly hits$langSuffix', limit: 30),
+          fetchJio('bollywood superhit songs 2024 hindi', limit: 40),
+          fetchJio('arijit singh shreya ghoshal soulful hindi', limit: 40),
+          fetchJio('hindi chartbuster top songs trending bollywood', limit: 40),
+          fetchJio('new hindi songs 2024 latest hits', limit: 40),
+        ]);
+        final Map<String, Song> unique = {};
+        for (final r in responses) {
+          for (final s in r) {
+            if (!unique.containsKey(s.id)) unique[s.id] = s;
+          }
+        }
+        hindiHits = unique.values.toList();
+      }),
+      Future(() async {
+        final responses = await Future.wait([
+          fetchJio('hindi trending top hits bollywood', limit: 30),
+          fetchJio('bollywood blockbuster chartbusters hindi', limit: 30),
+          fetchJio('latest bollywood superhit songs hindi', limit: 30),
+          fetchJio('top 50 hindi weekly hits', limit: 30),
         ]);
         final Map<String, Song> unique = {};
         for (final r in responses) {
@@ -523,14 +541,16 @@ class MusicRepositoryImpl implements MusicRepository {
       }),
       fetchJio('international pop global viral hits english', limit: 35).then((res) => internationalHits = res),
       fetchJio('latest punjabi party hits banger', limit: 35).then((res) => punjabiHits = res),
-      fetchJio('romantic melodies soulful love arijit shreya', limit: 35).then((res) => romanticMelodies = res),
-      fetchJio('bollywood dance party club edm mix', limit: 35).then((res) => partyDanceMix = res),
+      fetchJio('romantic melodies soulful love arijit shreya hindi', limit: 35).then((res) => romanticMelodies = res),
+      fetchJio('bollywood dance party club edm mix hindi', limit: 35).then((res) => partyDanceMix = res),
     ]);
 
     // Ensure every single section is packed and never empty
     if (top100India.isEmpty) {
-
-      top100India = [...trendingSongs, ...quickPicks, ...charts, ...indianMusic];
+      top100India = [...hindiHits, ...trendingSongs, ...quickPicks, ...charts, ...indianMusic];
+    }
+    if (hindiHits.isEmpty) {
+      hindiHits = [...top100India, ...indianMusic, ...charts, ...quickPicks];
     }
     if (top100International.isEmpty) {
       top100International = [...spotifyTopHits, ...internationalHits];
@@ -640,6 +660,7 @@ class MusicRepositoryImpl implements MusicRepository {
       punjabiHits: punjabiHits,
       romanticMelodies: romanticMelodies,
       partyDanceMix: partyDanceMix,
+      hindiHits: hindiHits,
     );
 
   }

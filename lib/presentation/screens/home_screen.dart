@@ -106,7 +106,8 @@ class HomeLanguageNotifier extends StateNotifier<Set<String>> {
 
   static Set<String> _loadInitial(SharedPreferences prefs) {
     final list = prefs.getStringList(_key);
-    if (list == null || list.isEmpty) return {'All'};
+    // Default to Hindi if no preference has been set yet
+    if (list == null || list.isEmpty) return {'Hindi'};
     return list.toSet();
   }
 
@@ -302,6 +303,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 .where(isSingleTrack)
                 .toList();
 
+            final hindiHitSongs = feed.hindiHits
+                .where(isSingleTrack)
+                .toList();
+
             return RefreshIndicator(
               color: const Color(0xFFFF5F1F),
               onRefresh: () async {
@@ -420,6 +425,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   );
                 }),
 
+
+                // ── Hindi Hits 🎵 ────────────────────────────────────────
+                if (hindiHitSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    '🎵 Hindi Hits',
+                    textColor: const Color(0xFFFF9933),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'hindi_hits',
+                        title: 'Hindi Hits',
+                        type: 'songList',
+                        preloadedSongs: hindiHitSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, hindiHitSongs),
+                ],
 
                 // ── Quick Picks ──────────────────────────────────────────
                 if (quickPickSongs.isNotEmpty) ...[

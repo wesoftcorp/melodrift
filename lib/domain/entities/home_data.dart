@@ -33,6 +33,9 @@ class HomeData {
   final List<Song> romanticMelodies;
   final List<Song> partyDanceMix;
 
+  /// Dedicated Hindi Hits section — always shows Hindi/Bollywood songs regardless of language filter.
+  final List<Song> hindiHits;
+
   const HomeData({
     required this.quickPicks,
     required this.newReleases,
@@ -54,6 +57,7 @@ class HomeData {
     this.punjabiHits = const [],
     this.romanticMelodies = const [],
     this.partyDanceMix = const [],
+    this.hindiHits = const [],
   });
 
 }
