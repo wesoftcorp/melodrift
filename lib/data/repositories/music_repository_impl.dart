@@ -684,14 +684,33 @@ class MusicRepositoryImpl implements MusicRepository {
         'popular english songs chart 2024',
         'viral english songs trending today',
       ]), limit: 35).then((res) => internationalHits = res),
-      // Punjabi Hits
-      fetchJio(pick([
-        'latest punjabi party hits banger',
-        'punjabi top songs trending 2024',
-        'diljit dosanjh ap dhillon new songs',
-        'punjabi superhit songs popular',
-        'new punjabi songs 2024 viral',
-      ]), limit: 35).then((res) => punjabiHits = res),
+      // Punjabi Hits & Bangers — 5 parallel queries + Spotify Punjabi 101
+      Future(() async {
+        final jioTracks = await fetchMultiJio([
+          pick([
+            'latest punjabi party hits banger 2024',
+            'punjabi top 50 songs trending',
+            'punjabi viral hits 2024 popular',
+            'new punjabi songs chartbusters',
+          ]),
+          'diljit dosanjh sidhu moosewala ap dhillon superhit',
+          'karan aujla shubh guru randhawa hits 2024',
+          'punjabi blockbuster dance party banger',
+          'punjabi superhit songs all time hits',
+        ], limitEach: 50);
+        final spotTracks = await fetchSpotifyPlaylist(pick([
+          '37i9dQZF1DX4sWSpwq3LiO', // Punjabi 101
+          '37i9dQZF1DX5cZuAhlRIUV', // Punjabi Pop
+        ]));
+        final combined = <String, Song>{};
+        for (final s in jioTracks) {
+          combined[s.id] = s;
+        }
+        for (final s in spotTracks) {
+          if (!combined.containsKey(s.id)) combined[s.id] = s;
+        }
+        punjabiHits = combined.values.toList();
+      }),
       // Romantic Melodies
       fetchJio(pick([
         'romantic melodies soulful love arijit shreya hindi',
@@ -732,7 +751,7 @@ class MusicRepositoryImpl implements MusicRepository {
         'evergreen 90s hindi film songs',
         'udit narayan kavita krishnamurthy classic',
       ]), limit: 35).then((res) => retro90s = res),
-      // Bhangra & Dhol 🥁
+      // Bhangra & Dhol 🥁 — 5 parallel energetic dhol/wedding queries
       fetchMultiJio([
         pick([
           'bhangra party hits punjabi dhol',
@@ -741,8 +760,11 @@ class MusicRepositoryImpl implements MusicRepository {
           'desi bhangra hits punjabi 2024',
           'bhangra dhol mix party songs',
         ]),
-        'latest punjabi bhangra songs',
-      ], limitEach: 30).then((res) => bhangraDhol = res),
+        'punjabi dhol mix party beats dance',
+        'desi dhol bhangra wedding hits 2024',
+        'superhit bhangra songs dhol beats',
+        'dhol dhamaka punjabi bhangra banger',
+      ], limitEach: 50).then((res) => bhangraDhol = res),
       // Indie Hindi 🎧 (SoundCloud)
       fetchSoundCloud(pick([
         'indie hindi songs 2024',
@@ -774,15 +796,31 @@ class MusicRepositoryImpl implements MusicRepository {
 
     if (top100International.isEmpty) top100International = [...spotifyTopHits, ...internationalHits];
     if (internationalHits.isEmpty) internationalHits = spotifyTopHits.isNotEmpty ? spotifyTopHits : quickPicks;
-    if (punjabiHits.isEmpty) punjabiHits = indianMusic.isNotEmpty ? indianMusic : quickPicks;
+    final punjabiSet = <String, Song>{for (final s in punjabiHits) s.id: s};
+    for (final s in [...bhangraDhol, ...indianMusic, ...partyDanceMix, ...trendingSongs]) {
+      if (!punjabiSet.containsKey(s.id)) {
+        punjabiSet[s.id] = s;
+      }
+      if (punjabiSet.length >= 80) break;
+    }
+    punjabiHits = punjabiSet.values.toList();
+
+    final bhangraSet = <String, Song>{for (final s in bhangraDhol) s.id: s};
+    for (final s in [...punjabiHits, ...indianMusic, ...partyDanceMix]) {
+      if (!bhangraSet.containsKey(s.id)) {
+        bhangraSet[s.id] = s;
+      }
+      if (bhangraSet.length >= 60) break;
+    }
+    bhangraDhol = bhangraSet.values.toList();
+
     if (romanticMelodies.isEmpty) romanticMelodies = listenAgain.isNotEmpty ? listenAgain : quickPicks;
     if (partyDanceMix.isEmpty) partyDanceMix = trendingSongs.isNotEmpty ? trendingSongs : quickPicks;
     if (soundCloudLounge.isEmpty) soundCloudLounge = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
-    if (spotifyTopHits.isEmpty) spotifyTopHits = internationalHits.isNotEmpty ? internationalHits : quickPicks;
+    if (spotifyTopHits.isEmpty) spotifyTopHits = quickPicks;
     if (sufiGhazals.isEmpty) sufiGhazals = [...listenAgain.take(15), ...romanticMelodies.take(15)];
     if (devotionalBhakti.isEmpty) devotionalBhakti = [...forgottenFavorites.take(20)];
     if (retro90s.isEmpty) retro90s = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
-    if (bhangraDhol.isEmpty) bhangraDhol = punjabiHits.isNotEmpty ? punjabiHits : indianMusic;
     final indiaTop50Set = <String, Song>{for (final s in spotifyIndiaTop50) s.id: s};
     for (final s in [...top100India, ...hindiHits, ...charts, ...indianMusic]) {
       if (!indiaTop50Set.containsKey(s.id)) {
