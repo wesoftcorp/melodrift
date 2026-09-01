@@ -303,9 +303,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             final soundCloudSongs = feed.soundCloudLounge
                 .where(isSingleTrack)
                 .toList();
-            final top100IndiaSongs = feed.top100India
-                .where(isSingleTrack)
-                .toList();
             final top100InternationalSongs = feed.top100International
                 .where(isSingleTrack)
                 .toList();
@@ -579,25 +576,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   _buildAlbumRow(context, feed.newReleases),
-                ],
-
-
-                // ── Top 100 India ────────────────────────────────────────
-                if (top100IndiaSongs.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'Top 100 India',
-                    textColor: const Color(0xFFFF9933),
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'top_100_india',
-                        title: 'Top 100 India',
-                        type: 'songList',
-                        preloadedSongs: top100IndiaSongs,
-                      ),
-                    ),
-                  ),
-                  _buildMultiRowSongList(context, ref, top100IndiaSongs),
                 ],
 
                 // ── Top 100 International ──────────────────────────────────
