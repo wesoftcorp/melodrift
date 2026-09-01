@@ -377,6 +377,13 @@ class MusicRepositoryImpl implements MusicRepository {
     final spotify = getIt<SpotifyService>();
     final langSuffix = (language != null && language.isNotEmpty && language != 'All') ? ' $language' : '';
 
+    // ── Daily rotation index ──────────────────────────────────────────────────
+    // Advances 1 step per day so every section gets fresh queries each new day.
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year)).inDays;
+
+    String pick(List<String> pool) => pool[dayOfYear % pool.length];
+
+    // ── Helper fetch methods ──────────────────────────────────────────────────
     Future<List<Song>> fetchJio(String q, {int limit = 30}) async {
       try {
         final tracks = await jioSaavn.search(q, limit: limit).timeout(const Duration(seconds: 6), onTimeout: () => []);
@@ -413,9 +420,9 @@ class MusicRepositoryImpl implements MusicRepository {
       }
     }
 
-    Future<List<Song>> fetchSpotifyTop() async {
+    Future<List<Song>> fetchSpotifyPlaylist(String playlistId) async {
       try {
-        final res = await spotify.fetchPlaylist('37i9dQZF1DXcBWIGoYBM5M').timeout(const Duration(seconds: 4), onTimeout: () => null);
+        final res = await spotify.fetchPlaylist(playlistId).timeout(const Duration(seconds: 6), onTimeout: () => null);
         if (res != null) {
           final tracks = (res['tracks'] as List<MusicTrack>?) ?? [];
           return tracks.map((t) => Song(
@@ -433,6 +440,16 @@ class MusicRepositoryImpl implements MusicRepository {
       return [];
     }
 
+    Future<List<Song>> fetchMultiJio(List<String> queries, {int limitEach = 30}) async {
+      final responses = await Future.wait(queries.map((q) => fetchJio(q, limit: limitEach)));
+      final Map<String, Song> unique = {};
+      for (final r in responses) {
+        for (final s in r) {
+          if (!unique.containsKey(s.id)) unique[s.id] = s;
+        }
+      }
+      return unique.values.toList();
+    }
 
     Future<List<Album>> fetchJioAlbums(String q) async {
       try {
@@ -458,6 +475,82 @@ class MusicRepositoryImpl implements MusicRepository {
       }
     }
 
+    // ── Rotating query pools (1 pool entry selected per day) ─────────────────
+    // Each pool has 5 entries → completes one full rotation every 5 days.
+
+    final quickPicksQuery = pick([
+      'trending top hits bollywood$langSuffix',
+      'superhit hindi songs popular$langSuffix',
+      'top 40 bollywood songs week$langSuffix',
+      'chartbuster hits india$langSuffix',
+      'latest popular songs 2024$langSuffix',
+    ]);
+
+    final trendingQuery = pick([
+      'viral songs trending$langSuffix',
+      'top trending indian songs this week$langSuffix',
+      'viral bollywood hits 2024$langSuffix',
+      'most played songs india today$langSuffix',
+      'hit songs trending 2024$langSuffix',
+    ]);
+
+    final listenAgainQuery = pick([
+      'romantic love songs hindi soulful',
+      'arijit singh best romantic songs',
+      'evergreen romantic bollywood classic',
+      'best love songs hindi melody',
+      'soulful duet songs hindi',
+    ]);
+
+    final chartsQuery = pick([
+      'top 50 hindi weekly bollywood',
+      'hindi chart top songs this week',
+      'bollywood weekly chartbuster hits',
+      'most popular hindi songs chart',
+      'top hits hindi bollywood chart',
+    ]);
+
+    final indianMusicQuery = pick([
+      'punjabi bollywood blockbuster hindi',
+      'bollywood superhit indian music 2024',
+      'top indian music mix all languages',
+      'desi music hits india 2024',
+      'indian chartbuster all genres',
+    ]);
+
+    final forgottenQuery = pick([
+      'retro 90s classic evergreen bollywood hindi',
+      'classic 2000s bollywood hits',
+      'old hindi songs golden era',
+      'evergreen classic songs kumar sanu alka yagnik',
+      'retro bollywood udit narayan kavita krishnamurthy',
+    ]);
+
+    final albumsQuery = pick([
+      'superhit album songs$langSuffix',
+      'bollywood album hits 2024$langSuffix',
+      'top album releases india$langSuffix',
+      'best album songs hindi$langSuffix',
+      'popular album songs india$langSuffix',
+    ]);
+
+    final playlistsQuery = pick([
+      'party dance mix playlists$langSuffix',
+      'bollywood party playlist 2024$langSuffix',
+      'top playlist songs india$langSuffix',
+      'dance hits playlist hindi$langSuffix',
+      'club mix playlist india$langSuffix',
+    ]);
+
+    final soundCloudQuery = pick([
+      'lofi chill remix beats',
+      'lofi hindi chill beats relaxing',
+      'chill lo-fi study beats',
+      'lofi bollywood remix slow',
+      'ambient chill music hindi',
+    ]);
+
+    // ── Section result variables ──────────────────────────────────────────────
     List<Song> quickPicks = [];
     List<Album> newReleases = [];
     List<Song> charts = [];
@@ -476,116 +569,184 @@ class MusicRepositoryImpl implements MusicRepository {
     List<Song> romanticMelodies = [];
     List<Song> partyDanceMix = [];
     List<Song> hindiHits = [];
+    List<Song> sufiGhazals = [];
+    List<Song> devotionalBhakti = [];
+    List<Song> retro90s = [];
+    List<Song> bhangraDhol = [];
+    List<Song> indieHindi = [];
+    List<Song> spotifyIndiaTop50 = [];
+    List<Song> newMusicFridayIndia = [];
 
+    // ── Fetch all sections in parallel ────────────────────────────────────────
     await Future.wait([
-      fetchJio('trending top hits$langSuffix').then((res) => quickPicks = res),
+      fetchJio(quickPicksQuery).then((res) => quickPicks = res),
       fetchJioAlbums('latest releases 2024$langSuffix').then((res) => newReleases = res),
-      // Charts and Indian-music sections are always Hindi-pinned regardless of language filter
-      fetchJio('top 50 hindi weekly bollywood').then((res) => charts = res),
-      fetchJio('romantic love songs hindi$langSuffix').then((res) => listenAgain = res),
-      fetchJio('viral songs trending$langSuffix').then((res) => trendingSongs = res),
-      fetchJio('punjabi bollywood blockbuster hindi').then((res) => indianMusic = res),
-      fetchJio('retro 90s classic evergreen bollywood hindi').then((res) => forgottenFavorites = res),
-      fetchJioAlbums('superhit album songs$langSuffix').then((res) => albumsForYou = res),
-      fetchJioAlbums('party dance mix playlists$langSuffix').then((res) => featuredPlaylistsForYou = res),
-      fetchSoundCloud('lofi chill remix beats').then((res) => soundCloudLounge = res),
-      fetchSpotifyTop().then((res) => spotifyTopHits = res),
-      // Dedicated Hindi Hits — always Hindi regardless of language filter
-      Future(() async {
-        final responses = await Future.wait([
-          fetchJio('bollywood superhit songs 2024 hindi', limit: 40),
-          fetchJio('arijit singh shreya ghoshal soulful hindi', limit: 40),
-          fetchJio('hindi chartbuster top songs trending bollywood', limit: 40),
-          fetchJio('new hindi songs 2024 latest hits', limit: 40),
-        ]);
-        final Map<String, Song> unique = {};
-        for (final r in responses) {
-          for (final s in r) {
-            if (!unique.containsKey(s.id)) unique[s.id] = s;
-          }
-        }
-        hindiHits = unique.values.toList();
-      }),
-      Future(() async {
-        final responses = await Future.wait([
-          fetchJio('hindi trending top hits bollywood', limit: 30),
-          fetchJio('bollywood blockbuster chartbusters hindi', limit: 30),
-          fetchJio('latest bollywood superhit songs hindi', limit: 30),
-          fetchJio('top 50 hindi weekly hits', limit: 30),
-        ]);
-        final Map<String, Song> unique = {};
-        for (final r in responses) {
-          for (final s in r) {
-            if (!unique.containsKey(s.id)) {
-              unique[s.id] = s;
-            }
-          }
-        }
-        top100India = unique.values.toList();
-      }),
-      Future(() async {
-        final responses = await Future.wait([
-          fetchJio('billboard hot 100 global top hits english', limit: 30),
-          fetchJio('international pop global viral hits english', limit: 30),
-          fetchJio('today top hits global english songs', limit: 30),
-        ]);
-        final Map<String, Song> unique = {};
-        for (final r in responses) {
-          for (final s in r) {
-            if (!unique.containsKey(s.id)) {
-              unique[s.id] = s;
-            }
-          }
-        }
-        top100International = unique.values.toList();
-      }),
-      fetchJio('international pop global viral hits english', limit: 35).then((res) => internationalHits = res),
-      fetchJio('latest punjabi party hits banger', limit: 35).then((res) => punjabiHits = res),
-      fetchJio('romantic melodies soulful love arijit shreya hindi', limit: 35).then((res) => romanticMelodies = res),
-      fetchJio('bollywood dance party club edm mix hindi', limit: 35).then((res) => partyDanceMix = res),
+      fetchJio(chartsQuery).then((res) => charts = res),
+      fetchJio(listenAgainQuery).then((res) => listenAgain = res),
+      fetchJio(trendingQuery).then((res) => trendingSongs = res),
+      fetchJio(indianMusicQuery).then((res) => indianMusic = res),
+      fetchJio(forgottenQuery).then((res) => forgottenFavorites = res),
+      fetchJioAlbums(albumsQuery).then((res) => albumsForYou = res),
+      fetchJioAlbums(playlistsQuery).then((res) => featuredPlaylistsForYou = res),
+      fetchSoundCloud(soundCloudQuery).then((res) => soundCloudLounge = res),
+      // Spotify: Global Top Hits (rotates among 3 playlists)
+      fetchSpotifyPlaylist(pick([
+        '37i9dQZF1DXcBWIGoYBM5M', // Today's Top Hits Global
+        '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
+        '37i9dQZF1DX4JAvHpjipBk', // New Music Friday India
+      ])).then((res) => spotifyTopHits = res),
+      // Spotify India Top 50 (rotates)
+      fetchSpotifyPlaylist(pick([
+        '37i9dQZEVXbMDoHDwVN2tF', // India Top 50
+        '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
+        '37i9dQZF1DXcBWIGoYBM5M', // Global Top Hits
+      ])).then((res) => spotifyIndiaTop50 = res),
+      // New Music Friday India (Spotify)
+      fetchSpotifyPlaylist('37i9dQZF1DX4JAvHpjipBk').then((res) => newMusicFridayIndia = res),
+      // Hindi Hits — always Hindi/Bollywood, rotates daily
+      fetchMultiJio([
+        pick([
+          'bollywood superhit songs 2024 hindi',
+          'top bollywood songs this week hindi',
+          'most played bollywood hindi 2024',
+          'popular hindi film songs 2024',
+          'bollywood hits chart 2024',
+        ]),
+        pick([
+          'arijit singh shreya ghoshal soulful hindi',
+          'jubin nautiyal armaan malik new songs',
+          'neha kakkar tony kakkar latest 2024',
+          'atif aslam hindi songs popular',
+          'shreya ghoshal best romantic songs',
+        ]),
+        'hindi chartbuster top songs trending bollywood',
+        'new hindi songs latest hits 2024',
+      ], limitEach: 40).then((res) => hindiHits = res),
+      // Top 100 India
+      fetchMultiJio([
+        pick([
+          'hindi trending top hits bollywood',
+          'bollywood chart top 2024 trending',
+          'top 50 hindi songs popular week',
+          'hindi chart hits this week',
+          'bollywood trending songs today',
+        ]),
+        'bollywood blockbuster chartbusters hindi',
+        'latest bollywood superhit songs hindi',
+        'top 50 hindi weekly hits',
+      ], limitEach: 30).then((res) => top100India = res),
+      // Top 100 International
+      fetchMultiJio([
+        'billboard hot 100 global top hits english',
+        pick([
+          'international pop global viral hits english',
+          'global top songs pop chart english',
+          'world top hits english songs 2024',
+          'viral pop hits english international',
+          'global chart songs english 2024',
+        ]),
+        'today top hits global english songs',
+      ], limitEach: 30).then((res) => top100International = res),
+      // International Hits
+      fetchJio(pick([
+        'international pop global viral hits english',
+        'top western songs trending 2024',
+        'english pop hits global 2024',
+        'popular english songs chart 2024',
+        'viral english songs trending today',
+      ]), limit: 35).then((res) => internationalHits = res),
+      // Punjabi Hits
+      fetchJio(pick([
+        'latest punjabi party hits banger',
+        'punjabi top songs trending 2024',
+        'diljit dosanjh ap dhillon new songs',
+        'punjabi superhit songs popular',
+        'new punjabi songs 2024 viral',
+      ]), limit: 35).then((res) => punjabiHits = res),
+      // Romantic Melodies
+      fetchJio(pick([
+        'romantic melodies soulful love arijit shreya hindi',
+        'best hindi love songs romantic 2024',
+        'soulful romantic duet hindi songs',
+        'most romantic bollywood songs 2024',
+        'love songs hindi melody emotional',
+      ]), limit: 35).then((res) => romanticMelodies = res),
+      // Party & Dance Mix
+      fetchJio(pick([
+        'bollywood dance party club edm mix hindi',
+        'bollywood party hits 2024 dance',
+        'dance club mix hindi bollywood',
+        'party songs bollywood 2024 banger',
+        'best dance songs hindi 2024',
+      ]), limit: 35).then((res) => partyDanceMix = res),
+      // Sufi & Ghazals 🕉
+      fetchJio(pick([
+        'sufi songs qawwali nusrat fateh ali khan',
+        'sufi bollywood songs spiritual',
+        'ghazal jagjit singh mehdi hassan',
+        'sufi hits rahat fateh ali popular',
+        'spiritual sufi qawwali songs india',
+      ]), limit: 35).then((res) => sufiGhazals = res),
+      // Devotional & Bhakti 🙏
+      fetchJio(pick([
+        'bhajan aarti devotional songs hindi',
+        'ganesh bhajan krishna aarti devotional',
+        'morning bhajan devotional popular',
+        'hanuman chalisa bhajan popular',
+        'bhakti songs hindi popular 2024',
+      ]), limit: 30).then((res) => devotionalBhakti = res),
+      // 90s Retro Throwback 🎤
+      fetchJio(pick([
+        'retro 90s classic evergreen bollywood hindi',
+        'old hindi songs 90s classic hits',
+        'kumar sanu alka yagnik 90s songs',
+        'evergreen 90s hindi film songs',
+        'udit narayan kavita krishnamurthy classic',
+      ]), limit: 35).then((res) => retro90s = res),
+      // Bhangra & Dhol 🥁
+      fetchMultiJio([
+        pick([
+          'bhangra party hits punjabi dhol',
+          'bhangra dance songs popular 2024',
+          'punjabi bhangra wedding songs',
+          'desi bhangra hits punjabi 2024',
+          'bhangra dhol mix party songs',
+        ]),
+        'latest punjabi bhangra songs',
+      ], limitEach: 30).then((res) => bhangraDhol = res),
+      // Indie Hindi 🎧 (SoundCloud)
+      fetchSoundCloud(pick([
+        'indie hindi songs 2024',
+        'hindi indie alternative songs',
+        'independent hindi music artists',
+        'indie bollywood chill songs',
+        'desi indie music hindi songs',
+      ])).then((res) => indieHindi = res),
     ]);
 
-    // Ensure every single section is packed and never empty
-    if (top100India.isEmpty) {
-      top100India = [...hindiHits, ...trendingSongs, ...quickPicks, ...charts, ...indianMusic];
-    }
-    if (hindiHits.isEmpty) {
-      hindiHits = [...top100India, ...indianMusic, ...charts, ...quickPicks];
-    }
-    if (top100International.isEmpty) {
-      top100International = [...spotifyTopHits, ...internationalHits];
-    }
-    if (internationalHits.isEmpty) {
-      internationalHits = spotifyTopHits.isNotEmpty ? spotifyTopHits : quickPicks;
-    }
-    if (punjabiHits.isEmpty) {
-      punjabiHits = indianMusic.isNotEmpty ? indianMusic : quickPicks;
-    }
-    if (romanticMelodies.isEmpty) {
-      romanticMelodies = listenAgain.isNotEmpty ? listenAgain : quickPicks;
-    }
-    if (partyDanceMix.isEmpty) {
-      partyDanceMix = trendingSongs.isNotEmpty ? trendingSongs : quickPicks;
-    }
-    if (soundCloudLounge.isEmpty) {
-      soundCloudLounge = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
-    }
-    if (spotifyTopHits.isEmpty) {
-      spotifyTopHits = internationalHits.isNotEmpty ? internationalHits : quickPicks;
-    }
-    if (albumsForYou.isEmpty && newReleases.isNotEmpty) {
-      albumsForYou = newReleases;
-    }
-    if (featuredPlaylistsForYou.isEmpty && albumsForYou.isNotEmpty) {
-      featuredPlaylistsForYou = albumsForYou;
-    }
-    if (newReleases.isEmpty && albumsForYou.isNotEmpty) {
-      newReleases = albumsForYou;
-    }
+    // ── Fallback: ensure no section is empty ──────────────────────────────────
+    if (top100India.isEmpty) top100India = [...hindiHits, ...trendingSongs, ...quickPicks, ...charts, ...indianMusic];
+    if (hindiHits.isEmpty) hindiHits = [...top100India, ...indianMusic, ...charts, ...quickPicks];
+    if (top100International.isEmpty) top100International = [...spotifyTopHits, ...internationalHits];
+    if (internationalHits.isEmpty) internationalHits = spotifyTopHits.isNotEmpty ? spotifyTopHits : quickPicks;
+    if (punjabiHits.isEmpty) punjabiHits = indianMusic.isNotEmpty ? indianMusic : quickPicks;
+    if (romanticMelodies.isEmpty) romanticMelodies = listenAgain.isNotEmpty ? listenAgain : quickPicks;
+    if (partyDanceMix.isEmpty) partyDanceMix = trendingSongs.isNotEmpty ? trendingSongs : quickPicks;
+    if (soundCloudLounge.isEmpty) soundCloudLounge = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
+    if (spotifyTopHits.isEmpty) spotifyTopHits = internationalHits.isNotEmpty ? internationalHits : quickPicks;
+    if (sufiGhazals.isEmpty) sufiGhazals = [...listenAgain.take(15), ...romanticMelodies.take(15)];
+    if (devotionalBhakti.isEmpty) devotionalBhakti = [...forgottenFavorites.take(20)];
+    if (retro90s.isEmpty) retro90s = forgottenFavorites.isNotEmpty ? forgottenFavorites : quickPicks;
+    if (bhangraDhol.isEmpty) bhangraDhol = punjabiHits.isNotEmpty ? punjabiHits : indianMusic;
+    if (indieHindi.isEmpty) indieHindi = soundCloudLounge.isNotEmpty ? soundCloudLounge : quickPicks;
+    if (spotifyIndiaTop50.isEmpty) spotifyIndiaTop50 = [...top100India.take(30), ...hindiHits.take(20)];
+    if (newMusicFridayIndia.isEmpty) newMusicFridayIndia = [...hindiHits.take(20), ...trendingSongs.take(20)];
+    if (albumsForYou.isEmpty && newReleases.isNotEmpty) albumsForYou = newReleases;
+    if (featuredPlaylistsForYou.isEmpty && albumsForYou.isNotEmpty) featuredPlaylistsForYou = albumsForYou;
+    if (newReleases.isEmpty && albumsForYou.isNotEmpty) newReleases = albumsForYou;
 
     final List<Artist> recommendedArtists = [];
     final Set<String> seenArtistKeys = {};
-
 
     // 1. Add top artists with verified JioSaavn CDN portraits
     kKnownArtistImages.forEach((artistKey, portraitUrl) {
@@ -599,7 +760,6 @@ class MusicRepositoryImpl implements MusicRepository {
           subscribers: 'Verified Artist',
           isVerified: true,
         ));
-
       }
     });
 
@@ -661,8 +821,14 @@ class MusicRepositoryImpl implements MusicRepository {
       romanticMelodies: romanticMelodies,
       partyDanceMix: partyDanceMix,
       hindiHits: hindiHits,
+      sufiGhazals: sufiGhazals,
+      devotionalBhakti: devotionalBhakti,
+      retro90s: retro90s,
+      bhangraDhol: bhangraDhol,
+      indieHindi: indieHindi,
+      spotifyIndiaTop50: spotifyIndiaTop50,
+      newMusicFridayIndia: newMusicFridayIndia,
     );
-
   }
 
   @override

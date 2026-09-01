@@ -36,6 +36,27 @@ class HomeData {
   /// Dedicated Hindi Hits section — always shows Hindi/Bollywood songs regardless of language filter.
   final List<Song> hindiHits;
 
+  /// Sufi & Ghazals — soulful qawwali/sufi/ghazal songs.
+  final List<Song> sufiGhazals;
+
+  /// Devotional & Bhakti — bhajans, aartis, devotional songs.
+  final List<Song> devotionalBhakti;
+
+  /// 90s Retro Throwback — evergreen classics from the golden Bollywood era.
+  final List<Song> retro90s;
+
+  /// Bhangra & Dhol — high energy Punjabi dhol and bhangra party tracks.
+  final List<Song> bhangraDhol;
+
+  /// Indie Hindi — independent Hindi tracks, typically from SoundCloud.
+  final List<Song> indieHindi;
+
+  /// Spotify India Top 50 — songs from Spotify's India Top 50 curated playlist.
+  final List<Song> spotifyIndiaTop50;
+
+  /// New Music Friday India — songs from Spotify's New Music Friday India playlist.
+  final List<Song> newMusicFridayIndia;
+
   const HomeData({
     required this.quickPicks,
     required this.newReleases,
@@ -58,6 +79,13 @@ class HomeData {
     this.romanticMelodies = const [],
     this.partyDanceMix = const [],
     this.hindiHits = const [],
+    this.sufiGhazals = const [],
+    this.devotionalBhakti = const [],
+    this.retro90s = const [],
+    this.bhangraDhol = const [],
+    this.indieHindi = const [],
+    this.spotifyIndiaTop50 = const [],
+    this.newMusicFridayIndia = const [],
   });
 
 }

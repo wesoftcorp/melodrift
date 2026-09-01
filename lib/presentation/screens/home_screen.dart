@@ -189,6 +189,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _checkDailyRefresh();
+  }
+
+  Future<void> _checkDailyRefresh() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayKey = '${now.year}-${now.month}-${now.day}';
+      final lastRefreshed = prefs.getString('last_home_feed_refresh_date');
+      if (lastRefreshed != todayKey) {
+        await prefs.setString('last_home_feed_refresh_date', todayKey);
+        ref.invalidate(homeFeedProvider);
+      }
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -304,6 +323,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 .toList();
 
             final hindiHitSongs = feed.hindiHits
+                .where(isSingleTrack)
+                .toList();
+            final sufiSongs = feed.sufiGhazals
+                .where(isSingleTrack)
+                .toList();
+            final devotionalSongs = feed.devotionalBhakti
+                .where(isSingleTrack)
+                .toList();
+            final retro90sSongs = feed.retro90s
+                .where(isSingleTrack)
+                .toList();
+            final bhangraSongs = feed.bhangraDhol
+                .where(isSingleTrack)
+                .toList();
+            final indieHindiSongs = feed.indieHindi
+                .where(isSingleTrack)
+                .toList();
+            final spotifyIndiaSongs = feed.spotifyIndiaTop50
+                .where(isSingleTrack)
+                .toList();
+            final newMusicFridaySongs = feed.newMusicFridayIndia
                 .where(isSingleTrack)
                 .toList();
 
@@ -461,6 +501,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _buildMultiRowSongList(context, ref, quickPickSongs),
                 ],
 
+                // ── Spotify India Top 50 🇮🇳 ──────────────────────────────
+                if (spotifyIndiaSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'India Top 50',
+                    textColor: const Color(0xFF1DB954),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'spotify_india_top_50',
+                        title: 'India Top 50',
+                        type: 'songList',
+                        preloadedSongs: spotifyIndiaSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, spotifyIndiaSongs),
+                ],
+
+                // ── New Music Friday India 🌟 ─────────────────────────────
+                if (newMusicFridaySongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'New Music Friday India',
+                    textColor: const Color(0xFFFF5F1F),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'new_music_friday_india',
+                        title: 'New Music Friday India',
+                        type: 'songList',
+                        preloadedSongs: newMusicFridaySongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, newMusicFridaySongs),
+                ],
+
                 // ── Personalized Recommendations (YouTube-style) ─────────
                 ref.watch(personalizedRecommendationsProvider).when(
                   data: (rec) {
@@ -581,6 +657,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _buildMultiRowSongList(context, ref, punjabiSongs),
                 ],
 
+                // ── Bhangra & Dhol 🥁 ────────────────────────────────────
+                if (bhangraSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Bhangra & Dhol 🥁',
+                    textColor: const Color(0xFFFF8800),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'bhangra_dhol',
+                        title: 'Bhangra & Dhol',
+                        type: 'songList',
+                        preloadedSongs: bhangraSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, bhangraSongs),
+                ],
+
                 // ── Romantic Melodies ────────────────────────────────────
                 if (romanticSongs.isNotEmpty) ...[
                   _buildSectionHeader(
@@ -615,6 +709,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   _buildMultiRowSongList(context, ref, partySongs),
+                ],
+
+                // ── Sufi & Ghazals 🕉 ────────────────────────────────────
+                if (sufiSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Sufi & Ghazals 🕉',
+                    textColor: const Color(0xFF00E5FF),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'sufi_ghazals',
+                        title: 'Sufi & Ghazals',
+                        type: 'songList',
+                        preloadedSongs: sufiSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, sufiSongs),
+                ],
+
+                // ── Devotional & Bhakti 🙏 ────────────────────────────────
+                if (devotionalSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Devotional & Bhakti 🙏',
+                    textColor: const Color(0xFFFF9933),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'devotional_bhakti',
+                        title: 'Devotional & Bhakti',
+                        type: 'songList',
+                        preloadedSongs: devotionalSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, devotionalSongs),
+                ],
+
+                // ── 90s Retro Throwback 🎤 ───────────────────────────────
+                if (retro90sSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    '90s Retro Throwback 🎤',
+                    textColor: const Color(0xFFE040FB),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'retro_90s',
+                        title: '90s Retro Throwback',
+                        type: 'songList',
+                        preloadedSongs: retro90sSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, retro90sSongs),
                 ],
 
                 // ── Indian Music ─────────────────────────────────────────
@@ -684,6 +832,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   _buildMultiRowSongList(context, ref, spotifySongs),
+                ],
+
+                // ── Indie Hindi 🎧 ───────────────────────────────────────
+                if (indieHindiSongs.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    'Indie Hindi 🎧',
+                    textColor: const Color(0xFF00D2FF),
+                    onSeeAll: () => _openDetails(
+                      context,
+                      DetailsScreen(
+                        id: 'indie_hindi',
+                        title: 'Indie Hindi',
+                        type: 'songList',
+                        preloadedSongs: indieHindiSongs,
+                      ),
+                    ),
+                  ),
+                  _buildMultiRowSongList(context, ref, indieHindiSongs),
                 ],
 
                 // ── Lo-Fi Lounge & Chill Beats ───────────────────────────
