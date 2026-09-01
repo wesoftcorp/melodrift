@@ -145,21 +145,6 @@ class SongCard extends ConsumerWidget {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      Container(
-                        width: 6.5,
-                        height: 6.5,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: getSongSourceColor(song.source),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: getSongSourceColor(song.source).withOpacity(0.6),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                      ),
                       Expanded(
                         child: Text(
                           song.artist,
@@ -193,27 +178,6 @@ class SongCard extends ConsumerWidget {
                           ),
                         ),
                       ],
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: isCurrent
-                              ? theme.colorScheme.primary.withOpacity(0.18)
-                              : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: Text(
-                          'HQ',
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                            color: isCurrent
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.onSurface.withOpacity(0.65),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ],
