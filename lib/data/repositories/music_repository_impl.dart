@@ -896,8 +896,17 @@ class MusicRepositoryImpl implements MusicRepository {
         'viral songs popular weekly $langSuffix',
       ], limitEach: 50).then((res) => quickPicks = res),
       fetchCuratedAlbums([
-        'Stree 2', 'Fighter', 'Animal', 'Dunki', 'Jawan', 'Brahmastra', 'Pathaan',
-        'Tu Jhoothi Main Makkaar', 'Gadar 2', 'Rocky Aur Rani Kii Prem Kahaani',
+        'Stree 2', 'Fighter', 'Animal', 'Dunki', 'Jawan', 'Pathaan', 'Chandu Champion',
+        'Bad Newz', 'Khel Khel Mein', 'Singham Again', 'Bhool Bhulaiyaa 3', 'Amar Singh Chamkila',
+        'Crew', 'Teri Baaton Mein Aisa Uljha Jiya', 'Article 370', 'Yodha', 'Bade Miyan Chote Miyan',
+        'Maidaan', 'Srikanth', 'Mr & Mrs Mahi', 'Munjya', 'Sarfira', 'Kill', 'Vedaa', 'Jigra',
+        'Vicky Vidya Ka Woh Wala Video', 'Devara Hindi', 'Pushpa 2 The Rule Hindi', 'Kalki 2898 AD Hindi',
+        'Shaitaan', 'Zara Hatke Zara Bachke', 'Satyaprem Ki Katha', 'Gadar 2', 'Rocky Aur Rani Kii Prem Kahaani',
+        'Tu Jhoothi Main Makkaar', 'Sam Bahadur', 'Main Atal Hoon', 'Crakk', 'Do Patti',
+        'The Buckingham Murders', 'Kahan Shuru Kahan Khatam', 'Binny and Family', 'Bandaa Singh Chaudhary',
+        'CTRL', 'Sector 36', 'Karan Aujla Four Me EP', 'Diljit Dosanjh Ghost', 'AP Dhillon The Brownprint',
+        'Honey 3.0 Yo Yo Honey Singh', 'Badshah Ek Tha Raja', 'Arijit Singh Latest Hits',
+        'Sachin Jigar Bollywood Hits', 'Pritam Latest Bollywood Hits',
       ]).then((res) => newReleases = res),
       fetchMultiJio([
         chartsQuery,
@@ -1294,9 +1303,14 @@ class MusicRepositoryImpl implements MusicRepository {
     }
     featuredPlaylistsForYou = playlistPool.values.take(35).toList();
 
-    if (newReleases.isEmpty) {
-      newReleases = allSynthesized.take(20).toList();
+    // Merge and ensure at least 50+ unique fresh albums in newReleases
+    final Map<String, Album> newReleasesPool = {};
+    for (final a in [...newReleases, ...allSynthesized]) {
+      if ((a.tracks.length >= 3 || a.songCount >= 3) && !newReleasesPool.containsKey(a.title.toLowerCase())) {
+        newReleasesPool[a.title.toLowerCase()] = a;
+      }
     }
+    newReleases = newReleasesPool.values.take(60).toList();
 
     // Strictly ensure all albums have at least 3+ songs (more than 2 songs)
     newReleases = newReleases.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
