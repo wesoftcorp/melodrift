@@ -11,7 +11,7 @@ Your production Android App Bundle (`.aab`) is signed with your official upload 
 * **File Location:**
   [`dist_release\play_store\Melodrift-PlayStore-v1.2.1.aab`](file:///d:/Code/Antigravity/My_Projects/melodrift/dist_release/play_store/Melodrift-PlayStore-v1.2.1.aab)
 * **Package Name:** `com.melodrift`
-* **Version:** `1.2.1` (Build `122`)
+* **Version:** `1.2.1` (Build `121`)
 * **Target SDK:** `36` (Android 16) — Fully compliant with Play Store requirements ($\ge 34$).
 * **Minimum SDK:** `24` (Android 7.0 Nougat) — 98%+ global device reach.
 * **Architecture:** Full 64-bit support (`arm64-v8a`, `x86_64`, `armeabi-v7a`).
