@@ -30,11 +30,11 @@ class SongCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // select: only rebuilds when currentSong id or isPlaying changes, not on every position tick
     final (:currentId, :isPlaying) = ref.watch(
       playerStateProvider.select((s) => (currentId: s.currentSong?.id, isPlaying: s.isPlaying)),
     );
-    final isCurrent = currentId == song.id;
+    final isCurrent = currentId == song.id ||
+        (currentId != null && (currentId.endsWith(song.id) || song.id.endsWith(currentId)));
     final isCurrentlyPlaying = isCurrent && isPlaying;
 
     void onPlay() {

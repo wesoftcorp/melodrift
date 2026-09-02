@@ -797,11 +797,11 @@ class MusicRepositoryImpl implements MusicRepository {
     ]);
 
     final soundCloudQuery = pick([
-      'lofi chill remix beats',
       'lofi hindi chill beats relaxing',
-      'chill lo-fi study beats',
-      'lofi bollywood remix slow',
-      'ambient chill music hindi',
+      'lofi bollywood remix slow chill',
+      'hindi lofi chill remix songs',
+      'ambient chill music hindi bollywood',
+      'lofi acoustic hindi chill beats',
     ]);
 
     // ── Section result variables ──────────────────────────────────────────────
