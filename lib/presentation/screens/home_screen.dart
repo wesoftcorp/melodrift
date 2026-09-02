@@ -578,16 +578,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _buildAlbumRow(context, feed.newReleases),
                 ],
 
-                // ── Top 100 International ──────────────────────────────────
+                // ── Top 100 Hindi Blockbusters ───────────────────────────
                 if (top100InternationalSongs.isNotEmpty) ...[
                   _buildSectionHeader(
-                    'Top 100 International',
+                    'Top 100 Hindi Blockbusters',
                     textColor: const Color(0xFF00D2FF),
                     onSeeAll: () => _openDetails(
                       context,
                       DetailsScreen(
-                        id: 'top_100_international',
-                        title: 'Top 100 International',
+                        id: 'top_100_blockbusters',
+                        title: 'Top 100 Hindi Blockbusters',
                         type: 'songList',
                         preloadedSongs: top100InternationalSongs,
                       ),

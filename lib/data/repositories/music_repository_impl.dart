@@ -831,6 +831,8 @@ class MusicRepositoryImpl implements MusicRepository {
     List<Song> spotifyIndiaTop50 = [];
     List<Song> newMusicFridayIndia = [];
 
+    final isEnglishSelected = language != null && language.toLowerCase().contains('english');
+
     // ── Fetch all sections in parallel ────────────────────────────────────────
     await Future.wait([
       fetchMultiJio([
@@ -884,12 +886,18 @@ class MusicRepositoryImpl implements MusicRepository {
         for (final s in jioTracks) { if (!combined.containsKey(s.id)) combined[s.id] = s; }
         soundCloudLounge = combined.values.toList();
       }),
-      // Spotify: Global Top Hits (rotates among 3 global playlists)
-      fetchSpotifyPlaylist(pick([
-        '37i9dQZF1DXcBWIGoYBM5M', // Today's Top Hits Global
-        '37i9dQZEVXbMDoHDwVN2tF', // Top 50 - Global
-        '37i9dQZF1DX4Wsb4d7NKWh', // All Out 2010s
-      ])).then((res) => spotifyTopHits = res),
+      // Spotify: Top Hits (Hindi / Bollywood by default, English only if explicitly selected)
+      fetchSpotifyPlaylist(isEnglishSelected
+          ? pick([
+              '37i9dQZF1DXcBWIGoYBM5M', // Today's Top Hits Global
+              '37i9dQZEVXbMDoHDwVN2tF', // Top 50 - Global
+              '37i9dQZF1DX4Wsb4d7NKWh', // All Out 2010s
+            ])
+          : pick([
+              '37i9dQZF1DX0XUsuxWHRQd', // Bollywood Butter
+              '37i9dQZF1DX0b1hHYQtJjp', // Hot Hits Hindi
+              '37i9dQZEVXbMDoHDwVN2tF', // Top 50 - India Official Chart
+            ])).then((res) => spotifyTopHits = res),
       // India Top 50 — PURE INDIAN CHARTS (Spotify India + JioSaavn Indian Top 50)
       Future(() async {
         final spotTracks = await fetchSpotifyPlaylist(pick([
@@ -951,19 +959,19 @@ class MusicRepositoryImpl implements MusicRepository {
         'top 50 hindi weekly blockbuster hits',
         'latest bollywood chartbusters popular',
       ], limitEach: 50).then((res) => hindiHits = res),
-      // Top 100 International
-      fetchMultiJio([
-        'billboard hot 100 global top hits english',
-        pick([
-          'international pop global viral hits english',
-          'global top songs pop chart english',
-          'world top hits english songs 2024',
-          'viral pop hits english international',
-          'global chart songs english 2024',
-        ]),
-        'today top hits global english songs',
-        'top western billboard songs 2024',
-      ], limitEach: 50).then((res) => top100International = res),
+      // Top 100 Blockbusters (Hindi by default)
+      fetchMultiJio(isEnglishSelected
+          ? [
+              'billboard hot 100 global top hits english',
+              'today top hits global english songs',
+              'top western billboard songs 2024',
+            ]
+          : [
+              'bollywood blockbuster top 100 songs',
+              'superhit hindi songs all time top 100',
+              'hindi chartbuster top 100 hits bollywood',
+              'all time top 100 hindi blockbuster hits',
+            ], limitEach: 50).then((res) => top100International = res),
       // Punjabi Hits & Bangers — 5 parallel queries + Spotify Punjabi 101
       Future(() async {
         final jioTracks = await fetchMultiJio([
