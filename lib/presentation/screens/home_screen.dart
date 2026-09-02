@@ -828,41 +828,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
 
 
-                // ── Featured Playlists ───────────────────────────────────
-                if (feed.featuredPlaylistsForYou.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'Featured Playlists',
-                    textColor: const Color(0xFF00E5FF),
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'featured_playlists',
-                        title: 'Featured Playlists',
-                        type: 'albumList',
-                        preloadedAlbums: feed.featuredPlaylistsForYou,
-                      ),
-                    ),
-                  ),
-                  _buildAlbumRow(context, feed.featuredPlaylistsForYou),
-                ],
+                // ── Featured Albums & Playlists (Albums prioritized first) ───
+                Builder(builder: (context) {
+                  final Map<String, Album> combinedMap = {};
+                  // Priority 1: Albums For You
+                  for (final a in feed.albumsForYou) {
+                    combinedMap[a.id] = a;
+                  }
+                  // Priority 2: Featured Playlists
+                  for (final a in feed.featuredPlaylistsForYou) {
+                    if (!combinedMap.containsKey(a.id)) {
+                      combinedMap[a.id] = a;
+                    }
+                  }
+                  final mergedAlbums = combinedMap.values.toList();
+                  if (mergedAlbums.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
 
-                // ── Albums For You ───────────────────────────────────────
-                if (feed.albumsForYou.isNotEmpty) ...[
-                  _buildSectionHeader(
-                    'Albums For You',
-                    textColor: const Color(0xFF9B51E0),
-                    onSeeAll: () => _openDetails(
-                      context,
-                      DetailsScreen(
-                        id: 'albums_for_you',
-                        title: 'Albums For You',
-                        type: 'albumList',
-                        preloadedAlbums: feed.albumsForYou,
+                  return SliverMainAxisGroup(
+                    slivers: [
+                      _buildSectionHeader(
+                        'Albums & Featured Playlists',
+                        textColor: const Color(0xFF00E5FF),
+                        onSeeAll: () => _openDetails(
+                          context,
+                          DetailsScreen(
+                            id: 'featured_albums_playlists',
+                            title: 'Albums & Featured Playlists',
+                            type: 'albumList',
+                            preloadedAlbums: mergedAlbums,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  _buildAlbumRow(context, feed.albumsForYou),
-                ],
+                      _buildAlbumRow(context, mergedAlbums),
+                    ],
+                  );
+                }),
 
                 _buildSectionHeader(
                   'Moods & Genres',

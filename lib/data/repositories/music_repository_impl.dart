@@ -593,13 +593,24 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<HomeData> getHomeFeed({String? language}) async {
-    final cacheKey = language ?? 'All';
+    final now = DateTime.now();
+    final todayStr = '${now.year}_${now.month}_${now.day}';
+    final langKey = language ?? 'All';
+    final cacheKey = '${langKey}_$todayStr';
+
     if (_homeFeedMemoryCache.containsKey(cacheKey)) {
       return _homeFeedMemoryCache[cacheKey]!;
     }
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Clean up previous days' home feed cache entries to avoid storage bloat
+      final oldKeys = prefs.getKeys().where((k) => k.startsWith('home_feed_cache_') && !k.endsWith(todayStr)).toList();
+      for (final k in oldKeys) {
+        await prefs.remove(k);
+      }
+
       final cachedStr = prefs.getString('home_feed_cache_$cacheKey');
       if (cachedStr != null && cachedStr.isNotEmpty) {
         final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
