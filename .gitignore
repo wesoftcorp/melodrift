@@ -64,4 +64,9 @@ youtube-music-resolver-vercel/.vercel/
 *.apk
 *.msix
 
+# Keystore & Signing credentials (never commit to git)
+*.jks
+*.keystore
+android/key.properties
+
 node_modules/
