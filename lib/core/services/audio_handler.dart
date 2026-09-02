@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,6 +67,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   void _init() {
     _playlist = ConcatenatingAudioSource(children: []);
+    _initAudioSession();
     _initEqualizer();
     // Load cached preferences once at startup
     reloadPreferences();
@@ -638,6 +640,18 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     }
     
     _queueHash = _generateQueueHash(updatedQueue);
+  }
+
+  void _initAudioSession() async {
+    try {
+      if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
+        final session = await AudioSession.instance;
+        await session.configure(const AudioSessionConfiguration.music());
+        _log.info('AudioSession music profile configured successfully');
+      }
+    } catch (e) {
+      _log.error('Failed to init audio session: $e');
+    }
   }
 
   AndroidLoudnessEnhancer? _loudnessEnhancer;

@@ -215,18 +215,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       final isBufferingOrLoading = pState.processingState == AudioProcessingState.buffering ||
                                    pState.processingState == AudioProcessingState.loading;
-      final targetPlaying = (_resolvingVideoId != null) ? state.isPlaying : pState.playing;
-      final showLoading = _resolvingVideoId != null || (!targetPlaying && isBufferingOrLoading);
+      final targetPlaying = (_resolvingVideoId != null) ? true : pState.playing;
+      final showLoading = _resolvingVideoId != null || (targetPlaying && isBufferingOrLoading);
 
       // If the player says it is NOT playing, but we currently think it is playing,
-      // we debounce the update to false by 200ms to filter out transient stutters.
-      if (!targetPlaying && state.isPlaying) {
+      // and we are not actively resolving/starting a track, debounce the update to false.
+      if (!targetPlaying && state.isPlaying && _resolvingVideoId == null) {
         _playbackStateDebounceTimer?.cancel();
-        _playbackStateDebounceTimer = Timer(const Duration(milliseconds: 200), () {
-          if (mounted) {
+        _playbackStateDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+          if (mounted && _resolvingVideoId == null) {
             state = state.copyWith(
               isPlaying: false,
-              isLoading: showLoading,
+              isLoading: false,
               position: pState.updatePosition,
               bufferedPosition: pState.bufferedPosition,
               speed: pState.speed,
