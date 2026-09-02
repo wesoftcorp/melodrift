@@ -256,6 +256,13 @@ class DetailsScreen extends ConsumerWidget {
 
   Future<Map<String, dynamic>> _fetchData(WidgetRef ref, MusicRepository repo) async {
     if (type == 'album') {
+      if (preloadedSongs != null && preloadedSongs!.isNotEmpty) {
+        return {
+          'tracks': preloadedSongs!,
+          'subtitle': preloadedSongs!.first.artist,
+          'details': '${preloadedSongs!.length} songs',
+        };
+      }
       final album = await repo.getAlbumDetails(id, fallbackTitle: title);
       return {
         'tracks': album.tracks,

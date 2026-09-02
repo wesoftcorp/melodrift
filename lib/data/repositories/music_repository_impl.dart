@@ -631,10 +631,23 @@ class MusicRepositoryImpl implements MusicRepository {
       if (cachedStr != null && cachedStr.isNotEmpty) {
         final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
         final cachedData = _homeDataFromJson(decoded);
-        _homeFeedMemoryCache[cacheKey] = cachedData;
-        // Background refresh to keep data updated
-        unawaited(_fetchFreshHomeFeed(cacheKey: cacheKey, language: language));
-        return cachedData;
+
+        // If stale cache has junk/empty albums, invalidate and fetch fresh
+        final hasJunkAlbums = cachedData.albumsForYou.any((a) => a.tracks.isEmpty || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
+            cachedData.newReleases.any((a) => a.tracks.isEmpty || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample'));
+
+        if (!hasJunkAlbums) {
+          _homeFeedMemoryCache[cacheKey] = cachedData;
+          for (final a in [...cachedData.newReleases, ...cachedData.albumsForYou, ...cachedData.featuredPlaylistsForYou]) {
+            if (a.tracks.isNotEmpty) {
+              _albumCache[a.id] = a;
+              _albumCache[a.title.toLowerCase()] = a;
+            }
+          }
+          // Background refresh to keep data updated
+          unawaited(_fetchFreshHomeFeed(cacheKey: cacheKey, language: language));
+          return cachedData;
+        }
       }
     } catch (_) {}
 

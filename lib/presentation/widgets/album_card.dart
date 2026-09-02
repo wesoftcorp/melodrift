@@ -28,6 +28,7 @@ class AlbumCard extends StatelessWidget {
             title: album.title,
             artworkUrl: album.artworkUrl,
             type: 'album',
+            preloadedSongs: album.tracks.isNotEmpty ? album.tracks : null,
           ),
         );
       },
