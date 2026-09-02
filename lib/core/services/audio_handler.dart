@@ -518,15 +518,16 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         ..clear()
         ..addAll(playable.queueIndices);
 
-      // NOTE: Do NOT call _player.stop() here — stop() transitions just_audio to idle state,
-      // which makes a subsequent play() a no-op (requires user to tap twice to start playback).
-      // setAudioSource() handles the full reset internally without going through idle.
+      final wasPlaying = _player.playing;
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
         initialPosition: Duration.zero,
         preload: true,
       );
+      if (wasPlaying && !_player.playing) {
+        await _player.play();
+      }
       
       _currentQueue.clear();
       _currentQueue.addAll(newQueue);
@@ -650,7 +651,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       }
       final prefs = await SharedPreferences.getInstance();
       final savedPreset = prefs.getString('equalizer_preset') ?? 'Flat';
-      await setEqualizerPreset(savedPreset);
+      _currentPreset = savedPreset;
     } catch (e) {
       _log.error('Failed to init equalizer: $e');
     }

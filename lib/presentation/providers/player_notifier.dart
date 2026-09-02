@@ -183,7 +183,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           currentSong: song,
           duration: item.duration ?? Duration.zero,
         );
-        unawaited(_resolveNextInQueue()); // Trigger pre-resolution
+        final hasStreamUrl = item.extras?['streamUrl'] != null && (item.extras?['streamUrl'] as String).isNotEmpty;
+        if (hasStreamUrl && _resolvingVideoId == null) {
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted && state.isPlaying && !state.isLoading) {
+              unawaited(_resolveNextInQueue());
+            }
+          });
+        }
 
         if (_lastSavedSongId != song.id) {
           _lastSavedSongId = song.id;
@@ -412,6 +419,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // Pre-resolve next song in queue
   Future<void> _resolveNextInQueue() async {
+    if (_resolvingVideoId != null || state.isLoading || !state.isPlaying) return;
     final currentSong = state.currentSong;
     if (currentSong == null || state.queue.isEmpty) return;
 
