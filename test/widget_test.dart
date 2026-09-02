@@ -179,6 +179,9 @@ class MockMusicRepository implements MusicRepository {
 
   @override
   Future<List<String>> getSearchSuggestions(String query) async => [];
+
+  @override
+  Future<List<Song>> getMoodCategorySongs(String moodId, String moodTitle, {int limit = 100}) async => [];
 }
 
 class MockLocalMusicSource implements LocalMusicSource {

@@ -1212,45 +1212,116 @@ class _MoodDesignPreset {
 }
 
 final Map<String, _MoodDesignPreset> _moodDesignPresets = {
+  'trending': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&q=80',
+    gradientColors: [Color(0x66FF5F1F), Colors.black],
+    glowColor: Color(0xFFFF5F1F),
+  ),
+  'romance': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80',
+    gradientColors: [Color(0x66E91E63), Colors.black],
+    glowColor: Color(0xFFE91E63),
+  ),
+  'party': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80',
+    gradientColors: [Color(0x669C27B0), Colors.black],
+    glowColor: Color(0xFFAB47BC),
+  ),
+  'punjabi': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=600&q=80',
+    gradientColors: [Color(0x66FF9800), Colors.black],
+    glowColor: Color(0xFFFFB300),
+  ),
+  'chill': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=600&q=80',
+    gradientColors: [Color(0x66006064), Colors.black],
+    glowColor: Color(0xFF00BCD4),
+  ),
+  'workout': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80',
+    gradientColors: [Color(0x66D32F2F), Colors.black],
+    glowColor: Color(0xFFFF5252),
+  ),
+  'retro': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80',
+    gradientColors: [Color(0x66BF360C), Colors.black],
+    glowColor: Color(0xFFFF7043),
+  ),
+  'edm': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80',
+    gradientColors: [Color(0x6600BCD4), Colors.black],
+    glowColor: Color(0xFF18FFFF),
+  ),
+  'acoustic': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=600&q=80',
+    gradientColors: [Color(0x664E342E), Colors.black],
+    glowColor: Color(0xFF8D6E63),
+  ),
+  'hiphop': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+    gradientColors: [Color(0x66FF6F00), Colors.black],
+    glowColor: Color(0xFFFF9800),
+  ),
+  'hip_hop': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&q=80',
+    gradientColors: [Color(0x66FF6F00), Colors.black],
+    glowColor: Color(0xFFFF9800),
+  ),
+  'bollywood': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    gradientColors: [Color(0x66C2185B), Colors.black],
+    glowColor: Color(0xFFFF4081),
+  ),
+  'devotional': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1609743522653-52354461cf27?w=600&q=80',
+    gradientColors: [Color(0x66E65100), Colors.black],
+    glowColor: Color(0xFFFFB300),
+  ),
+  'focus': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&q=80',
+    gradientColors: [Color(0x66004D40), Colors.black],
+    glowColor: Color(0xFF00E676),
+  ),
+  'rock': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?w=600&q=80',
+    gradientColors: [Color(0x66B71C1C), Colors.black],
+    glowColor: Color(0xFFF44336),
+  ),
+  'sufi': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
+    gradientColors: [Color(0x66311B92), Colors.black],
+    glowColor: Color(0xFF7C4DFF),
+  ),
+  'kpop': const _MoodDesignPreset(
+    imageUrl: 'https://images.unsplash.com/photo-1516873240891-4bf014598ab4?w=600&q=80',
+    gradientColors: [Color(0x66880E4F), Colors.black],
+    glowColor: Color(0xFFFF4081),
+  ),
   'pop': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD8bVtvbm45O2pOf0qmGkMzzoFZfp4tJCu5pt8kX7N3Ebn7D8EyJMbUn6-Hr4uL0ZVb9jolKmSSvtVj_WVn5Pq3T20sNIkdGClg39fqee8DS_QOC5Wij_GnH4oC3aSX3lTMQfmxOvcM9tBWk8RQnga8sz9rwjIGCWOttLr_bHXi9v7roQEH5dM-hvIMI76dKhe3gfVu6SafaSMhNWaA99jaXEiQ4HYKKKhLWBrDxkFYEYBaQhi_mcKCclf3mcnzrK8TERgOB4o6oEc',
+    imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
     gradientColors: [Color(0x669C27B0), Colors.black],
     glowColor: Color(0xFFE91E63),
   ),
   'indie': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD8k2GHMYYX2Bki8U27EPTeMtvg766ilWLyvX6pl1RKgI2P9wy_uzC5XAj0A5OfQ7REqixgCgDoAAcyaAY-bCqNHRs_TLMJqfwt2Xv3cuJ06QFc8b_jPEDcskTo4331op5eArXc9JKZb_VDYlz5CZQOuudbkOFXj38PTxA6qcxxHYle08qN3SHcAEKxyTCkLEhxhBRk8US_VdwMTfgtYsTiMlai8wT1e9ZPoDW7gLlWjI6caMJaQpQZcQ5d-ALLbRmEgNiO7WcuQPA',
+    imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80',
     gradientColors: [Color(0x660D47A1), Colors.black],
     glowColor: Color(0xFF2196F3),
-  ),
-  'rock': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7HXa1jGDbTONlmCMs8N4JkMaCVjEb0XohXbm3LtKJIBE_HHnYkZcSMWtbq4yxEnp7L0SNbRTmNk06093OjIVCxewnlyWFNO2HFwLlsfD0BXboPMgNio2J2IOvWrOXT9BXaUB-de7x2vwYLoSKjERY6A3ek161VH105SmKbdePWFceRWYfXPef5Lb_PPdlOYftRg6H2XFYQRJNN6dq8UZSCRfYdXOxYo7gX86rHULKjSDFH157nUaJ7CWBf-Rj5HpU38A51XjLjSA',
-    gradientColors: [Color(0x66B71C1C), Colors.black],
-    glowColor: Color(0xFFF44336),
-  ),
-  'edm': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB_uKXoOWvCq-rB0khJy7uYi9xI9pzd9gTJqzD_lMdBVOzx4tAbF8Q-lHBK9SUUewjVWO93U2AxYJJ4XdxLD21wI6AO3NB42rUrrlJbcUtqoKadl8HhKFKTy_AU4_WDDm7hjgkqkUN8w52z6xHURcNTii_JwWoQc3rML4CNgXHk_oZkkoguTZrBTruUbgr-i4KKKXA2LYG06OaOz1PlYMj95arZc-6wGMXCx-dEuoVvq6s0U0aoqrBlqUAOrJTLzMFWEP_hK3SP5HU',
-    gradientColors: [Color(0x66006064), Colors.black],
-    glowColor: Color(0xFF00BCD4),
-  ),
-  'hip_hop': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDm0OOyJVQRKQu-qMDMl5GkQ7h7PZ036BjweFfZWQ3ZveJ6uMjqSDCq2BXHi7sjPWqfIhHaSCfzfAIgfk0LOHvY6KjKPi5NgmmEQfY5jmDW_QKV6eeXdsMgAMb8izFkV-duTOl12kzlVa-6gAOK6_Qvx4OOr3TevKiRcDwrKr6tZNmKPzyW1fukiuYLd3tuU38PR5s43E8agZ0wZBrdK-5xYQeQfu7N9AYOSX7BD9EInFsBWrBEFIdtoE56oEAFFLQaWSnoA6eMNYM',
-    gradientColors: [Color(0x66FF6F00), Colors.black],
-    glowColor: Color(0xFFFF9800),
-  ),
-  'focus': const _MoodDesignPreset(
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDKYYCBN79OVf1RPNktmM_s25AoQpiXY_pC2mSCfWiyqEd7U9OvGlFaRWdTwyM6792D1Es7u0o1tV2bmPwnxXivI6cvjDyNaguOiJX5IM3rNUFepPb9DneJjWO8abeMhSJ-edk00I06cfUQ27B-LbITm0JEDJImzDitay8O9i-mSZBrWLToiwjecNUKpwCBiYfjsoV_oS4Pd6uY9RmakaCFFusWlQpKZYu-uYnHEO4LrX4rFBQwVyWkeO_EEdq2IiETp_DhOsYDHPg',
-    gradientColors: [Color(0x66004D40), Colors.black],
-    glowColor: Color(0xFF00E676),
   ),
 };
 
 _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
-  final id = mood.id.toLowerCase();
+  final id = mood.id.toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
   if (_moodDesignPresets.containsKey(id)) {
     return _moodDesignPresets[id]!;
   }
 
   final title = mood.title.toLowerCase();
+
+  for (final entry in _moodDesignPresets.entries) {
+    if (title.contains(entry.key) || entry.key.contains(title)) {
+      return entry.value;
+    }
+  }
 
   // Relax/Chill/Sleep/Acoustic
   if (title.contains('relax') ||
@@ -1259,7 +1330,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
       title.contains('acoustic') ||
       title.contains('rainy')) {
     return const _MoodDesignPreset(
-      imageUrl: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=600&q=80',
       gradientColors: [Color(0x59003057), Colors.black],
       glowColor: Color(0xFF00BCD4),
     );
@@ -1272,7 +1343,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
       title.contains('gaming') ||
       title.contains('party')) {
     return const _MoodDesignPreset(
-      imageUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80',
       gradientColors: [Color(0x597A0016), Colors.black],
       glowColor: Color(0xFFFF5F1F),
     );
@@ -1285,7 +1356,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
       title.contains('feel') ||
       title.contains('morning')) {
     return const _MoodDesignPreset(
-      imageUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=600&q=80',
       gradientColors: [Color(0x595C003E), Colors.black],
       glowColor: Color(0xFFE91E63),
     );
@@ -1299,7 +1370,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
       title.contains('lofi') ||
       title.contains('90s')) {
     return const _MoodDesignPreset(
-      imageUrl: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80',
       gradientColors: [Color(0x594A2C00), Colors.black],
       glowColor: Color(0xFFFFB300),
     );
@@ -1313,7 +1384,7 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
       title.contains('sufi') ||
       title.contains('devotional')) {
     return const _MoodDesignPreset(
-      imageUrl: 'https://images.unsplash.com/photo-1583258292688-d0213df4a3a8?w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
       gradientColors: [Color(0x595F2300), Colors.black],
       glowColor: Color(0xFFFF5F1F),
     );
@@ -1337,10 +1408,10 @@ _MoodDesignPreset _getPresetForMood(MoodCategory mood, int index) {
     Color(0xFF009688),
   ];
   const List<String> fallbackImages = [
-    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80',
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80',
-    'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80',
-    'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
+    'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&q=80',
+    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80',
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80',
   ];
 
   return _MoodDesignPreset(
@@ -1632,7 +1703,7 @@ class _MoodSearchDialogState extends ConsumerState<_MoodSearchDialog> {
   void initState() {
     super.initState();
     final repo = ref.read(musicRepositoryProvider);
-    _futureSongs = repo.searchSongs('${widget.mood.title} bollywood hindi music');
+    _futureSongs = repo.getMoodCategorySongs(widget.mood.id, widget.mood.title, limit: 100);
   }
 
   String _formatDuration(Duration d) {

@@ -41,4 +41,7 @@ abstract class MusicRepository {
 
   /// Get search suggestions/autocomplete
   Future<List<String>> getSearchSuggestions(String query);
+
+  /// Get at least 100 curated songs for a mood or genre category
+  Future<List<Song>> getMoodCategorySongs(String moodId, String moodTitle, {int limit = 100});
 }

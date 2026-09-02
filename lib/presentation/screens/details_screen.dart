@@ -293,9 +293,9 @@ class DetailsScreen extends ConsumerWidget {
         'details': artist.isVerified ? 'Verified Artist' : '',
       };
     } else if (type == 'mood') {
-      final songs = await repo.searchSongs('$title music');
+      final songs = await repo.getMoodCategorySongs(id, title, limit: 100);
       return {
-        'tracks': songs.take(30).toList(),
+        'tracks': songs,
         'subtitle': 'Curated $title playlist',
         'details': '${songs.length} tracks found',
       };

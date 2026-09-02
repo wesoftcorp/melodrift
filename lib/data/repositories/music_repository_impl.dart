@@ -1664,4 +1664,214 @@ class MusicRepositoryImpl implements MusicRepository {
     final tracks = await jioSaavn.search(query);
     return tracks.map((t) => t.title).toSet().toList();
   }
+
+  @override
+  Future<List<Song>> getMoodCategorySongs(String moodId, String moodTitle, {int limit = 100}) async {
+    final cleanId = moodId.toLowerCase().trim();
+    final cleanTitle = moodTitle.toLowerCase().trim();
+    final jioSaavn = getIt<JioSaavnService>();
+
+    final Map<String, List<String>> queryMap = {
+      'trending': [
+        'trending top bollywood hits 2024',
+        'superhit hindi songs trending',
+        'top 50 hindi songs popular',
+        'viral hindi chartbusters weekly',
+        'most played bollywood songs india',
+      ],
+      'romance': [
+        'arijit singh best romantic songs',
+        'soulful bollywood love songs hindi',
+        'romantic melodies evergreen hits',
+        'shreya ghoshal romantic love songs',
+        'best hindi romantic duets',
+      ],
+      'party': [
+        'bollywood party dance mix 2024',
+        'punjabi club party hits banger',
+        'badshah honey singh party mix',
+        'dance hits hindi remix songs',
+        'club party songs bollywood',
+      ],
+      'punjabi': [
+        'punjabi hits 2024 superhits',
+        'karan aujla diljit dosanjh hits',
+        'ap dhillon punjabi bangers',
+        'superhit punjabi songs 2024',
+        'bhangra dhol wedding beats punjabi',
+      ],
+      'chill': [
+        'lofi hindi chill beats relaxing',
+        'bollywood lofi slow chill lounge',
+        'acoustic chill hindi songs',
+        'relaxing lofi beats hindi',
+        'hindi chillout songs ambient',
+      ],
+      'workout': [
+        'bollywood gym workout motivation',
+        'high energy workout songs hindi',
+        'gym pump songs punjabi banger',
+        'motivational workout beats hindi',
+        'power gym workout mix 2024',
+      ],
+      'retro': [
+        '90s bollywood superhits evergreen',
+        'kumar sanu alka yagnik golden hits',
+        'udit narayan 90s classic songs',
+        'golden era 2000s bollywood hits',
+        'timeless retro hindi melodies',
+      ],
+      'edm': [
+        'edm festival dance hits party',
+        'club edm dance songs 2024',
+        'bollywood edm remix bangers',
+        'electronic dance music hits',
+        'house dance party tracks',
+      ],
+      'acoustic': [
+        'acoustic unplugged hindi songs',
+        'prateek kuhad anuv jain acoustic',
+        'acoustic guitar bollywood songs',
+        'raw acoustic melodies hindi',
+        'soulful acoustic unplugged sessions',
+      ],
+      'hiphop': [
+        'desi hip hop rap songs hits',
+        'divine emiway gully gang rap',
+        'hindi rap songs 2024',
+        'krsna seedhe maut rap bangers',
+        'indian hip hop blockbusters',
+      ],
+      'bollywood': [
+        'bollywood superhit blockbuster songs',
+        'latest bollywood dance hits 2024',
+        'chartbuster hindi songs weekly',
+        'top bollywood music hits',
+        'all time bollywood superhits',
+      ],
+      'devotional': [
+        'bhakti songs devotional hindi',
+        'krishna bhajans devotional superhits',
+        'shiv bhajans aarti devotional',
+        'morning peaceful bhajans hindi',
+        'hanuman chalisa devotional songs',
+      ],
+      'focus': [
+        'deep focus study ambient beats',
+        'lofi study focus music relaxing',
+        'instrumental calm focus beats',
+        'ambient concentration study music',
+        'relaxing study beats focus',
+      ],
+      'rock': [
+        'indian rock songs hindi hits',
+        'bollywood rock bangers live',
+        'hard rock metal energetic songs',
+        'classic rock high energy songs',
+        'hindi rock bands songs',
+      ],
+      'sufi': [
+        'sufi songs rahat fateh ali khan',
+        'nusrat fateh ali khan sufi hits',
+        'jagjit singh soulful ghazals',
+        'qawwali sufi hits evergreen',
+        'mystical sufi melodies hindi',
+      ],
+      'kpop': [
+        'kpop top hits bts blackpink',
+        'kpop global chartbusters 2024',
+        'jpop anime top hits songs',
+        'kpop girl group bangers',
+        'korean pop superhits music',
+      ],
+    };
+
+    final queries = queryMap[cleanId] ?? [
+      '$cleanTitle bollywood hindi songs',
+      '$cleanTitle superhits music 2024',
+      'best of $cleanTitle songs',
+      'top $cleanTitle hits india',
+    ];
+
+    final Set<String> seenIds = {};
+    final Set<String> seenKeys = {};
+    final List<Song> result = [];
+
+    bool isJunk(String title) {
+      final l = title.toLowerCase();
+      return l.contains('trailer') ||
+          l.contains('teaser') ||
+          l.contains('sample') ||
+          l.contains('testing') ||
+          l.contains('promo') ||
+          l.contains('dialogue') ||
+          l.length < 2;
+    }
+
+    try {
+      final searchFutures = queries.map((q) async {
+        try {
+          final tracks = await jioSaavn.search(q, limit: 35).timeout(const Duration(seconds: 4), onTimeout: () => []);
+          return tracks.map((t) => Song(
+            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            duration: t.duration,
+            artworkUrl: t.artworkUrl,
+            videoId: t.id,
+            source: 'JioSaavn',
+          )).toList();
+        } catch (_) {
+          return <Song>[];
+        }
+      });
+
+      final allResults = await Future.wait(searchFutures);
+      for (final list in allResults) {
+        for (final s in list) {
+          if (isJunk(s.title)) continue;
+          final key = _canonicalTrackKey(s);
+          final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+          if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
+            seenIds.add(s.id);
+            seenIds.add(cleanId);
+            seenKeys.add(key);
+            result.add(s);
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Backfill if needed to reach 100+ songs
+    if (result.length < limit) {
+      try {
+        final fallbackTracks = await jioSaavn.search('$cleanTitle superhits', limit: 50);
+        for (final t in fallbackTracks) {
+          if (isJunk(t.title)) continue;
+          final s = Song(
+            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            duration: t.duration,
+            artworkUrl: t.artworkUrl,
+            videoId: t.id,
+            source: 'JioSaavn',
+          );
+          final key = _canonicalTrackKey(s);
+          final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+          if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
+            seenIds.add(s.id);
+            seenIds.add(cleanId);
+            seenKeys.add(key);
+            result.add(s);
+          }
+          if (result.length >= limit) break;
+        }
+      } catch (_) {}
+    }
+
+    return result.take(limit).toList();
+  }
 }

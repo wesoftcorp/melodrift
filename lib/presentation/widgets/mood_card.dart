@@ -175,7 +175,7 @@ class _MoodSongsDialogState extends ConsumerState<_MoodSongsDialog> {
   void initState() {
     super.initState();
     final repo = ref.read(musicRepositoryProvider);
-    _futureSongs = repo.searchSongs('${widget.mood.title} bollywood hindi music');
+    _futureSongs = repo.getMoodCategorySongs(widget.mood.id, widget.mood.title, limit: 100);
   }
 
   String _formatDuration(Duration d) {
