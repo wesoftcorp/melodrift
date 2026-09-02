@@ -932,10 +932,22 @@ class MusicRepositoryImpl implements MusicRepository {
       fetchCuratedAlbums([
         'Aashiqui 2', 'Kabir Singh', 'Rockstar', 'Yeh Jawaani Hai Deewani', 'Shershaah',
         'Ae Dil Hai Mushkil', 'Kalank', 'Luka Chuppi', 'Jab We Met', 'Dilwale',
+        'Zindagi Na Milegi Dobara', 'Cocktail', 'Bajirao Mastani', 'Padmaavat', 'Kal Ho Naa Ho',
+        'Om Shanti Om', 'Sanju', 'War', 'Sultan', 'Dangal', 'Ek Villain',
+        'Kedarnath', 'Raabta', 'Half Girlfriend', 'Hamari Adhuri Kahani', 'Tamasha',
+        'Raanjhanaa', 'Gully Boy', 'Satyaprem Ki Katha', 'Zara Hatke Zara Bachke', 'Crew',
+        'Bhool Bhulaiyaa 2', 'Bhediya', 'Vikram Vedha', 'Good Newwz', 'Bala',
+        'Sonu Ke Titu Ki Sweety', 'Badlapur', 'Chhichhore', 'MS Dhoni The Untold Story',
+        'Bang Bang', 'Dhoom 3', 'Ek Tha Tiger', 'Tiger Zinda Hai', 'Tiger 3',
+        'Arijit Singh Melodies', 'KK Evergreen Blockbusters', 'Pritam Superhits', 'Atif Aslam Romance',
       ]).then((res) => albumsForYou = res),
       fetchCuratedAlbums([
         'Badshah Party Hits', 'Honey Singh Hits', 'Punjabi Wedding Dhol',
         'Arijit Singh Romantic', 'Bollywood Dance Party', 'Hindi Lo-Fi Hits',
+        'Diljit Dosanjh Hits', 'AP Dhillon Banger', 'Karan Aujla Hits',
+        'Jubin Nautiyal Hits', 'Anuv Jain Indie Hits', 'Prateek Kuhad Songs',
+        'Mohit Chauhan Melodies', 'Sunidhi Chauhan Dance', 'Neha Kakkar Party',
+        'Kumar Sanu 90s Hits', 'Udit Narayan Romantics', 'Alka Yagnik Classics',
       ]).then((res) => featuredPlaylistsForYou = res),
       Future(() async {
         final scTracks = await fetchSoundCloud(soundCloudQuery);
@@ -1225,7 +1237,7 @@ class MusicRepositoryImpl implements MusicRepository {
     top100India = spotifyIndiaTop50;
     internationalHits = top100International;
 
-    List<Album> createAlbumsFromSongs(List<Song> songs) {
+    List<Album> createAlbumsFromSongs(List<Song> songs, {int maxCount = 80}) {
       final Map<String, List<Song>> byAlbum = {};
       for (final s in deduplicateSongs(songs)) {
         final albumName = s.album.isNotEmpty && !isJunkAlbum(s.album)
@@ -1237,7 +1249,7 @@ class MusicRepositoryImpl implements MusicRepository {
       }
       final result = <Album>[];
       for (final entry in byAlbum.entries) {
-        final albumTracks = entry.value;
+        final albumTracks = deduplicateSongs(entry.value);
         if (albumTracks.length >= 3) {
           final lead = albumTracks.first;
           final album = Album(
@@ -1254,17 +1266,36 @@ class MusicRepositoryImpl implements MusicRepository {
           result.add(album);
         }
       }
-      return result.take(15).toList();
+      return result.take(maxCount).toList();
     }
 
+    final allSynthesized = createAlbumsFromSongs([
+      ...hindiHits, ...romanticMelodies, ...partyDanceMix, ...punjabiHits,
+      ...charts, ...trendingSongs, ...indianMusic, ...retro90s,
+      ...sufiGhazals, ...quickPicks, ...devotionalBhakti, ...indieHindi, ...forgottenFavorites,
+      ...top100India, ...internationalHits
+    ], maxCount: 100);
+
+    // Merge and ensure at least 50+ unique albums in albumsForYou
+    final Map<String, Album> albumPool = {};
+    for (final a in [...albumsForYou, ...allSynthesized]) {
+      if ((a.tracks.length >= 3 || a.songCount >= 3) && !albumPool.containsKey(a.title.toLowerCase())) {
+        albumPool[a.title.toLowerCase()] = a;
+      }
+    }
+    albumsForYou = albumPool.values.take(65).toList();
+
+    // Merge and ensure 30+ unique collections in featuredPlaylistsForYou
+    final Map<String, Album> playlistPool = {};
+    for (final a in [...featuredPlaylistsForYou, ...allSynthesized.reversed]) {
+      if ((a.tracks.length >= 3 || a.songCount >= 3) && !albumPool.containsKey(a.title.toLowerCase()) && !playlistPool.containsKey(a.title.toLowerCase())) {
+        playlistPool[a.title.toLowerCase()] = a;
+      }
+    }
+    featuredPlaylistsForYou = playlistPool.values.take(35).toList();
+
     if (newReleases.isEmpty) {
-      newReleases = createAlbumsFromSongs([...trendingSongs, ...quickPicks, ...hindiHits]);
-    }
-    if (albumsForYou.isEmpty) {
-      albumsForYou = createAlbumsFromSongs([...romanticMelodies, ...punjabiHits, ...indianMusic]);
-    }
-    if (featuredPlaylistsForYou.isEmpty) {
-      featuredPlaylistsForYou = createAlbumsFromSongs([...partyDanceMix, ...sufiGhazals, ...retro90s]);
+      newReleases = allSynthesized.take(20).toList();
     }
 
     // Strictly ensure all albums have at least 3+ songs (more than 2 songs)
