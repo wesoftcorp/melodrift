@@ -833,11 +833,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   final Map<String, Album> combinedMap = {};
                   // Priority 1: Albums For You
                   for (final a in feed.albumsForYou) {
-                    combinedMap[a.id] = a;
+                    if (a.tracks.length >= 3 || a.songCount >= 3) {
+                      combinedMap[a.id] = a;
+                    }
                   }
                   // Priority 2: Featured Playlists
                   for (final a in feed.featuredPlaylistsForYou) {
-                    if (!combinedMap.containsKey(a.id)) {
+                    if (!combinedMap.containsKey(a.id) && (a.tracks.length >= 3 || a.songCount >= 3)) {
                       combinedMap[a.id] = a;
                     }
                   }

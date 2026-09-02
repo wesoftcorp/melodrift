@@ -632,9 +632,10 @@ class MusicRepositoryImpl implements MusicRepository {
         final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
         final cachedData = _homeDataFromJson(decoded);
 
-        // If stale cache has junk/empty albums, invalidate and fetch fresh
-        final hasJunkAlbums = cachedData.albumsForYou.any((a) => a.tracks.isEmpty || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
-            cachedData.newReleases.any((a) => a.tracks.isEmpty || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample'));
+        // If stale cache has junk/empty albums (< 3 songs), invalidate and fetch fresh
+        final hasJunkAlbums = cachedData.albumsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
+            cachedData.newReleases.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample')) ||
+            cachedData.featuredPlaylistsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer'));
 
         if (!hasJunkAlbums) {
           _homeFeedMemoryCache[cacheKey] = cachedData;
@@ -771,9 +772,9 @@ class MusicRepositoryImpl implements MusicRepository {
       final List<Album> result = [];
       try {
         final albumFutures = movieTitles.map((title) async {
-          final tracks = await fetchJio(title, limit: 10);
+          final tracks = await fetchJio('$title bollywood movie songs', limit: 15);
           final validTracks = deduplicateSongs(tracks.where((t) => !isJunkAlbum(t.title)).toList());
-          if (validTracks.isNotEmpty) {
+          if (validTracks.length >= 3) {
             final lead = validTracks.first;
             final album = Album(
               id: 'album_${lead.id}',
@@ -1237,7 +1238,7 @@ class MusicRepositoryImpl implements MusicRepository {
       final result = <Album>[];
       for (final entry in byAlbum.entries) {
         final albumTracks = entry.value;
-        if (albumTracks.isNotEmpty) {
+        if (albumTracks.length >= 3) {
           final lead = albumTracks.first;
           final album = Album(
             id: 'album_${lead.id}',
@@ -1265,6 +1266,11 @@ class MusicRepositoryImpl implements MusicRepository {
     if (featuredPlaylistsForYou.isEmpty) {
       featuredPlaylistsForYou = createAlbumsFromSongs([...partyDanceMix, ...sufiGhazals, ...retro90s]);
     }
+
+    // Strictly ensure all albums have at least 3+ songs (more than 2 songs)
+    newReleases = newReleases.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
+    albumsForYou = albumsForYou.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
+    featuredPlaylistsForYou = featuredPlaylistsForYou.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
 
     final List<Artist> recommendedArtists = [];
     final Set<String> seenArtistKeys = {};
