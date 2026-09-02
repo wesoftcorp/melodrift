@@ -1673,124 +1673,135 @@ class MusicRepositoryImpl implements MusicRepository {
 
     final Map<String, List<String>> queryMap = {
       'trending': [
-        'trending top bollywood hits 2024',
-        'superhit hindi songs trending',
-        'top 50 hindi songs popular',
-        'viral hindi chartbusters weekly',
-        'most played bollywood songs india',
+        'Trending Hindi',
+        'Top 50 India',
+        'Viral Hits Hindi',
+        'Bollywood Hits 2024',
+        'Latest Hindi chartbusters',
       ],
       'romance': [
-        'arijit singh best romantic songs',
-        'soulful bollywood love songs hindi',
-        'romantic melodies evergreen hits',
-        'shreya ghoshal romantic love songs',
-        'best hindi romantic duets',
+        'Arijit Singh Romance',
+        'Shreya Ghoshal Love',
+        'Romantic Hindi',
+        'Soulful Love Bollywood',
+        'Atif Aslam Love Songs',
+        'Armaan Malik Romantic',
       ],
       'party': [
-        'bollywood party dance mix 2024',
-        'punjabi club party hits banger',
-        'badshah honey singh party mix',
-        'dance hits hindi remix songs',
-        'club party songs bollywood',
+        'Bollywood Party',
+        'Badshah Hits',
+        'Honey Singh Party',
+        'Club Remix Hindi',
+        'Punjabi Party Hits',
+        'Neha Kakkar Dance',
       ],
       'punjabi': [
-        'punjabi hits 2024 superhits',
-        'karan aujla diljit dosanjh hits',
-        'ap dhillon punjabi bangers',
-        'superhit punjabi songs 2024',
-        'bhangra dhol wedding beats punjabi',
+        'Karan Aujla',
+        'Diljit Dosanjh',
+        'AP Dhillon',
+        'Sidhu Moose Wala',
+        'Punjabi Hits 2024',
+        'Shubh Punjabi',
       ],
       'chill': [
-        'lofi hindi chill beats relaxing',
-        'bollywood lofi slow chill lounge',
-        'acoustic chill hindi songs',
-        'relaxing lofi beats hindi',
-        'hindi chillout songs ambient',
+        'Lofi Hindi',
+        'Bollywood Lofi',
+        'Chill Hindi',
+        'Acoustic Bollywood',
+        'Relaxing Hindi Songs',
       ],
       'workout': [
-        'bollywood gym workout motivation',
-        'high energy workout songs hindi',
-        'gym pump songs punjabi banger',
-        'motivational workout beats hindi',
-        'power gym workout mix 2024',
+        'Workout Hindi',
+        'Gym Motivation Hindi',
+        'Power Gym Punjabi',
+        'High Energy Bollywood',
+        'Motivational Gym Songs',
+        'Workout Dance Mix Hindi',
       ],
       'retro': [
-        '90s bollywood superhits evergreen',
-        'kumar sanu alka yagnik golden hits',
-        'udit narayan 90s classic songs',
-        'golden era 2000s bollywood hits',
-        'timeless retro hindi melodies',
+        '90s Bollywood',
+        'Kumar Sanu Hits',
+        'Alka Yagnik',
+        'Udit Narayan',
+        'Kishore Kumar Hits',
+        'Lata Mangeshkar Hits',
       ],
       'edm': [
-        'edm festival dance hits party',
-        'club edm dance songs 2024',
-        'bollywood edm remix bangers',
-        'electronic dance music hits',
-        'house dance party tracks',
+        'EDM Hindi',
+        'Dance Party Remix',
+        'Electronic Dance Music',
+        'Bollywood EDM Remix',
+        'Alan Walker EDM',
+        'DJ Snake',
       ],
       'acoustic': [
-        'acoustic unplugged hindi songs',
-        'prateek kuhad anuv jain acoustic',
-        'acoustic guitar bollywood songs',
-        'raw acoustic melodies hindi',
-        'soulful acoustic unplugged sessions',
+        'Unplugged Hindi',
+        'Prateek Kuhad',
+        'Anuv Jain',
+        'Acoustic Hindi',
+        'MTV Unplugged Hindi',
+        'Jasleen Royal Acoustic',
       ],
       'hiphop': [
-        'desi hip hop rap songs hits',
-        'divine emiway gully gang rap',
-        'hindi rap songs 2024',
-        'krsna seedhe maut rap bangers',
-        'indian hip hop blockbusters',
+        'Desi Hip Hop',
+        'DIVINE Rap',
+        'Emiway Bantai',
+        'KR\$NA',
+        'Seedhe Maut',
+        'Raftaar Rap',
+        'MC Stan',
       ],
       'bollywood': [
-        'bollywood superhit blockbuster songs',
-        'latest bollywood dance hits 2024',
-        'chartbuster hindi songs weekly',
-        'top bollywood music hits',
-        'all time bollywood superhits',
+        'Bollywood Blockbusters',
+        'Pritam Hits',
+        'Arijit Singh Hits',
+        'Sachin Jigar Hits',
+        'Top Bollywood 2024',
+        'Vishal Shekhar Hits',
       ],
       'devotional': [
-        'bhakti songs devotional hindi',
-        'krishna bhajans devotional superhits',
-        'shiv bhajans aarti devotional',
-        'morning peaceful bhajans hindi',
-        'hanuman chalisa devotional songs',
+        'Hanuman Chalisa',
+        'Krishna Bhajan',
+        'Shiv Bhajan',
+        'Bhakti Sagar',
+        'Aarti Kunj Bihari Ki',
+        'Gulshan Kumar Bhakti',
       ],
       'focus': [
-        'deep focus study ambient beats',
-        'lofi study focus music relaxing',
-        'instrumental calm focus beats',
-        'ambient concentration study music',
-        'relaxing study beats focus',
+        'Deep Focus Study',
+        'Lofi Study Beats',
+        'Instrumental Relaxing',
+        'Peaceful Study Ambient',
+        'Piano Study Music',
       ],
       'rock': [
-        'indian rock songs hindi hits',
-        'bollywood rock bangers live',
-        'hard rock metal energetic songs',
-        'classic rock high energy songs',
-        'hindi rock bands songs',
+        'Rock On',
+        'Rockstar',
+        'Linkin Park',
+        'Metallica',
+        'Queen',
+        'Nirvana',
+        'AC DC',
+        'Rock Hindi',
+        'Indian Ocean band',
+        'Guns N Roses',
+        'Euphoria rock band',
       ],
       'sufi': [
-        'sufi songs rahat fateh ali khan',
-        'nusrat fateh ali khan sufi hits',
-        'jagjit singh soulful ghazals',
-        'qawwali sufi hits evergreen',
-        'mystical sufi melodies hindi',
-      ],
-      'kpop': [
-        'kpop top hits bts blackpink',
-        'kpop global chartbusters 2024',
-        'jpop anime top hits songs',
-        'kpop girl group bangers',
-        'korean pop superhits music',
+        'Rahat Fateh Ali Khan',
+        'Nusrat Fateh Ali Khan',
+        'Jagjit Singh Ghazals',
+        'Sufi Hits Bollywood',
+        'Coke Studio Sufi',
+        'Abida Parveen Sufi',
       ],
     };
 
     final queries = queryMap[cleanId] ?? [
-      '$cleanTitle bollywood hindi songs',
-      '$cleanTitle superhits music 2024',
-      'best of $cleanTitle songs',
-      'top $cleanTitle hits india',
+      '$cleanTitle Hindi',
+      'Best of $cleanTitle',
+      '$cleanTitle superhits',
+      'Top $cleanTitle songs',
     ];
 
     final Set<String> seenIds = {};
@@ -1811,7 +1822,7 @@ class MusicRepositoryImpl implements MusicRepository {
     try {
       final searchFutures = queries.map((q) async {
         try {
-          final tracks = await jioSaavn.search(q, limit: 35).timeout(const Duration(seconds: 4), onTimeout: () => []);
+          final tracks = await jioSaavn.search(q, limit: 30).timeout(const Duration(seconds: 6), onTimeout: () => []);
           return tracks.map((t) => Song(
             id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
             title: t.title,
@@ -1843,10 +1854,10 @@ class MusicRepositoryImpl implements MusicRepository {
       }
     } catch (_) {}
 
-    // Backfill if needed to reach 100+ songs
-    if (result.length < limit) {
+    // Backfill if needed to guarantee at least 50–100+ songs
+    if (result.length < 50) {
       try {
-        final fallbackTracks = await jioSaavn.search('$cleanTitle superhits', limit: 50);
+        final fallbackTracks = await jioSaavn.search('$cleanTitle hits', limit: 50).timeout(const Duration(seconds: 5), onTimeout: () => []);
         for (final t in fallbackTracks) {
           if (isJunk(t.title)) continue;
           final s = Song(
@@ -1867,7 +1878,6 @@ class MusicRepositoryImpl implements MusicRepository {
             seenKeys.add(key);
             result.add(s);
           }
-          if (result.length >= limit) break;
         }
       } catch (_) {}
     }
