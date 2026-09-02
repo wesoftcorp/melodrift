@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/theme_provider.dart';
 import '../../core/services/audio_handler.dart';
@@ -256,26 +257,72 @@ class SettingsScreen extends ConsumerWidget {
               _buildDivider(theme),
               ListTile(
                 title: const Text('Check for Updates'),
-                subtitle: const Text('Tap to check for latest release'),
+                subtitle: const Text('Tap to check for latest release or live patch'),
                 leading: const Icon(Icons.system_update_rounded, color: Color(0xFFFF5F1F)),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
                 onTap: () async {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Checking for updates...'),
-                      duration: Duration(seconds: 1),
+                      duration: Duration(seconds: 2),
                     ),
                   );
+
+                  // 1. First check Shorebird for instant Over-The-Air live patches
+                  final patchReady = await UpdateService.checkAndApplyShorebirdUpdate(
+                    onStatusUpdate: (msg) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+                        );
+                      }
+                    },
+                  );
+
+                  if (!context.mounted) return;
+
+                  if (patchReady) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    await showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Row(
+                          children: [
+                            Icon(Icons.check_circle_rounded, color: Colors.green),
+                            SizedBox(width: 8),
+                            Text('Update Ready!'),
+                          ],
+                        ),
+                        content: const Text(
+                          'A new live update has been downloaded and installed! Please swipe away Melodrift from Recent Apps and reopen it to enjoy the latest features.',
+                        ),
+                        actions: [
+                          FilledButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Got it'),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+
+                  // 2. Check GitHub for full binary APK/MSIX releases
                   final update = await UpdateService.checkLatestRelease();
                   if (!context.mounted) return;
                   if (update != null) {
                     await UpdateService.showUpdateDialog(context, update, isManual: true);
                   } else {
+                    final packageInfo = await PackageInfo.fromPlatform();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('You are already on the latest version! (v1.2.1)'),
+                      SnackBar(
+                        content: Text('You are on the latest version! (v${packageInfo.version})'),
                         backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
+                        duration: const Duration(seconds: 2),
                       ),
                     );
                   }

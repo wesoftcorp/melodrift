@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shorebird_code_push/shorebird_code_push.dart';
 import '../utils/logger.dart';
 
 class UpdateInfo {
@@ -30,6 +31,42 @@ class UpdateService {
   static final _log = AppLogger('UpdateService');
   static const String _githubRepo = 'wesoftcorp/melodrift';
   static const String _releaseApiUrl = 'https://api.github.com/repos/$_githubRepo/releases/latest';
+
+  /// Check Shorebird for live Over-The-Air code push updates.
+  /// Returns true if a patch was newly downloaded or is pending restart.
+  static Future<bool> checkAndApplyShorebirdUpdate({
+    void Function(String status)? onStatusUpdate,
+  }) async {
+    try {
+      if (!Platform.isAndroid && !Platform.isIOS) return false;
+      final updater = ShorebirdUpdater();
+      if (!updater.isAvailable) {
+        _log.info('Shorebird is not available on this platform/build');
+        return false;
+      }
+
+      final currentPatch = await updater.readCurrentPatch();
+      _log.info('Current Shorebird patch: ${currentPatch?.number ?? 'none'}');
+
+      onStatusUpdate?.call('Checking for live OTA updates...');
+      final status = await updater.checkForUpdate();
+
+      if (status == UpdateStatus.outdated) {
+        onStatusUpdate?.call('Downloading live update...');
+        await updater.update();
+        _log.info('Shorebird patch downloaded successfully!');
+        return true;
+      } else if (status == UpdateStatus.restartRequired) {
+        _log.info('Shorebird patch already downloaded, restart required');
+        return true;
+      } else {
+        _log.info('App is up to date on Shorebird track');
+      }
+    } catch (e) {
+      _log.warning('Shorebird update check failed: $e');
+    }
+    return false;
+  }
 
   /// Check if a newer version is available
   static Future<UpdateInfo?> checkLatestRelease() async {

@@ -20,6 +20,7 @@ import 'data/datasources/local_music_source.dart';
 import 'core/services/audio_handler.dart';
 import 'core/utils/logger.dart';
 import 'core/services/service_locator.dart';
+import 'core/services/update_service.dart';
 
 final _log = AppLogger('main');
 
@@ -127,4 +128,7 @@ void main() async {
       child: const App(),
     ),
   );
+
+  // Silently check and download Shorebird live updates in the background
+  unawaited(UpdateService.checkAndApplyShorebirdUpdate());
 }

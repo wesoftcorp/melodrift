@@ -79,6 +79,7 @@ dependencies:
   video_player: ^2.11.1
   package_info_plus: ^8.0.0
   open_filex: ^4.5.0
+  shorebird_code_push: ^2.0.7
 
 dev_dependencies:
   flutter_test:
