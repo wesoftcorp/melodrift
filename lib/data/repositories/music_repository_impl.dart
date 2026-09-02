@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/album.dart';
 import '../../domain/entities/artist.dart';
 import '../../domain/entities/charts_data.dart';
@@ -453,8 +455,166 @@ class MusicRepositoryImpl implements MusicRepository {
     return result;
   }
 
+  final Map<String, HomeData> _homeFeedMemoryCache = {};
+
+  static Map<String, dynamic> _songToJson(Song s) => {
+    'id': s.id,
+    'title': s.title,
+    'artist': s.artist,
+    'album': s.album,
+    'durationMs': s.duration.inMilliseconds,
+    'artworkUrl': s.artworkUrl,
+    'streamUrl': s.streamUrl,
+    'videoId': s.videoId,
+    'source': s.source,
+  };
+
+  static Song _songFromJson(Map<String, dynamic> j) => Song(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    artist: j['artist'] as String? ?? '',
+    album: j['album'] as String? ?? '',
+    duration: Duration(milliseconds: (j['durationMs'] as num?)?.toInt() ?? 0),
+    artworkUrl: j['artworkUrl'] as String? ?? '',
+    streamUrl: j['streamUrl'] as String?,
+    videoId: j['videoId'] as String? ?? '',
+    source: j['source'] as String? ?? 'JioSaavn',
+  );
+
+  static Map<String, dynamic> _albumToJson(Album a) => {
+    'id': a.id,
+    'title': a.title,
+    'artist': a.artist,
+    'artworkUrl': a.artworkUrl,
+    'year': a.year,
+    'tracks': a.tracks.map(_songToJson).toList(),
+    'songCount': a.songCount,
+    'source': a.source,
+  };
+
+  static Album _albumFromJson(Map<String, dynamic> j) => Album(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    artist: j['artist'] as String? ?? '',
+    artworkUrl: j['artworkUrl'] as String? ?? '',
+    year: j['year'] as int?,
+    tracks: ((j['tracks'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    songCount: (j['songCount'] as num?)?.toInt() ?? 0,
+    source: j['source'] as String? ?? 'JioSaavn',
+  );
+
+  static Map<String, dynamic> _artistToJson(Artist a) => {
+    'id': a.id,
+    'name': a.name,
+    'artworkUrl': a.artworkUrl,
+    'subscribers': a.subscribers,
+    'isVerified': a.isVerified,
+  };
+
+  static Artist _artistFromJson(Map<String, dynamic> j) => Artist(
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    artworkUrl: j['artworkUrl'] as String? ?? '',
+    subscribers: j['subscribers'] as String? ?? '',
+    isVerified: j['isVerified'] as bool? ?? false,
+  );
+
+  static Map<String, dynamic> _moodToJson(MoodCategory m) => {
+    'id': m.id,
+    'title': m.title,
+  };
+
+  static MoodCategory _moodFromJson(Map<String, dynamic> j) => MoodCategory(
+    id: j['id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+  );
+
+  static Map<String, dynamic> _homeDataToJson(HomeData d) => {
+    'quickPicks': d.quickPicks.map(_songToJson).toList(),
+    'newReleases': d.newReleases.map(_albumToJson).toList(),
+    'charts': d.charts.map(_songToJson).toList(),
+    'moods': d.moods.map(_moodToJson).toList(),
+    'listenAgain': d.listenAgain.map(_songToJson).toList(),
+    'recommendedArtists': d.recommendedArtists.map(_artistToJson).toList(),
+    'featuredPlaylist': d.featuredPlaylist != null ? _albumToJson(d.featuredPlaylist!) : null,
+    'trendingSongs': d.trendingSongs.map(_songToJson).toList(),
+    'featuredPlaylistsForYou': d.featuredPlaylistsForYou.map(_albumToJson).toList(),
+    'indianMusic': d.indianMusic.map(_songToJson).toList(),
+    'forgottenFavorites': d.forgottenFavorites.map(_songToJson).toList(),
+    'albumsForYou': d.albumsForYou.map(_albumToJson).toList(),
+    'soundCloudLounge': d.soundCloudLounge.map(_songToJson).toList(),
+    'spotifyTopHits': d.spotifyTopHits.map(_songToJson).toList(),
+    'top100India': d.top100India.map(_songToJson).toList(),
+    'top100International': d.top100International.map(_songToJson).toList(),
+    'internationalHits': d.internationalHits.map(_songToJson).toList(),
+    'punjabiHits': d.punjabiHits.map(_songToJson).toList(),
+    'romanticMelodies': d.romanticMelodies.map(_songToJson).toList(),
+    'partyDanceMix': d.partyDanceMix.map(_songToJson).toList(),
+    'hindiHits': d.hindiHits.map(_songToJson).toList(),
+    'sufiGhazals': d.sufiGhazals.map(_songToJson).toList(),
+    'devotionalBhakti': d.devotionalBhakti.map(_songToJson).toList(),
+    'retro90s': d.retro90s.map(_songToJson).toList(),
+    'bhangraDhol': d.bhangraDhol.map(_songToJson).toList(),
+    'indieHindi': d.indieHindi.map(_songToJson).toList(),
+    'spotifyIndiaTop50': d.spotifyIndiaTop50.map(_songToJson).toList(),
+    'newMusicFridayIndia': d.newMusicFridayIndia.map(_songToJson).toList(),
+  };
+
+  static HomeData _homeDataFromJson(Map<String, dynamic> j) => HomeData(
+    quickPicks: ((j['quickPicks'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    newReleases: ((j['newReleases'] as List<dynamic>?) ?? []).map((t) => _albumFromJson(t as Map<String, dynamic>)).toList(),
+    charts: ((j['charts'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    moods: ((j['moods'] as List<dynamic>?) ?? []).map((t) => _moodFromJson(t as Map<String, dynamic>)).toList(),
+    listenAgain: ((j['listenAgain'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    recommendedArtists: ((j['recommendedArtists'] as List<dynamic>?) ?? []).map((t) => _artistFromJson(t as Map<String, dynamic>)).toList(),
+    featuredPlaylist: j['featuredPlaylist'] != null ? _albumFromJson(j['featuredPlaylist'] as Map<String, dynamic>) : null,
+    trendingSongs: ((j['trendingSongs'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    featuredPlaylistsForYou: ((j['featuredPlaylistsForYou'] as List<dynamic>?) ?? []).map((t) => _albumFromJson(t as Map<String, dynamic>)).toList(),
+    indianMusic: ((j['indianMusic'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    forgottenFavorites: ((j['forgottenFavorites'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    albumsForYou: ((j['albumsForYou'] as List<dynamic>?) ?? []).map((t) => _albumFromJson(t as Map<String, dynamic>)).toList(),
+    soundCloudLounge: ((j['soundCloudLounge'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    spotifyTopHits: ((j['spotifyTopHits'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    top100India: ((j['top100India'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    top100International: ((j['top100International'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    internationalHits: ((j['internationalHits'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    punjabiHits: ((j['punjabiHits'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    romanticMelodies: ((j['romanticMelodies'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    partyDanceMix: ((j['partyDanceMix'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    hindiHits: ((j['hindiHits'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    sufiGhazals: ((j['sufiGhazals'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    devotionalBhakti: ((j['devotionalBhakti'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    retro90s: ((j['retro90s'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    bhangraDhol: ((j['bhangraDhol'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    indieHindi: ((j['indieHindi'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    spotifyIndiaTop50: ((j['spotifyIndiaTop50'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+    newMusicFridayIndia: ((j['newMusicFridayIndia'] as List<dynamic>?) ?? []).map((t) => _songFromJson(t as Map<String, dynamic>)).toList(),
+  );
+
   @override
   Future<HomeData> getHomeFeed({String? language}) async {
+    final cacheKey = language ?? 'All';
+    if (_homeFeedMemoryCache.containsKey(cacheKey)) {
+      return _homeFeedMemoryCache[cacheKey]!;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedStr = prefs.getString('home_feed_cache_$cacheKey');
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
+        final cachedData = _homeDataFromJson(decoded);
+        _homeFeedMemoryCache[cacheKey] = cachedData;
+        // Background refresh to keep data updated
+        unawaited(_fetchFreshHomeFeed(cacheKey: cacheKey, language: language));
+        return cachedData;
+      }
+    } catch (_) {}
+
+    return _fetchFreshHomeFeed(cacheKey: cacheKey, language: language);
+  }
+
+  Future<HomeData> _fetchFreshHomeFeed({required String cacheKey, String? language}) async {
     final jioSaavn = getIt<JioSaavnService>();
     final soundCloud = getIt<SoundCloudService>();
     final spotify = getIt<SpotifyService>();
@@ -972,9 +1132,32 @@ class MusicRepositoryImpl implements MusicRepository {
     top100India = spotifyIndiaTop50;
     internationalHits = top100International;
 
-    if (albumsForYou.isEmpty && newReleases.isNotEmpty) albumsForYou = newReleases;
-    if (featuredPlaylistsForYou.isEmpty && albumsForYou.isNotEmpty) featuredPlaylistsForYou = albumsForYou;
-    if (newReleases.isEmpty && albumsForYou.isNotEmpty) newReleases = albumsForYou;
+    List<Album> createAlbumsFromSongs(List<Song> songs) {
+      final Map<String, List<Song>> byAlbum = {};
+      for (final s in songs) {
+        final albumName = s.album.isNotEmpty ? s.album : s.title;
+        byAlbum.putIfAbsent(albumName, () => []).add(s);
+      }
+      return byAlbum.entries.take(15).map((e) => Album(
+        id: 'album_${e.value.first.id}',
+        title: e.key,
+        artist: e.value.first.artist,
+        artworkUrl: e.value.first.artworkUrl,
+        tracks: e.value,
+        songCount: e.value.length,
+        source: e.value.first.source,
+      )).toList();
+    }
+
+    if (newReleases.isEmpty) {
+      newReleases = createAlbumsFromSongs([...trendingSongs, ...quickPicks, ...hindiHits]);
+    }
+    if (albumsForYou.isEmpty) {
+      albumsForYou = createAlbumsFromSongs([...romanticMelodies, ...punjabiHits, ...indianMusic]);
+    }
+    if (featuredPlaylistsForYou.isEmpty) {
+      featuredPlaylistsForYou = createAlbumsFromSongs([...partyDanceMix, ...sufiGhazals, ...retro90s]);
+    }
 
     final List<Artist> recommendedArtists = [];
     final Set<String> seenArtistKeys = {};
@@ -1013,7 +1196,7 @@ class MusicRepositoryImpl implements MusicRepository {
       if (recommendedArtists.length >= 25) break;
     }
 
-    return HomeData(
+    final homeData = HomeData(
       quickPicks: quickPicks,
       newReleases: newReleases,
       charts: charts,
@@ -1060,6 +1243,15 @@ class MusicRepositoryImpl implements MusicRepository {
       spotifyIndiaTop50: spotifyIndiaTop50,
       newMusicFridayIndia: newMusicFridayIndia,
     );
+
+    // Save to memory cache and persist to SharedPreferences for fast offline/cold start
+    _homeFeedMemoryCache[cacheKey] = homeData;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('home_feed_cache_$cacheKey', jsonEncode(_homeDataToJson(homeData)));
+    } catch (_) {}
+
+    return homeData;
   }
 
   @override
