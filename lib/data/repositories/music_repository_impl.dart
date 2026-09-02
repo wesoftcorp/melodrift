@@ -457,6 +457,22 @@ class MusicRepositoryImpl implements MusicRepository {
 
   final Map<String, HomeData> _homeFeedMemoryCache = {};
 
+  static String _canonicalTrackKey(Song s) {
+    var cleanTitle = s.title.toLowerCase()
+        .replaceAll(RegExp(r'\([^)]*\)'), '')
+        .replaceAll(RegExp(r'\[[^\]]*\]'), '')
+        .replaceAll(RegExp(r'[^a-z0-9]'), '')
+        .trim();
+    if (cleanTitle.isEmpty) cleanTitle = s.id.toLowerCase();
+
+    final cleanArtist = s.artist.toLowerCase()
+        .split(',').first
+        .split('&').first
+        .replaceAll(RegExp(r'[^a-z0-9]'), '')
+        .trim();
+    return '$cleanTitle|$cleanArtist';
+  }
+
   static Map<String, dynamic> _songToJson(Song s) => {
     'id': s.id,
     'title': s.title,
@@ -1116,19 +1132,50 @@ class MusicRepositoryImpl implements MusicRepository {
       }),
     ]);
 
-    // ── Helper backfill function to guarantee at least minCount songs per section ──
-    List<Song> ensureCount(List<Song> target, List<Song> donorPool, {int minCount = 100}) {
-      final set = <String, Song>{for (final s in target) s.id: s};
-      for (final s in donorPool) {
-        if (!set.containsKey(s.id)) {
-          set[s.id] = s;
+    // ── Canonical Song Deduplication Engine ──────────────────────────────────
+    List<Song> deduplicateSongs(List<Song> songs) {
+      final seenIds = <String>{};
+      final seenKeys = <String>{};
+      final result = <Song>[];
+
+      for (final s in songs) {
+        final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+        final key = _canonicalTrackKey(s);
+
+        if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
+          seenIds.add(s.id);
+          seenIds.add(cleanId);
+          seenKeys.add(key);
+          result.add(s);
         }
-        if (set.length >= minCount) break;
       }
-      return set.values.toList();
+      return result;
     }
 
-    // ── Guarantee 100+ songs across all genre sections ─────────────────────────
+    // ── Helper backfill function to guarantee at least minCount unique songs per section ──
+    List<Song> ensureCount(List<Song> target, List<Song> donorPool, {int minCount = 100}) {
+      final deduped = deduplicateSongs(target);
+      if (deduped.length >= minCount) return deduped;
+
+      final seenKeys = <String>{for (final s in deduped) _canonicalTrackKey(s)};
+      final seenIds = <String>{for (final s in deduped) s.id};
+      final result = List<Song>.from(deduped);
+
+      for (final s in deduplicateSongs(donorPool)) {
+        final key = _canonicalTrackKey(s);
+        final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+        if (!seenKeys.contains(key) && !seenIds.contains(s.id) && !seenIds.contains(cleanId)) {
+          seenKeys.add(key);
+          seenIds.add(s.id);
+          seenIds.add(cleanId);
+          result.add(s);
+        }
+        if (result.length >= minCount) break;
+      }
+      return result;
+    }
+
+    // ── Guarantee 100+ unique non-repeated songs across all genre sections ────
     hindiHits = ensureCount(hindiHits, [...charts, ...indianMusic, ...quickPicks, ...trendingSongs, ...retro90s, ...sufiGhazals, ...romanticMelodies, ...partyDanceMix], minCount: 100);
     romanticMelodies = ensureCount(romanticMelodies, [...hindiHits, ...listenAgain, ...sufiGhazals, ...charts, ...retro90s, ...quickPicks], minCount: 100);
     partyDanceMix = ensureCount(partyDanceMix, [...bhangraDhol, ...punjabiHits, ...trendingSongs, ...hindiHits, ...quickPicks], minCount: 100);
