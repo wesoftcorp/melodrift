@@ -632,8 +632,9 @@ class MusicRepositoryImpl implements MusicRepository {
         final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
         final cachedData = _homeDataFromJson(decoded);
 
-        // If stale cache has junk/empty albums (< 3 songs), invalidate and fetch fresh
-        final hasJunkAlbums = cachedData.albumsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
+        // If stale cache has junk/empty albums (< 3 songs) or old small count (< 50 albums), invalidate and fetch fresh
+        final hasJunkAlbums = cachedData.newReleases.length < 50 ||
+            cachedData.albumsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
             cachedData.newReleases.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample')) ||
             cachedData.featuredPlaylistsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer'));
 
@@ -768,11 +769,12 @@ class MusicRepositoryImpl implements MusicRepository {
           l.length < 2;
     }
 
-    Future<List<Album>> fetchCuratedAlbums(List<String> movieTitles) async {
+    Future<List<Album>> fetchCuratedAlbums(List<String> titles, {bool isInternational = false}) async {
       final List<Album> result = [];
       try {
-        final albumFutures = movieTitles.map((title) async {
-          final tracks = await fetchJio('$title bollywood movie songs', limit: 15);
+        final albumFutures = titles.map((title) async {
+          final query = isInternational ? '$title album songs' : '$title songs';
+          final tracks = await fetchJio(query, limit: 12);
           final validTracks = deduplicateSongs(tracks.where((t) => !isJunkAlbum(t.title)).toList());
           if (validTracks.length >= 3) {
             final lead = validTracks.first;
@@ -812,40 +814,40 @@ class MusicRepositoryImpl implements MusicRepository {
 
     final trendingQuery = pick([
       'viral songs trending$langSuffix',
-      'top trending indian songs this week$langSuffix',
-      'viral bollywood hits 2024$langSuffix',
-      'most played songs india today$langSuffix',
-      'hit songs trending 2024$langSuffix',
-    ]);
-
-    final listenAgainQuery = pick([
-      'romantic love songs hindi soulful',
-      'arijit singh best romantic songs',
-      'evergreen romantic bollywood classic',
-      'best love songs hindi melody',
-      'soulful duet songs hindi',
+      'chartbuster hits trending 2024$langSuffix',
+      'top trending bollywood music$langSuffix',
+      'viral hits india week$langSuffix',
+      'top songs trending now$langSuffix',
     ]);
 
     final chartsQuery = pick([
-      'top 50 hindi weekly bollywood',
-      'hindi chart top songs this week',
-      'bollywood weekly chartbuster hits',
-      'most popular hindi songs chart',
-      'top hits hindi bollywood chart',
+      'top 50 hindi weekly$langSuffix',
+      'official top 40 bollywood$langSuffix',
+      'hindi top chartbusters 2024$langSuffix',
+      'most played songs india$langSuffix',
+      'india music charts 2024$langSuffix',
+    ]);
+
+    final listenAgainQuery = pick([
+      'arijit singh top hits hindi',
+      'soulful bollywood melodies romantic',
+      'evergreen romantic hits arijit',
+      'top melodious songs hindi',
+      'heartfelt romantic melodies bollywood',
     ]);
 
     final indianMusicQuery = pick([
-      'punjabi bollywood blockbuster hindi',
-      'bollywood superhit indian music 2024',
-      'top indian music mix all languages',
-      'desi music hits india 2024',
-      'indian chartbuster all genres',
+      'all india superhits 2024',
+      'punjabi bollywood blockbuster 2024',
+      'pan india top hits songs',
+      'hindi crossover chartbusters 2024',
+      'top 50 all india songs 2024',
     ]);
 
     final forgottenQuery = pick([
-      'retro 90s classic evergreen bollywood hindi',
-      'classic 2000s bollywood hits',
-      'old hindi songs golden era',
+      'classic 90s bollywood hits',
+      'golden era 2000s hindi hits',
+      'timeless old bollywood songs',
       'evergreen classic songs kumar sanu alka yagnik',
       'retro bollywood udit narayan kavita krishnamurthy',
     ]);
@@ -861,6 +863,8 @@ class MusicRepositoryImpl implements MusicRepository {
     // ── Section result variables ──────────────────────────────────────────────
     List<Song> quickPicks = [];
     List<Album> newReleases = [];
+    List<Album> indianNewReleases = [];
+    List<Album> internationalNewReleases = [];
     List<Song> charts = [];
     List<Song> listenAgain = [];
     List<Song> trendingSongs = [];
@@ -895,6 +899,7 @@ class MusicRepositoryImpl implements MusicRepository {
         'top hindi songs popular chart $langSuffix',
         'viral songs popular weekly $langSuffix',
       ], limitEach: 50).then((res) => quickPicks = res),
+      // 55+ Indian Latest Released Albums (2024-2026)
       fetchCuratedAlbums([
         'Stree 2', 'Fighter', 'Animal', 'Dunki', 'Jawan', 'Pathaan', 'Chandu Champion',
         'Bad Newz', 'Khel Khel Mein', 'Singham Again', 'Bhool Bhulaiyaa 3', 'Amar Singh Chamkila',
@@ -906,8 +911,29 @@ class MusicRepositoryImpl implements MusicRepository {
         'The Buckingham Murders', 'Kahan Shuru Kahan Khatam', 'Binny and Family', 'Bandaa Singh Chaudhary',
         'CTRL', 'Sector 36', 'Karan Aujla Four Me EP', 'Diljit Dosanjh Ghost', 'AP Dhillon The Brownprint',
         'Honey 3.0 Yo Yo Honey Singh', 'Badshah Ek Tha Raja', 'Arijit Singh Latest Hits',
-        'Sachin Jigar Bollywood Hits', 'Pritam Latest Bollywood Hits',
-      ]).then((res) => newReleases = res),
+        'Sachin Jigar Bollywood Hits', 'Pritam Latest Bollywood Hits', 'Anuv Jain Indie Hits',
+        'Prateek Kuhad Songs', 'Shreya Ghoshal Hits', 'Darshan Raval Latest',
+      ], isInternational: false).then((res) => indianNewReleases = res),
+      // 55+ International Latest Released Albums (2024-2026)
+      fetchCuratedAlbums([
+        'Taylor Swift The Tortured Poets Department', 'Billie Eilish HIT ME HARD AND SOFT',
+        'Sabrina Carpenter Short n Sweet', 'Charli XCX BRAT', 'Dua Lipa Radical Optimism',
+        'Ariana Grande eternal sunshine', 'Post Malone F 1 Trillion', 'Beyonce COWBOY CARTER',
+        'Chappell Roan The Rise and Fall of a Midwest Princess', 'The Weeknd Hurry Up Tomorrow',
+        'Kendrick Lamar GNX', 'Eminem The Death of Slim Shady', 'Coldplay Moon Music',
+        'Olivia Rodrigo GUTS', 'SZA SOS', 'Ed Sheeran Autumn Variations', 'Drake For All The Dogs',
+        'Travis Scott UTOPIA', 'Bad Bunny Nadie Sabe', 'Morgan Wallen One Thing At A Time',
+        'Jack Harlow Jackman', 'Future Metro Boomin We Dont Trust You', 'Future Metro Boomin We Still Dont Trust You',
+        'Luke Combs Gettin Old', 'Zach Bryan', 'Noah Kahan Stick Season', 'Troye Sivan Something to Give',
+        'Kanye West VULTURES', 'Camila Cabello C XOXO', 'Twenty One Pilots Clancy',
+        'Hozier Unreal Unearth', 'Teddy Swims Ive Tried Everything', 'Benson Boone Fireworks and Rollerblades',
+        'Gracie Abrams The Secret of Us', 'Tate McRae THINK LATER', 'Laufey Bewitched',
+        'Conan Gray Found Heaven', 'The Kid LAROI THE FIRST TIME', 'Lany a beautiful blur',
+        'Jung Kook GOLDEN', 'V Layover', 'Jimin MUSE', 'RM Right Place Wrong Person',
+        'TXT The Star Chapter', 'NewJeans Get Up', 'Stray Kids ATE', 'LE SSERAFIM CRAZY',
+        'Justin Bieber Justice', 'Harry Styles Harrys House', 'The Weeknd After Hours',
+        'Bruno Mars Silk Sonic', 'Doja Cat Scarlet', 'Sia Reasonable Woman', 'Imagine Dragons LOOM',
+      ], isInternational: true).then((res) => internationalNewReleases = res),
       fetchMultiJio([
         chartsQuery,
         'top 50 hindi weekly bollywood',
@@ -1278,12 +1304,20 @@ class MusicRepositoryImpl implements MusicRepository {
       return result.take(maxCount).toList();
     }
 
-    final allSynthesized = createAlbumsFromSongs([
+    // 1. Synthesize Indian albums from all Indian tracks
+    final synthesizedIndianAlbums = createAlbumsFromSongs([
       ...hindiHits, ...romanticMelodies, ...partyDanceMix, ...punjabiHits,
       ...charts, ...trendingSongs, ...indianMusic, ...retro90s,
       ...sufiGhazals, ...quickPicks, ...devotionalBhakti, ...indieHindi, ...forgottenFavorites,
-      ...top100India, ...internationalHits
-    ], maxCount: 100);
+      ...top100India
+    ], maxCount: 80);
+
+    // 2. Synthesize International albums from all International tracks
+    final synthesizedIntlAlbums = createAlbumsFromSongs([
+      ...top100International, ...internationalHits, ...spotifyTopHits
+    ], maxCount: 80);
+
+    final allSynthesized = [...synthesizedIndianAlbums, ...synthesizedIntlAlbums];
 
     // Merge and ensure at least 50+ unique albums in albumsForYou
     final Map<String, Album> albumPool = {};
@@ -1303,14 +1337,32 @@ class MusicRepositoryImpl implements MusicRepository {
     }
     featuredPlaylistsForYou = playlistPool.values.take(35).toList();
 
-    // Merge and ensure at least 50+ unique fresh albums in newReleases
-    final Map<String, Album> newReleasesPool = {};
-    for (final a in [...newReleases, ...allSynthesized]) {
-      if ((a.tracks.length >= 3 || a.songCount >= 3) && !newReleasesPool.containsKey(a.title.toLowerCase())) {
-        newReleasesPool[a.title.toLowerCase()] = a;
+    // 3. Build at least 50 Indian fresh albums
+    final Map<String, Album> indianPool = {};
+    for (final a in [...indianNewReleases, ...synthesizedIndianAlbums]) {
+      if ((a.tracks.length >= 3 || a.songCount >= 3) && !indianPool.containsKey(a.title.toLowerCase())) {
+        indianPool[a.title.toLowerCase()] = a;
       }
     }
-    newReleases = newReleasesPool.values.take(60).toList();
+    final finalIndianNewReleases = indianPool.values.take(55).toList();
+
+    // 4. Build at least 50 International fresh albums
+    final Map<String, Album> intlPool = {};
+    for (final a in [...internationalNewReleases, ...synthesizedIntlAlbums]) {
+      if ((a.tracks.length >= 3 || a.songCount >= 3) && !intlPool.containsKey(a.title.toLowerCase()) && !indianPool.containsKey(a.title.toLowerCase())) {
+        intlPool[a.title.toLowerCase()] = a;
+      }
+    }
+    final finalIntlNewReleases = intlPool.values.take(55).toList();
+
+    // 5. Interleave Indian and International albums (50 Indian + 50 International = 100+ Fresh Release albums)
+    final List<Album> combinedNewReleases = [];
+    final maxLen = finalIndianNewReleases.length > finalIntlNewReleases.length ? finalIndianNewReleases.length : finalIntlNewReleases.length;
+    for (var i = 0; i < maxLen; i++) {
+      if (i < finalIndianNewReleases.length) combinedNewReleases.add(finalIndianNewReleases[i]);
+      if (i < finalIntlNewReleases.length) combinedNewReleases.add(finalIntlNewReleases[i]);
+    }
+    newReleases = combinedNewReleases.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
 
     // Strictly ensure all albums have at least 3+ songs (more than 2 songs)
     newReleases = newReleases.where((a) => a.tracks.length >= 3 || a.songCount >= 3).toList();
