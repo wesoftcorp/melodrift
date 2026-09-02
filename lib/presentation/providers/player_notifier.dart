@@ -533,11 +533,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       duration: Duration.zero,
     );
 
-    // 2. Instantly push metadata to audio handler streams for other listening widgets
-    final tempItem = _mapSongToMediaItem(song);
-    _handler.mediaItem.add(tempItem);
-    _handler.queue.add([tempItem]);
-
     try {
       // 3. Resolve the stream URL asynchronously
       final streamUrl = await _resolveStream(song.videoId, song: song);
@@ -557,11 +552,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _log.debug('updating queue with final media item: ${mediaItem.title}');
       await _handler.updateQueue([mediaItem], initialIndex: 0);
 
-      state = state.copyWith(isLoading: false, isPlaying: true);
-
       _log.debug('invoking handler.play()');
       await _handler.play();
-      // Clear resolving flag AFTER play() so playbackState listener keeps isPlaying=true
+      // Wait until the player confirms playing=true before clearing the resolving guard.
+      // This prevents the debounce from seeing playing=false during the brief
+      // transition between setAudioSource and the play command taking effect.
+      await _handler.playbackState
+          .firstWhere((s) => s.playing, orElse: () => _handler.playbackState.value)
+          .timeout(const Duration(seconds: 3), onTimeout: () => _handler.playbackState.value);
+      // Clear resolving flag AFTER player is confirmed playing
       _resolvingVideoId = null;
       _log.debug('handler.play() completed successfully');
     } catch (e) {
@@ -611,11 +610,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       duration: Duration.zero,
     );
 
-    // 2. Instantly push metadata to audio handler streams
-    final tempItems = filteredSongs.map((s) => _mapSongToMediaItem(s)).toList();
-    _handler.mediaItem.add(tempItems[targetIndex]);
-    _handler.queue.add(tempItems);
-
     try {
       // 3. Resolve the stream URL asynchronously
       final resolvedFirstUrl = await _resolveStream(selectedSong.videoId, song: selectedSong);
@@ -645,9 +639,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       await _handler.updateQueue(mItems, initialIndex: targetIndex);
-      state = state.copyWith(isLoading: false, isPlaying: true);
       await _handler.play();
-      // Clear resolving flag AFTER play() so playbackState listener keeps isPlaying=true
+      // Wait until player confirms playing=true before clearing the resolving guard
+      await _handler.playbackState
+          .firstWhere((s) => s.playing, orElse: () => _handler.playbackState.value)
+          .timeout(const Duration(seconds: 3), onTimeout: () => _handler.playbackState.value);
+      // Clear resolving flag AFTER player is confirmed playing
       _resolvingVideoId = null;
     } catch (e) {
       if (generation != _playGeneration) return;

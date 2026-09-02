@@ -17,6 +17,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   final List<MediaItem> _currentQueue = [];
   final List<int> _playableQueueIndices = [];
   final _log = AppLogger('AudioHandler');
+  
+  /// Completes when AudioSession is fully configured — awaited before first setAudioSource.
+  late final Future<void> _audioSessionReady;
 
   double _userVolume = 1.0;
   bool _isFadingOut = false;
@@ -58,6 +61,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   }
 
   MelodriftAudioHandler() {
+    _audioSessionReady = _initAudioSession();
     _init();
   }
 
@@ -67,7 +71,6 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
 
   void _init() {
     _playlist = ConcatenatingAudioSource(children: []);
-    _initAudioSession();
     _initEqualizer();
     // Load cached preferences once at startup
     reloadPreferences();
@@ -521,6 +524,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         ..addAll(playable.queueIndices);
 
       final wasPlaying = _player.playing;
+      // Ensure AudioSession is fully configured before first setAudioSource call
+      await _audioSessionReady;
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
@@ -642,7 +647,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     _queueHash = _generateQueueHash(updatedQueue);
   }
 
-  void _initAudioSession() async {
+  Future<void> _initAudioSession() async {
     try {
       if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
         final session = await AudioSession.instance;
