@@ -632,8 +632,9 @@ class MusicRepositoryImpl implements MusicRepository {
         final decoded = jsonDecode(cachedStr) as Map<String, dynamic>;
         final cachedData = _homeDataFromJson(decoded);
 
-        // If stale cache has junk/empty albums (< 3 songs) or old small count (< 50 albums), invalidate and fetch fresh
+        // If stale cache has junk/empty albums (< 3 songs) or old small count (< 50 albums) or kpop tile, invalidate and fetch fresh
         final hasJunkAlbums = cachedData.newReleases.length < 50 ||
+            cachedData.moods.any((m) => m.id.toLowerCase() == 'kpop') ||
             cachedData.albumsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample') || a.title.toLowerCase().contains('testing')) ||
             cachedData.newReleases.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer') || a.title.toLowerCase().contains('sample')) ||
             cachedData.featuredPlaylistsForYou.any((a) => a.tracks.length < 3 || a.title.toLowerCase().contains('trailer'));
@@ -1423,7 +1424,6 @@ class MusicRepositoryImpl implements MusicRepository {
         MoodCategory(id: 'focus', title: 'Focus & Study'),
         MoodCategory(id: 'rock', title: 'Rock & Metal'),
         MoodCategory(id: 'sufi', title: 'Sufi & Ghazals'),
-        MoodCategory(id: 'kpop', title: 'K-Pop & J-Pop'),
       ],
       listenAgain: listenAgain,
       recommendedArtists: recommendedArtists,

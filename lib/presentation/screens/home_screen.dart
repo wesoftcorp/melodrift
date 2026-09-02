@@ -158,8 +158,6 @@ const kLanguageOptions = [
   'Odia',
   'Nepali',
   'Spanish',
-  'Korean',
-  'Japanese',
 ];
 
 
