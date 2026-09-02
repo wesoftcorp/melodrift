@@ -152,196 +152,210 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> with SingleTickerPr
 
           // 3. Sliding tab panel (LYRICS & QUEUE) — Anchored cleanly to bottom
           Positioned.fill(
-            child: DraggableScrollableSheet(
-              controller: _sheetController,
-              initialChildSize: 0.08,
-              minChildSize: 0.08,
-              maxChildSize: 0.88,
-              snap: true,
-              snapSizes: const [0.08, 0.88],
-              builder: (context, sheetScrollController) {
-                return RepaintBoundary(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHigh.withAlpha(245),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(140),
-                          blurRadius: 30,
-                          offset: const Offset(0, -6),
+            child: LayoutBuilder(
+              builder: (context, rootConstraints) {
+                final screenH = rootConstraints.maxHeight > 0
+                    ? rootConstraints.maxHeight
+                    : MediaQuery.of(context).size.height;
+                final bottomPadding = MediaQuery.of(context).padding.bottom;
+                // Min height dynamically sized for handle + safe area with zero overflow
+                final minSize = ((64.0 + bottomPadding) / (screenH > 0 ? screenH : 800)).clamp(0.07, 0.16);
+
+                return DraggableScrollableSheet(
+                  controller: _sheetController,
+                  initialChildSize: minSize,
+                  minChildSize: minSize,
+                  maxChildSize: 0.88,
+                  snap: true,
+                  snapSizes: [minSize, 0.88],
+                  builder: (context, sheetScrollController) {
+                    return RepaintBoundary(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHigh.withAlpha(245),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withAlpha(140),
+                              blurRadius: 30,
+                              offset: const Offset(0, -6),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: SafeArea(
-                          top: false,
-                          bottom: true,
-                          child: Column(
-                            children: [
-                              // ── Drag handle & title ──────────────────────
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () async {
-                                  if (_sheetController.isAttached) {
-                                    final isExpanded = _sheetController.size > 0.5;
-                                    await _sheetController.animateTo(
-                                      isExpanded ? 0.08 : 0.88,
-                                      duration: const Duration(milliseconds: 300),
-                                      curve: Curves.easeOutCubic,
-                                    );
-                                  }
-                                },
-                                // Vertical drag on handle directly drives the sheet
-                                onVerticalDragUpdate: (details) {
-                                  if (_sheetController.isAttached) {
-                                    final screenH = MediaQuery.of(context).size.height;
-                                    final delta = details.primaryDelta ?? 0;
-                                    final newSize = _sheetController.size - (delta / screenH);
-                                    _sheetController.jumpTo(newSize.clamp(0.08, 0.88));
-                                  }
-                                },
-                                onVerticalDragEnd: (details) {
-                                  if (_sheetController.isAttached) {
-                                    final velocity = details.primaryVelocity ?? 0;
-                                    double target;
-                                    if (velocity > 400) {
-                                      target = 0.08; // fast swipe down → collapse
-                                    } else if (velocity < -400) {
-                                      target = 0.88; // fast swipe up → expand
-                                    } else {
-                                      // snap to nearest anchor
-                                      target = _sheetController.size > 0.48 ? 0.88 : 0.08;
-                                    }
-                                    _sheetController.animateTo(
-                                      target,
-                                      duration: const Duration(milliseconds: 280),
-                                      curve: Curves.easeOutCubic,
-                                    );
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                            child: SafeArea(
+                              top: false,
+                              bottom: true,
+                              child: LayoutBuilder(
+                                builder: (context, sheetConstraints) {
+                                  final isExpanded = sheetConstraints.maxHeight > 130;
+
+                                  return Column(
                                     children: [
-                                      // Pill handle
-                                      Container(
-                                        width: 42,
-                                        height: 5,
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
-                                          borderRadius: BorderRadius.circular(2.5),
+                                      // ── Drag handle & title ──────────────────────
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () async {
+                                          if (_sheetController.isAttached) {
+                                            final isExp = _sheetController.size > 0.45;
+                                            await _sheetController.animateTo(
+                                              isExp ? minSize : 0.88,
+                                              duration: const Duration(milliseconds: 300),
+                                              curve: Curves.easeOutCubic,
+                                            );
+                                          }
+                                        },
+                                        // Vertical drag on handle directly drives the sheet
+                                        onVerticalDragUpdate: (details) {
+                                          if (_sheetController.isAttached) {
+                                            final delta = details.primaryDelta ?? 0;
+                                            final newSize = _sheetController.size - (delta / screenH);
+                                            _sheetController.jumpTo(newSize.clamp(minSize, 0.88));
+                                          }
+                                        },
+                                        onVerticalDragEnd: (details) {
+                                          if (_sheetController.isAttached) {
+                                            final velocity = details.primaryVelocity ?? 0;
+                                            double target;
+                                            if (velocity > 400) {
+                                              target = minSize; // fast swipe down → collapse
+                                            } else if (velocity < -400) {
+                                              target = 0.88; // fast swipe up → expand
+                                            } else {
+                                              // snap to nearest anchor
+                                              target = _sheetController.size > 0.45 ? 0.88 : minSize;
+                                            }
+                                            _sheetController.animateTo(
+                                              target,
+                                              duration: const Duration(milliseconds: 280),
+                                              curve: Curves.easeOutCubic,
+                                            );
+                                          }
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Pill handle
+                                              Container(
+                                                width: 42,
+                                                height: 5,
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.4),
+                                                  borderRadius: BorderRadius.circular(2.5),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Text(
+                                                    'Lyrics & Queue',
+                                                    style: AppTextStyles.titleSmall.copyWith(
+                                                      color: theme.colorScheme.onSurface,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  ListenableBuilder(
+                                                    listenable: _sheetController,
+                                                    builder: (context, _) {
+                                                      final isExp = _sheetController.isAttached && _sheetController.size > 0.45;
+                                                      return Icon(
+                                                        isExp ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                                                        color: theme.colorScheme.onSurfaceVariant,
+                                                        size: 24,
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Lyrics & Queue',
-                                            style: AppTextStyles.titleSmall.copyWith(
-                                              color: theme.colorScheme.onSurface,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          ListenableBuilder(
-                                            listenable: _sheetController,
-                                            builder: (context, _) {
-                                              final isExp = _sheetController.isAttached && _sheetController.size > 0.5;
-                                              return Icon(
-                                                isExp ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
-                                                color: theme.colorScheme.onSurfaceVariant,
-                                                size: 26,
+
+                                      // ── TabBar & Content (rendered only when expanded) ──
+                                      if (isExpanded) ...[
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.translucent,
+                                          onVerticalDragUpdate: (details) {
+                                            if (_sheetController.isAttached) {
+                                              final delta = details.primaryDelta ?? 0;
+                                              final newSize = _sheetController.size - (delta / screenH);
+                                              _sheetController.jumpTo(newSize.clamp(minSize, 0.88));
+                                            }
+                                          },
+                                          onVerticalDragEnd: (details) {
+                                            if (_sheetController.isAttached) {
+                                              final velocity = details.primaryVelocity ?? 0;
+                                              double target;
+                                              if (velocity > 400) {
+                                                target = minSize;
+                                              } else if (velocity < -400) {
+                                                target = 0.88;
+                                              } else {
+                                                target = _sheetController.size > 0.45 ? 0.88 : minSize;
+                                              }
+                                              _sheetController.animateTo(
+                                                target,
+                                                duration: const Duration(milliseconds: 280),
+                                                curve: Curves.easeOutCubic,
                                               );
+                                            }
+                                          },
+                                          child: TabBar(
+                                            controller: _sheetTabController,
+                                            onTap: (index) {
+                                              ref.read(playerSelectedTabProvider.notifier).state = index;
                                             },
+                                            labelColor: theme.colorScheme.primary,
+                                            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                                            indicatorColor: theme.colorScheme.primary,
+                                            indicatorSize: TabBarIndicatorSize.tab,
+                                            dividerColor: Colors.transparent,
+                                            labelStyle: AppTextStyles.monoSectionHeader,
+                                            tabs: const [
+                                              Tab(text: 'QUEUE'),
+                                              Tab(text: 'LYRICS'),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        ),
+
+                                        // ── Tab Content View (Expanded to fill bottom 100%) ──
+                                        Expanded(
+                                          child: TabBarView(
+                                            controller: _sheetTabController,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                            children: [
+                                              _buildQueueTab(sheetScrollController),
+                                              Consumer(
+                                                builder: (ctx, cRef, _) {
+                                                  final position = cRef.watch(currentPositionProvider);
+                                                  return LyricsView(
+                                                    song: song,
+                                                    position: position,
+                                                    scrollController: sheetScrollController,
+                                                  );
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ],
-                                  ),
-                                ),
-                              ),
-
-                              // ── TabBar — also drags the sheet ────────────
-                              GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onVerticalDragUpdate: (details) {
-                                  if (_sheetController.isAttached) {
-                                    final screenH = MediaQuery.of(context).size.height;
-                                    final delta = details.primaryDelta ?? 0;
-                                    final newSize = _sheetController.size - (delta / screenH);
-                                    _sheetController.jumpTo(newSize.clamp(0.08, 0.88));
-                                  }
+                                  );
                                 },
-                                onVerticalDragEnd: (details) {
-                                  if (_sheetController.isAttached) {
-                                    final velocity = details.primaryVelocity ?? 0;
-                                    double target;
-                                    if (velocity > 400) {
-                                      target = 0.08;
-                                    } else if (velocity < -400) {
-                                      target = 0.88;
-                                    } else {
-                                      target = _sheetController.size > 0.48 ? 0.88 : 0.08;
-                                    }
-                                    _sheetController.animateTo(
-                                      target,
-                                      duration: const Duration(milliseconds: 280),
-                                      curve: Curves.easeOutCubic,
-                                    );
-                                  }
-                                },
-                                child: TabBar(
-                                  controller: _sheetTabController,
-                                  onTap: (index) {
-                                    ref.read(playerSelectedTabProvider.notifier).state = index;
-                                  },
-                                  labelColor: theme.colorScheme.primary,
-                                  unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                                  indicatorColor: theme.colorScheme.primary,
-                                  indicatorSize: TabBarIndicatorSize.tab,
-                                  dividerColor: Colors.transparent,
-                                  labelStyle: AppTextStyles.monoSectionHeader,
-                                  tabs: const [
-                                    Tab(text: 'QUEUE'),
-                                    Tab(text: 'LYRICS'),
-                                  ],
-                                ),
                               ),
-
-                              // ── Tab Content View (Expanded to fill bottom 100%) ──
-                              Expanded(
-                                child: TabBarView(
-                                  controller: _sheetTabController,
-                                  // Disable TabBarView's own swipe so it doesn't
-                                  // fight vertical drags passed to the sheet
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  children: [
-                                    _buildQueueTab(sheetScrollController),
-                                    // Consumer isolates position rebuilds to LyricsView only
-                                    Consumer(
-                                      builder: (ctx, cRef, _) {
-                                        final position = cRef.watch(currentPositionProvider);
-                                        return LyricsView(
-                                          song: song,
-                                          position: position,
-                                          scrollController: sheetScrollController,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),
