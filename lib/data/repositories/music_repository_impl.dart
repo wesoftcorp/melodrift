@@ -721,28 +721,68 @@ class MusicRepositoryImpl implements MusicRepository {
       return unique.values.toList();
     }
 
-    Future<List<Album>> fetchJioAlbums(String q) async {
-      try {
-        final tracks = await jioSaavn.search(q, limit: 30).timeout(const Duration(seconds: 4), onTimeout: () => []);
-        final Map<String, Album> unique = {};
-        for (final t in tracks) {
-          final albumName = t.album.isNotEmpty ? t.album : t.title;
-          if (!unique.containsKey(albumName) && t.artworkUrl.isNotEmpty) {
-            unique[albumName] = Album(
-              id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
-              title: albumName,
-              artist: t.artist,
-              artworkUrl: t.artworkUrl,
-              tracks: [],
-              songCount: 1,
-              source: 'JioSaavn',
-            );
-          }
+    List<Song> deduplicateSongs(List<Song> songs) {
+      final seenIds = <String>{};
+      final seenKeys = <String>{};
+      final result = <Song>[];
+
+      for (final s in songs) {
+        final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+        final key = _canonicalTrackKey(s);
+
+        if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
+          seenIds.add(s.id);
+          seenIds.add(cleanId);
+          seenKeys.add(key);
+          result.add(s);
         }
-        return unique.values.toList();
-      } catch (_) {
-        return [];
       }
+      return result;
+    }
+
+    bool isJunkAlbum(String title) {
+      final l = title.toLowerCase();
+      return l.contains('trailer') ||
+          l.contains('teaser') ||
+          l.contains('sample') ||
+          l.contains('testing') ||
+          l.contains('promo') ||
+          l.contains('dialogue') ||
+          l.contains('preview') ||
+          l.contains('motion poster') ||
+          l.contains('test track') ||
+          l.length < 2;
+    }
+
+    Future<List<Album>> fetchCuratedAlbums(List<String> movieTitles) async {
+      final List<Album> result = [];
+      try {
+        final albumFutures = movieTitles.map((title) async {
+          final tracks = await fetchJio(title, limit: 10);
+          final validTracks = deduplicateSongs(tracks.where((t) => !isJunkAlbum(t.title)).toList());
+          if (validTracks.isNotEmpty) {
+            final lead = validTracks.first;
+            final album = Album(
+              id: 'album_${lead.id}',
+              title: lead.album.isNotEmpty && !isJunkAlbum(lead.album) ? lead.album : title,
+              artist: lead.artist,
+              artworkUrl: lead.artworkUrl,
+              tracks: validTracks,
+              songCount: validTracks.length,
+              source: lead.source,
+            );
+            _albumCache[album.id] = album;
+            _albumCache[album.title.toLowerCase()] = album;
+            return album;
+          }
+          return null;
+        });
+        final fetched = await Future.wait(albumFutures);
+        for (final a in fetched) {
+          if (a != null) result.add(a);
+        }
+      } catch (_) {}
+      return result;
     }
 
     // ── Rotating query pools (1 pool entry selected per day) ─────────────────
@@ -796,22 +836,6 @@ class MusicRepositoryImpl implements MusicRepository {
       'retro bollywood udit narayan kavita krishnamurthy',
     ]);
 
-    final albumsQuery = pick([
-      'superhit album songs$langSuffix',
-      'bollywood album hits 2024$langSuffix',
-      'top album releases india$langSuffix',
-      'best album songs hindi$langSuffix',
-      'popular album songs india$langSuffix',
-    ]);
-
-    final playlistsQuery = pick([
-      'party dance mix playlists$langSuffix',
-      'bollywood party playlist 2024$langSuffix',
-      'top playlist songs india$langSuffix',
-      'dance hits playlist hindi$langSuffix',
-      'club mix playlist india$langSuffix',
-    ]);
-
     final soundCloudQuery = pick([
       'lofi hindi chill beats relaxing',
       'lofi bollywood remix slow chill',
@@ -857,7 +881,10 @@ class MusicRepositoryImpl implements MusicRepository {
         'top hindi songs popular chart $langSuffix',
         'viral songs popular weekly $langSuffix',
       ], limitEach: 50).then((res) => quickPicks = res),
-      fetchJioAlbums('latest releases 2024$langSuffix').then((res) => newReleases = res),
+      fetchCuratedAlbums([
+        'Stree 2', 'Fighter', 'Animal', 'Dunki', 'Jawan', 'Brahmastra', 'Pathaan',
+        'Tu Jhoothi Main Makkaar', 'Gadar 2', 'Rocky Aur Rani Kii Prem Kahaani',
+      ]).then((res) => newReleases = res),
       fetchMultiJio([
         chartsQuery,
         'top 50 hindi weekly bollywood',
@@ -888,8 +915,14 @@ class MusicRepositoryImpl implements MusicRepository {
         'old hindi songs golden era nostalgic',
         'retro evergreen bollywood melodies',
       ], limitEach: 50).then((res) => forgottenFavorites = res),
-      fetchJioAlbums(albumsQuery).then((res) => albumsForYou = res),
-      fetchJioAlbums(playlistsQuery).then((res) => featuredPlaylistsForYou = res),
+      fetchCuratedAlbums([
+        'Aashiqui 2', 'Kabir Singh', 'Rockstar', 'Yeh Jawaani Hai Deewani', 'Shershaah',
+        'Ae Dil Hai Mushkil', 'Kalank', 'Luka Chuppi', 'Jab We Met', 'Dilwale',
+      ]).then((res) => albumsForYou = res),
+      fetchCuratedAlbums([
+        'Badshah Party Hits', 'Honey Singh Hits', 'Punjabi Wedding Dhol',
+        'Arijit Singh Romantic', 'Bollywood Dance Party', 'Hindi Lo-Fi Hits',
+      ]).then((res) => featuredPlaylistsForYou = res),
       Future(() async {
         final scTracks = await fetchSoundCloud(soundCloudQuery);
         final jioTracks = await fetchMultiJio([
@@ -1132,26 +1165,6 @@ class MusicRepositoryImpl implements MusicRepository {
       }),
     ]);
 
-    // ── Canonical Song Deduplication Engine ──────────────────────────────────
-    List<Song> deduplicateSongs(List<Song> songs) {
-      final seenIds = <String>{};
-      final seenKeys = <String>{};
-      final result = <Song>[];
-
-      for (final s in songs) {
-        final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
-        final key = _canonicalTrackKey(s);
-
-        if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
-          seenIds.add(s.id);
-          seenIds.add(cleanId);
-          seenKeys.add(key);
-          result.add(s);
-        }
-      }
-      return result;
-    }
-
     // ── Helper backfill function to guarantee at least minCount unique songs per section ──
     List<Song> ensureCount(List<Song> target, List<Song> donorPool, {int minCount = 100}) {
       final deduped = deduplicateSongs(target);
@@ -1200,19 +1213,34 @@ class MusicRepositoryImpl implements MusicRepository {
 
     List<Album> createAlbumsFromSongs(List<Song> songs) {
       final Map<String, List<Song>> byAlbum = {};
-      for (final s in songs) {
-        final albumName = s.album.isNotEmpty ? s.album : s.title;
-        byAlbum.putIfAbsent(albumName, () => []).add(s);
+      for (final s in deduplicateSongs(songs)) {
+        final albumName = s.album.isNotEmpty && !isJunkAlbum(s.album)
+            ? s.album
+            : (s.title.isNotEmpty && !isJunkAlbum(s.title) ? s.title : '');
+        if (albumName.isNotEmpty && !isJunkAlbum(s.title)) {
+          byAlbum.putIfAbsent(albumName, () => []).add(s);
+        }
       }
-      return byAlbum.entries.take(15).map((e) => Album(
-        id: 'album_${e.value.first.id}',
-        title: e.key,
-        artist: e.value.first.artist,
-        artworkUrl: e.value.first.artworkUrl,
-        tracks: e.value,
-        songCount: e.value.length,
-        source: e.value.first.source,
-      )).toList();
+      final result = <Album>[];
+      for (final entry in byAlbum.entries) {
+        final albumTracks = entry.value;
+        if (albumTracks.isNotEmpty) {
+          final lead = albumTracks.first;
+          final album = Album(
+            id: 'album_${lead.id}',
+            title: entry.key,
+            artist: lead.artist,
+            artworkUrl: lead.artworkUrl,
+            tracks: albumTracks,
+            songCount: albumTracks.length,
+            source: lead.source,
+          );
+          _albumCache[album.id] = album;
+          _albumCache[album.title.toLowerCase()] = album;
+          result.add(album);
+        }
+      }
+      return result.take(15).toList();
     }
 
     if (newReleases.isEmpty) {
@@ -1249,17 +1277,14 @@ class MusicRepositoryImpl implements MusicRepository {
       final key = getCleanArtistKey(rawArtist);
       if (key.isNotEmpty && !seenArtistKeys.contains(key)) {
         seenArtistKeys.add(key);
-        final canonicalName = getCleanArtistName(rawArtist);
-        final portrait = getArtistPortrait(rawArtist, s.artworkUrl);
         recommendedArtists.add(Artist(
           id: 'artist_${s.id}',
-          name: canonicalName,
-          artworkUrl: portrait,
+          name: rawArtist,
+          artworkUrl: s.artworkUrl,
           subscribers: 'Artist',
-          isVerified: true,
+          isVerified: false,
         ));
       }
-      if (recommendedArtists.length >= 25) break;
     }
 
     final homeData = HomeData(
@@ -1323,10 +1348,26 @@ class MusicRepositoryImpl implements MusicRepository {
   @override
   Future<Album> getAlbumDetails(String albumId, {String? fallbackTitle}) async {
     final cleanId = albumId.startsWith('jiosaavn_') ? albumId.substring('jiosaavn_'.length) : albumId;
-    final cachedAlbum = _albumCache[albumId] ?? _albumCache[cleanId];
+    final cachedAlbum = _albumCache[albumId] ?? _albumCache[cleanId] ?? (fallbackTitle != null ? _albumCache[fallbackTitle.toLowerCase()] : null);
+    if (cachedAlbum != null && cachedAlbum.tracks.isNotEmpty) {
+      return cachedAlbum;
+    }
+
+    bool isJunk(String title) {
+      final l = title.toLowerCase();
+      return l.contains('trailer') ||
+          l.contains('teaser') ||
+          l.contains('sample') ||
+          l.contains('testing') ||
+          l.contains('promo') ||
+          l.contains('dialogue') ||
+          l.contains('preview') ||
+          l.length < 2;
+    }
+
     final jioSaavn = getIt<JioSaavnService>();
     final tracks = await jioSaavn.browse(cleanId);
-    final List<Song> decoratedTracks = tracks.map((t) => Song(
+    final List<Song> decoratedTracks = tracks.where((t) => !isJunk(t.title)).map((t) => Song(
       id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
       title: t.title,
       artist: t.artist,
@@ -1341,13 +1382,14 @@ class MusicRepositoryImpl implements MusicRepository {
     if (decoratedTracks.isEmpty) {
       final searchKey = fallbackTitle?.trim().isNotEmpty == true
           ? fallbackTitle!.trim()
-          : (cachedAlbum?.title.isNotEmpty == true ? cachedAlbum!.title : cleanId);
+          : (cachedAlbum?.title.isNotEmpty == true ? cachedAlbum!.title : cleanId.replaceAll('album_', ''));
 
       try {
         final searchTracks = await jioSaavn.search(searchKey, limit: 50);
         final cleanKeyLower = searchKey.toLowerCase();
         
         final matched = searchTracks.where((t) {
+          if (isJunk(t.title) || isJunk(t.album)) return false;
           final albLower = t.album.toLowerCase();
           final titleLower = t.title.toLowerCase();
           return albLower.contains(cleanKeyLower) ||
@@ -1355,7 +1397,7 @@ class MusicRepositoryImpl implements MusicRepository {
               t.extras['album_id']?.toString() == cleanId;
         }).toList();
 
-        final toAdd = matched.isNotEmpty ? matched : searchTracks.take(15).toList();
+        final toAdd = matched.isNotEmpty ? matched : searchTracks.where((t) => !isJunk(t.title)).take(15).toList();
         final Set<String> seenIds = {};
         for (final t in toAdd) {
           final songId = t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}';
@@ -1376,11 +1418,11 @@ class MusicRepositoryImpl implements MusicRepository {
       } catch (_) {}
     }
 
-    return Album(
+    final finalAlbum = Album(
       id: albumId,
       title: decoratedTracks.isNotEmpty
           ? decoratedTracks.first.album
-          : (cachedAlbum?.title ?? fallbackTitle ?? 'JioSaavn Album'),
+          : (cachedAlbum?.title ?? fallbackTitle ?? 'Bollywood Album'),
       artist: decoratedTracks.isNotEmpty
           ? decoratedTracks.first.artist
           : (cachedAlbum?.artist ?? 'Various Artists'),
@@ -1391,6 +1433,10 @@ class MusicRepositoryImpl implements MusicRepository {
       songCount: decoratedTracks.length,
       source: 'JioSaavn',
     );
+
+    _albumCache[albumId] = finalAlbum;
+    _albumCache[finalAlbum.title.toLowerCase()] = finalAlbum;
+    return finalAlbum;
   }
 
   @override
