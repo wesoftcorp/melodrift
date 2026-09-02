@@ -1667,9 +1667,42 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getMoodCategorySongs(String moodId, String moodTitle, {int limit = 100}) async {
-    final cleanId = moodId.toLowerCase().trim();
+    final cleanId = moodId.toLowerCase().trim().replaceAll('-', '_').replaceAll(' ', '_');
     final cleanTitle = moodTitle.toLowerCase().trim();
     final jioSaavn = getIt<JioSaavnService>();
+
+    String matchedCategory = cleanId;
+    if (cleanId.contains('devotional') || cleanTitle.contains('devotional') || cleanTitle.contains('bhakti')) {
+      matchedCategory = 'devotional';
+    } else if (cleanId.contains('rock') || cleanTitle.contains('rock') || cleanTitle.contains('metal')) {
+      matchedCategory = 'rock';
+    } else if (cleanId.contains('sufi') || cleanTitle.contains('sufi') || cleanTitle.contains('ghazal')) {
+      matchedCategory = 'sufi';
+    } else if (cleanId.contains('punjabi') || cleanTitle.contains('punjabi') || cleanTitle.contains('bhangra')) {
+      matchedCategory = 'punjabi';
+    } else if (cleanId.contains('party') || cleanTitle.contains('party') || cleanTitle.contains('dance')) {
+      matchedCategory = 'party';
+    } else if (cleanId.contains('romance') || cleanTitle.contains('romance') || cleanTitle.contains('love')) {
+      matchedCategory = 'romance';
+    } else if (cleanId.contains('workout') || cleanTitle.contains('workout') || cleanTitle.contains('gym')) {
+      matchedCategory = 'workout';
+    } else if (cleanId.contains('retro') || cleanTitle.contains('retro') || cleanTitle.contains('90s') || cleanTitle.contains('old')) {
+      matchedCategory = 'retro';
+    } else if (cleanId.contains('chill') || cleanTitle.contains('chill') || cleanTitle.contains('lofi') || cleanTitle.contains('relax')) {
+      matchedCategory = 'chill';
+    } else if (cleanId.contains('edm') || cleanTitle.contains('edm') || cleanTitle.contains('electronic')) {
+      matchedCategory = 'edm';
+    } else if (cleanId.contains('acoustic') || cleanTitle.contains('acoustic') || cleanTitle.contains('unplugged')) {
+      matchedCategory = 'acoustic';
+    } else if (cleanId.contains('hiphop') || cleanTitle.contains('hip hop') || cleanTitle.contains('rap') || cleanId.contains('hip_hop')) {
+      matchedCategory = 'hiphop';
+    } else if (cleanId.contains('focus') || cleanTitle.contains('focus') || cleanTitle.contains('study')) {
+      matchedCategory = 'focus';
+    } else if (cleanId.contains('bollywood') || cleanTitle.contains('bollywood')) {
+      matchedCategory = 'bollywood';
+    } else if (cleanId.contains('trending') || cleanTitle.contains('trending')) {
+      matchedCategory = 'trending';
+    }
 
     final Map<String, List<String>> queryMap = {
       'trending': [
@@ -1766,6 +1799,8 @@ class MusicRepositoryImpl implements MusicRepository {
         'Bhakti Sagar',
         'Aarti Kunj Bihari Ki',
         'Gulshan Kumar Bhakti',
+        'Anuradha Paudwal Bhajans',
+        'Gayatri Mantra',
       ],
       'focus': [
         'Deep Focus Study',
@@ -1797,7 +1832,7 @@ class MusicRepositoryImpl implements MusicRepository {
       ],
     };
 
-    final queries = queryMap[cleanId] ?? [
+    final queries = queryMap[matchedCategory] ?? [
       '$cleanTitle Hindi',
       'Best of $cleanTitle',
       '$cleanTitle superhits',
@@ -1819,42 +1854,82 @@ class MusicRepositoryImpl implements MusicRepository {
           l.length < 2;
     }
 
-    try {
-      final searchFutures = queries.map((q) async {
-        try {
-          final tracks = await jioSaavn.search(q, limit: 30).timeout(const Duration(seconds: 6), onTimeout: () => []);
-          return tracks.map((t) => Song(
-            id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
-            title: t.title,
-            artist: t.artist,
-            album: t.album,
-            duration: t.duration,
-            artworkUrl: t.artworkUrl,
-            videoId: t.id,
-            source: 'JioSaavn',
-          )).toList();
-        } catch (_) {
-          return <Song>[];
-        }
-      });
+    // 1. Instant hydration from in-memory HomeFeed cache for 0ms loading
+    for (final feed in _homeFeedMemoryCache.values) {
+      List<Song> sourceSongs = [];
+      if (matchedCategory == 'devotional') {
+        sourceSongs = feed.devotionalBhakti;
+      } else if (matchedCategory == 'sufi') {
+        sourceSongs = feed.sufiGhazals;
+      } else if (matchedCategory == 'retro') {
+        sourceSongs = feed.retro90s;
+      } else if (matchedCategory == 'punjabi') {
+        sourceSongs = feed.punjabiHits;
+      } else if (matchedCategory == 'party') {
+        sourceSongs = feed.partyDanceMix;
+      } else if (matchedCategory == 'romance') {
+        sourceSongs = feed.romanticMelodies;
+      } else if (matchedCategory == 'bollywood') {
+        sourceSongs = feed.hindiHits;
+      } else if (matchedCategory == 'trending') {
+        sourceSongs = feed.trendingSongs;
+      } else if (matchedCategory == 'chill') {
+        sourceSongs = feed.soundCloudLounge;
+      }
 
-      final allResults = await Future.wait(searchFutures);
-      for (final list in allResults) {
-        for (final s in list) {
-          if (isJunk(s.title)) continue;
-          final key = _canonicalTrackKey(s);
-          final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
-          if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
-            seenIds.add(s.id);
-            seenIds.add(cleanId);
-            seenKeys.add(key);
-            result.add(s);
-          }
+      for (final s in sourceSongs) {
+        if (isJunk(s.title)) continue;
+        final key = _canonicalTrackKey(s);
+        final cleanSongId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+        if (!seenIds.contains(s.id) && !seenIds.contains(cleanSongId) && !seenKeys.contains(key)) {
+          seenIds.add(s.id);
+          seenIds.add(cleanSongId);
+          seenKeys.add(key);
+          result.add(s);
         }
       }
-    } catch (_) {}
+      if (result.length >= limit) break;
+    }
 
-    // Backfill if needed to guarantee at least 50–100+ songs
+    // 2. Fetch fresh parallel tracks if needed
+    if (result.length < limit) {
+      try {
+        final searchFutures = queries.map((q) async {
+          try {
+            final tracks = await jioSaavn.search(q, limit: 30).timeout(const Duration(seconds: 6), onTimeout: () => []);
+            return tracks.map((t) => Song(
+              id: t.id.startsWith('jiosaavn_') ? t.id : 'jiosaavn_${t.id}',
+              title: t.title,
+              artist: t.artist,
+              album: t.album,
+              duration: t.duration,
+              artworkUrl: t.artworkUrl,
+              videoId: t.id,
+              source: 'JioSaavn',
+            )).toList();
+          } catch (_) {
+            return <Song>[];
+          }
+        });
+
+        final allResults = await Future.wait(searchFutures);
+        for (final list in allResults) {
+          for (final s in list) {
+            if (isJunk(s.title)) continue;
+            final key = _canonicalTrackKey(s);
+            final cleanSongId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+            if (!seenIds.contains(s.id) && !seenIds.contains(cleanSongId) && !seenKeys.contains(key)) {
+              seenIds.add(s.id);
+              seenIds.add(cleanSongId);
+              seenKeys.add(key);
+              result.add(s);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback backfill if still under 50
     if (result.length < 50) {
       try {
         final fallbackTracks = await jioSaavn.search('$cleanTitle hits', limit: 50).timeout(const Duration(seconds: 5), onTimeout: () => []);
@@ -1871,10 +1946,10 @@ class MusicRepositoryImpl implements MusicRepository {
             source: 'JioSaavn',
           );
           final key = _canonicalTrackKey(s);
-          final cleanId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
-          if (!seenIds.contains(s.id) && !seenIds.contains(cleanId) && !seenKeys.contains(key)) {
+          final cleanSongId = s.id.startsWith('jiosaavn_') ? s.id.substring('jiosaavn_'.length) : s.id;
+          if (!seenIds.contains(s.id) && !seenIds.contains(cleanSongId) && !seenKeys.contains(key)) {
             seenIds.add(s.id);
-            seenIds.add(cleanId);
+            seenIds.add(cleanSongId);
             seenKeys.add(key);
             result.add(s);
           }
