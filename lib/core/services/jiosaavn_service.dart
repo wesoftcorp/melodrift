@@ -99,6 +99,20 @@ class JioSaavnService implements MusicProvider {
           artworkUrl = imageVal;
         }
 
+        String? streamUrl;
+        final downloadUrlsRaw = item['downloadUrl'] as List<dynamic>?;
+        if (downloadUrlsRaw != null && downloadUrlsRaw.isNotEmpty) {
+          final downloadUrls = downloadUrlsRaw
+              .whereType<Map<dynamic, dynamic>>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          final urlObj = downloadUrls.firstWhere(
+            (e) => e['quality'] == '320kbps',
+            orElse: () => downloadUrls.last,
+          );
+          streamUrl = urlObj['link'] as String? ?? urlObj['url'] as String?;
+        }
+
         tracks.add(MusicTrack(
           id: id,
           title: title,
@@ -109,6 +123,7 @@ class JioSaavnService implements MusicProvider {
           source: 'jiosaavn',
           extras: {
             'id': id,
+            if (streamUrl != null && streamUrl.isNotEmpty) 'streamUrl': streamUrl,
           },
         ));
       } catch (e) {

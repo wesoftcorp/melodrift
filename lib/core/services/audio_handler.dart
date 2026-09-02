@@ -25,13 +25,11 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   bool _isFadingOut = false;
   // Cached preference values — refreshed on demand, NOT re-read from disk every tick
   bool _crossfadeEnabled = false;
-  bool _gaplessEnabled = true;
 
   /// Reload preference cache — call this when settings change
   Future<void> reloadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _crossfadeEnabled = prefs.getBool('crossfade_enabled') ?? false;
-    _gaplessEnabled = prefs.getBool('gapless_playback') ?? true;
   }
 
   /// Fades the volume from current level to target level over a duration
@@ -506,6 +504,10 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
           mediaItem.add(newQueue.first);
         }
         
+        if (startPlaying && !_player.playing) {
+          await _player.play();
+        }
+
         _log.debug('Smart diff update completed. Current playlist length: ${_playlist.length}');
         return;
       } catch (e, stack) {
@@ -517,7 +519,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       _log.debug('Overwriting playlist with ${playable.items.length} playable items from ${newQueue.length} queued items, initialIndex: $initialIndex');
       // Use cached gapless preference — no disk I/O during queue sync
       _playlist = ConcatenatingAudioSource(
-        useLazyPreparation: _gaplessEnabled,
+        useLazyPreparation: false,
         children: playable.items.map(_createAudioSource).toList(),
       );
       final validQueueIndex = (initialIndex >= 0 && initialIndex < newQueue.length) ? initialIndex : playable.queueIndices.first;
@@ -532,10 +534,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
-        initialPosition: Duration.zero,
         preload: true,
       );
-      if (wasPlaying && !_player.playing) {
+      if (wasPlaying) {
         await _player.play();
       }
       

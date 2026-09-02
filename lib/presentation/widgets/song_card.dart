@@ -39,10 +39,8 @@ class SongCard extends ConsumerWidget {
 
     void onPlay() {
       final notifier = ref.read(playerStateProvider.notifier);
-      if (isCurrent && isPlaying) {
-        notifier.togglePlay();
-      } else if (isCurrent && !isPlaying) {
-        notifier.play();
+      if (isCurrentlyPlaying) {
+        notifier.pause();
       } else if (queue != null && queueIndex != null) {
         notifier.playQueue(queue!, initialIndex: queueIndex!);
       } else {

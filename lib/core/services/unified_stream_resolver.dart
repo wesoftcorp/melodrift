@@ -135,7 +135,10 @@ class UnifiedStreamResolver {
             );
             final match = findMatchingSaavnTrack(trackObj, saavnCandidates, threshold: 0.50);
             if (match != null) {
-              final saavnUrl = await _jioSaavn.getStreamUrl(match.id).timeout(const Duration(seconds: 4));
+              final directStreamUrl = match.extras['streamUrl'] as String?;
+              final saavnUrl = (directStreamUrl != null && directStreamUrl.isNotEmpty)
+                  ? directStreamUrl
+                  : await _jioSaavn.getStreamUrl(match.id).timeout(const Duration(seconds: 4));
               if (saavnUrl != null && saavnUrl.isNotEmpty) {
                 _log.info('Tier 3 SUCCESS: Matched JioSaavn 320kbps CDN for "${song.title}"');
                 final res = ResolvedStreamResult(
