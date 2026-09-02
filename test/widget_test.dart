@@ -82,7 +82,7 @@ class MockMelodriftAudioHandler extends BaseAudioHandler implements MelodriftAud
   Future<void> removeQueueItem(MediaItem mediaItem) async {}
 
   @override
-  Future<void> updateQueue(List<MediaItem> queue, {int initialIndex = 0}) async {
+  Future<void> updateQueue(List<MediaItem> queue, {int initialIndex = 0, bool startPlaying = false}) async {
     this.queue.add(queue);
   }
 

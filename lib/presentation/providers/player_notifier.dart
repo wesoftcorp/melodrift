@@ -550,22 +550,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       final mediaItem = _mapSongToMediaItem(song, streamUrl: streamUrl);
       _log.debug('updating queue with final media item: ${mediaItem.title}');
-      await _handler.updateQueue([mediaItem], initialIndex: 0);
+      // startPlaying:true ensures play() is called inside _syncPlaylist immediately
+      // after setAudioSource — no separate play() call needed, no race window.
+      await _handler.updateQueue([mediaItem], initialIndex: 0, startPlaying: true);
 
-      _log.debug('invoking handler.play()');
-      await _handler.play();
-      // Wait until the player confirms playing=true before clearing the resolving guard.
-      // This prevents the debounce from seeing playing=false during the brief
-      // transition between setAudioSource and the play command taking effect.
-      await _handler.playbackState
-          .firstWhere((s) => s.playing, orElse: () => _handler.playbackState.value)
-          .timeout(const Duration(seconds: 3), onTimeout: () => _handler.playbackState.value);
-      // Clear resolving flag AFTER player is confirmed playing
+      // By the time updateQueue returns, the player is playing (or an error occurred).
+      // Clear resolving guard and explicitly set state — the subscription won't
+      // refire automatically because the player is already in steady playing state.
       _resolvingVideoId = null;
-      _log.debug('handler.play() completed successfully');
+      if (mounted && generation == _playGeneration) {
+        state = state.copyWith(isLoading: false, isPlaying: true);
+      }
+      _log.debug('playSong completed successfully');
     } catch (e) {
       if (generation != _playGeneration) return; // stale, ignore
-      _log.error('Error calling handler.play(): $e', e);
+      _log.error('Error in playSong: $e', e);
       state = state.copyWith(isLoading: false, isPlaying: false);
     } finally {
       if (generation == _playGeneration) _resolvingVideoId = null;
@@ -638,14 +637,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      await _handler.updateQueue(mItems, initialIndex: targetIndex);
-      await _handler.play();
-      // Wait until player confirms playing=true before clearing the resolving guard
-      await _handler.playbackState
-          .firstWhere((s) => s.playing, orElse: () => _handler.playbackState.value)
-          .timeout(const Duration(seconds: 3), onTimeout: () => _handler.playbackState.value);
-      // Clear resolving flag AFTER player is confirmed playing
+      // startPlaying:true ensures play() is called inside _syncPlaylist immediately
+      // after setAudioSource — no separate play() call, no race window.
+      await _handler.updateQueue(mItems, initialIndex: targetIndex, startPlaying: true);
+
+      // Clear resolving guard and set state — subscription won't refire automatically.
       _resolvingVideoId = null;
+      if (mounted && generation == _playGeneration) {
+        state = state.copyWith(isLoading: false, isPlaying: true);
+      }
     } catch (e) {
       if (generation != _playGeneration) return;
       _log.error('Error in playQueue: $e', e);

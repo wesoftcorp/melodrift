@@ -336,9 +336,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   }
 
   @override
-  Future<void> updateQueue(List<MediaItem> queue, {int initialIndex = 0}) async {
+  Future<void> updateQueue(List<MediaItem> queue, {int initialIndex = 0, bool startPlaying = false}) async {
     this.queue.add(queue);
-    await _syncPlaylist(queue, initialIndex: initialIndex);
+    await _syncPlaylist(queue, initialIndex: initialIndex, startPlaying: startPlaying);
   }
 
   AudioSource _createAudioSource(MediaItem item) {
@@ -403,8 +403,8 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
   }
 
 
-  Future<void> _syncPlaylist(List<MediaItem> newQueue, {int initialIndex = 0}) async {
-    _log.debug('_syncPlaylist invoked with ${newQueue.length} items (initialIndex: $initialIndex)');
+  Future<void> _syncPlaylist(List<MediaItem> newQueue, {int initialIndex = 0, bool startPlaying = false}) async {
+    _log.debug('_syncPlaylist invoked with ${newQueue.length} items (initialIndex: $initialIndex, startPlaying: $startPlaying)');
     
     // Check if queue has actually changed using hash
     final newHash = _generateQueueHash(newQueue);
@@ -413,6 +413,9 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       final playerIndex = _playerIndexForQueueIndex(initialIndex);
       if (playerIndex != null) {
         await _player.seek(Duration.zero, index: playerIndex);
+      }
+      if (startPlaying && !_player.playing) {
+        await _player.play();
       }
       return;
     }
@@ -523,7 +526,7 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
         ..clear()
         ..addAll(playable.queueIndices);
 
-      final wasPlaying = _player.playing;
+      final wasPlaying = _player.playing || startPlaying;
       // Ensure AudioSession is fully configured before first setAudioSource call
       await _audioSessionReady;
       await _player.setAudioSource(
