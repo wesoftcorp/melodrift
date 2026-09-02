@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -114,10 +115,6 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
     // 2. Listen to index changes to update mediaItem
     _player.currentIndexStream.listen((index) async {
       _log.debug('Current index changed to: $index');
-      if (_player.processingState == ProcessingState.idle) {
-        _log.debug('Player is idle, ignoring index change to prevent song selection reset.');
-        return;
-      }
       final queueIndex = _queueIndexForPlayerIndex(index);
       if (queueIndex != null && queue.value.isNotEmpty && queueIndex < queue.value.length) {
         mediaItem.add(queue.value[queueIndex]);
@@ -531,12 +528,19 @@ class MelodriftAudioHandler extends BaseAudioHandler with QueueHandler {
       final wasPlaying = _player.playing || startPlaying;
       // Ensure AudioSession is fully configured before first setAudioSource call
       await _audioSessionReady;
+      
+      // Set playWhenReady=true before/with setAudioSource so ExoPlayer and Windows Media Foundation
+      // start active audio streaming immediately upon first buffer byte rather than sitting paused.
+      if (wasPlaying) {
+        unawaited(_player.play());
+      }
+
       await _player.setAudioSource(
         _playlist,
         initialIndex: validPlayerIndex == -1 ? 0 : validPlayerIndex,
         preload: true,
       );
-      if (wasPlaying) {
+      if (wasPlaying && !_player.playing) {
         await _player.play();
       }
       
